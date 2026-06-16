@@ -100,13 +100,10 @@ Generated archive:
 ../tron-vanity-gpu-core-github-ready-20260617.tar.gz
 ```
 
-SHA-256:
-
-```text
-1a615956d56f43c9b23574db811c3efb84e8283d0e2d68f8021fd3f78d6116a2
-```
-
 The archive excludes generated validation reports, Python caches, build outputs, and secret-like filenames.
+
+The archive SHA-256 is recorded outside this repository in the local server `说明.md` after packaging.
+Do not store the archive hash inside this repository because the archive includes this manifest and would become self-referential.
 
 ## RunPod First Deployment
 
