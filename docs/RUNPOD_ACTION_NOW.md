@@ -96,6 +96,8 @@ Then inspect locally from the repository root:
 scripts/inspect_runpod_result.py runpod_validate_response.json --mode validate_vectors
 ```
 
+For file naming and local evidence handling, use `docs/RUNPOD_RESPONSE_INTAKE.md`.
+
 Do not paste API keys, tokens, private keys, secrets, or `.env` contents into files.
 
 ## Next Gate

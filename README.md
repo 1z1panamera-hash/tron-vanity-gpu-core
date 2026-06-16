@@ -85,6 +85,7 @@ Hash-only speed is not TRON address generation speed.
 - `docs/RUNPOD_CONSOLE_CHECKLIST.md`: shortest RunPod console validation checklist.
 - `docs/RUNPOD_RESULT_INSPECTION.md`: how to inspect RunPod outputs before deciding the next gate.
 - `docs/RUNPOD_ACTION_NOW.md`: shortest current RunPod validation action; use this before any benchmark.
+- `docs/RUNPOD_RESPONSE_INTAKE.md`: where to save RunPod response JSON and how to inspect it locally.
 - `docs/RUNPOD_VALIDATE_TROUBLESHOOTING.md`: what to do if RunPod build, compile, or vector validation fails.
 - `docs/RUNPOD_SHARDING.md`: multi-worker sharding strategy.
 - `docs/GPU_CORE_REVIEW_CHECKLIST.md`: review gates before benchmark.

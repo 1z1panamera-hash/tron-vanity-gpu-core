@@ -13,3 +13,5 @@ __pycache__/
 *secret*
 *token*
 tests/*validation_report.json
+runpod_*_response.json
+runpod_*_inspect.json
