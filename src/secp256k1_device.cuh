@@ -225,6 +225,35 @@ SECP_HD void inv_mod_p(UInt256& out, const UInt256& value) {
     pow_mod(out, value, p_minus_2(), field_p());
 }
 
+SECP_HD bool batch_inv_mod_p(
+    UInt256* inverses,
+    UInt256* scratch_prefix_products,
+    const UInt256* values,
+    int count) {
+    if (count < 0) return false;
+    if (count == 0) return true;
+    const UInt256 p = field_p();
+    for (int i = 0; i < count; ++i) {
+        if (is_zero(values[i])) return false;
+        if (i == 0) {
+            scratch_prefix_products[i] = values[i];
+        } else {
+            mul_mod(scratch_prefix_products[i], scratch_prefix_products[i - 1], values[i], p);
+        }
+    }
+
+    UInt256 inverse_accumulator;
+    inv_mod_p(inverse_accumulator, scratch_prefix_products[count - 1]);
+    for (int i = count - 1; i > 0; --i) {
+        mul_mod(inverses[i], inverse_accumulator, scratch_prefix_products[i - 1], p);
+        UInt256 next_accumulator;
+        mul_mod(next_accumulator, inverse_accumulator, values[i], p);
+        inverse_accumulator = next_accumulator;
+    }
+    inverses[0] = inverse_accumulator;
+    return true;
+}
+
 SECP_HD Point generator() {
     Point out;
     out.infinity = false;

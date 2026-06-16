@@ -16,6 +16,7 @@ This document defines the first GPU benchmark gate for the TRON vanity worker.
 - Incremental stride point is precomputed once per kernel launch on the host and passed to the kernel, so each CUDA thread does not repeat the same stride scalar multiplication.
 - Incremental mode counts attempts with per-thread local accumulation, then one global atomic add per thread; this keeps the benchmark from measuring global atomic contention as the main bottleneck.
 - Benchmark filters use precomputed Base58 prefix bounds and suffix target values from `BenchmarkConfig`; candidate loops must not reparse the target address for every candidate.
+- Current incremental point walking still uses affine point addition, which performs a field inversion in `point_add`. `tests/verify_batch_inversion.cpp` now validates the batch inversion primitive needed for a future faster kernel, but that primitive is not yet wired into the benchmark kernel.
 - `kernel_mode=scalar` is retained only as a correctness/performance comparison path.
 - Input `kernel_mode=incremental` is expected to produce `benchmark_result.kernel_mode=incremental_public_key_walk`.
 - Input `kernel_mode=scalar` is expected to produce `benchmark_result.kernel_mode=scalar_multiply_per_candidate`.
