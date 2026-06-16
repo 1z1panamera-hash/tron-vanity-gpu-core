@@ -91,6 +91,10 @@ echo "== batch inversion"
 c++ -std=c++17 -O2 tests/verify_batch_inversion.cpp -o /tmp/verify_batch_inversion
 /tmp/verify_batch_inversion
 
+echo "== batch point add"
+c++ -std=c++17 -O2 tests/verify_batch_point_add.cpp -o /tmp/verify_batch_point_add
+/tmp/verify_batch_point_add
+
 echo "== result inspectors"
 python3 scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10 >/tmp/tron_gpu_capacity_check.json
 python3 scripts/inspect_runpod_result.py examples/runpod_validate_success_sample.json --mode validate_vectors >/tmp/runpod_validate_inspect.json

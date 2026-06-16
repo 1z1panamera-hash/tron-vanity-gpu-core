@@ -35,6 +35,7 @@ Do not use 47.80.70.211 as the GitHub source, build machine, CUDA compiler, Dock
 - `tests/verify_phase0_vectors.py`
 - `tests/verify_incremental_walking.cpp`
 - `tests/verify_batch_inversion.cpp`
+- `tests/verify_batch_point_add.cpp`
 - `tests/verify_shard_schedule.cpp`
 - `scripts/local_preflight.sh`
 - `scripts/inspect_runpod_result.py`

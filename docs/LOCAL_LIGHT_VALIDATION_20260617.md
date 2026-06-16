@@ -20,6 +20,7 @@ Passed.
 - `tests/verify_secp256k1_full_chain.cpp`
 - `tests/verify_secp256k1_device_compatible.cpp`
 - `tests/verify_batch_inversion.cpp`
+- `tests/verify_batch_point_add.cpp`
 - `tests/verify_incremental_walking.cpp`
 - `tests/verify_shard_schedule.cpp`
 - `tests/compile_tron_gpu_core_host_stub.cpp`

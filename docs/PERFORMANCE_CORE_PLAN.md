@@ -38,6 +38,7 @@ Then each next candidate can be derived with elliptic-curve point addition inste
 - Prefix range bounds and suffix target values are precomputed once in `BenchmarkConfig`, so each candidate avoids reparsing target Base58 prefix/suffix strings inside the GPU loop.
 - `tests/verify_incremental_walking.cpp` validates that walked public keys match direct scalar multiplication for small deterministic candidates.
 - `tests/verify_batch_inversion.cpp` validates a device-compatible batch inversion primitive, which is the next step for reducing per-candidate affine point-add inversions.
+- `tests/verify_batch_point_add.cpp` validates that same-stride affine point additions can share one batch inversion while matching direct `point_add` outputs.
 
 This is the first performance-oriented implementation path. It still needs RunPod `nvcc` compilation and CUDA vector validation before benchmark results are trusted.
 

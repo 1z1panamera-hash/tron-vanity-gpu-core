@@ -10,6 +10,7 @@ Current status:
 - Host-side C++ secp256k1 full-chain validation is available in `tests/verify_secp256k1_full_chain.cpp`.
 - Host-side incremental public-key walking validation is available in `tests/verify_incremental_walking.cpp`.
 - Host-side batch inversion validation is available in `tests/verify_batch_inversion.cpp`.
+- Host-side batch point-add validation is available in `tests/verify_batch_point_add.cpp`.
 - CPU shard schedule validation is available in `tests/verify_shard_schedule.cpp`.
 - CUDA vector validation source path exists, but has not been compiled on real GPU hardware yet.
 - A gated sharded benchmark smoke path exists. Its default `kernel_mode` is `incremental`, using per-thread public-key walking after base scalar setup. It must not be used to report GPU speed until RunPod vector validation passes first.
@@ -74,6 +75,7 @@ Hash-only speed is not TRON address generation speed.
 - `tests/verify_phase0_vectors.py`: no-dependency vector sanity checker.
 - `tests/verify_incremental_walking.cpp`: checks walked public keys against direct scalar multiplication for small deterministic candidates.
 - `tests/verify_batch_inversion.cpp`: checks device-compatible batch inversion against individual field inversions.
+- `tests/verify_batch_point_add.cpp`: checks same-stride affine point additions using one batch inversion against direct `point_add`.
 - `tests/verify_shard_schedule.cpp`: checks shard, batch, and thread-stride candidate coverage.
 - `scripts/local_preflight.sh`: local no-server, no-RunPod preflight before pushing to GitHub.
 - `scripts/inspect_runpod_result.py`: local JSON inspector for RunPod validate/benchmark responses.
