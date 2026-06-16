@@ -326,6 +326,39 @@ SECP_HD bool point_add(Point& out, const Point& a, const Point& b) {
     return true;
 }
 
+SECP_HD bool point_add_with_denominator_inverse(
+    Point& out,
+    const Point& a,
+    const Point& b,
+    const UInt256& inv_denominator) {
+    if (a.infinity || b.infinity) return false;
+    if (cmp(a.x, b.x) == 0) return false;
+
+    const UInt256 p = field_p();
+    UInt256 numerator;
+    UInt256 lambda;
+    UInt256 lambda2;
+    UInt256 xr_tmp;
+    UInt256 xr;
+    UInt256 ax_minus_xr;
+    UInt256 yr_tmp;
+    UInt256 yr;
+
+    sub_mod(numerator, b.y, a.y, p);
+    mul_mod(lambda, numerator, inv_denominator, p);
+    mul_mod(lambda2, lambda, lambda, p);
+    sub_mod(xr_tmp, lambda2, a.x, p);
+    sub_mod(xr, xr_tmp, b.x, p);
+    sub_mod(ax_minus_xr, a.x, xr, p);
+    mul_mod(yr_tmp, lambda, ax_minus_xr, p);
+    sub_mod(yr, yr_tmp, a.y, p);
+
+    out.infinity = false;
+    out.x = xr;
+    out.y = yr;
+    return true;
+}
+
 SECP_HD bool point_add_same_stride_batch(
     Point* outputs,
     UInt256* denominators,
@@ -358,27 +391,13 @@ SECP_HD bool point_add_same_stride_batch(
 
     for (int packed_index = 0; packed_index < normal_count; ++packed_index) {
         const int i = normal_indices[packed_index];
-        UInt256 numerator;
-        UInt256 lambda;
-        UInt256 lambda2;
-        UInt256 xr_tmp;
-        UInt256 xr;
-        UInt256 ax_minus_xr;
-        UInt256 yr_tmp;
-        UInt256 yr;
-
-        sub_mod(numerator, stride_point.y, inputs[i].y, p);
-        mul_mod(lambda, numerator, inverses[packed_index], p);
-        mul_mod(lambda2, lambda, lambda, p);
-        sub_mod(xr_tmp, lambda2, inputs[i].x, p);
-        sub_mod(xr, xr_tmp, stride_point.x, p);
-        sub_mod(ax_minus_xr, inputs[i].x, xr, p);
-        mul_mod(yr_tmp, lambda, ax_minus_xr, p);
-        sub_mod(yr, yr_tmp, inputs[i].y, p);
-
-        outputs[i].infinity = false;
-        outputs[i].x = xr;
-        outputs[i].y = yr;
+        if (!point_add_with_denominator_inverse(
+                outputs[i],
+                inputs[i],
+                stride_point,
+                inverses[packed_index])) {
+            return false;
+        }
     }
     return true;
 }

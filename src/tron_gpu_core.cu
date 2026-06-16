@@ -306,12 +306,10 @@ __global__ void benchmark_kernel(BenchmarkConfig config, BenchmarkResult* result
 }
 
 __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkResult* result) {
-    __shared__ secp256k1_device::Point shared_points[BENCHMARK_BLOCK_THREADS];
-    __shared__ secp256k1_device::Point shared_next_points[BENCHMARK_BLOCK_THREADS];
     __shared__ secp256k1_device::UInt256 shared_denominators[BENCHMARK_BLOCK_THREADS];
     __shared__ secp256k1_device::UInt256 shared_inverses[BENCHMARK_BLOCK_THREADS];
     __shared__ secp256k1_device::UInt256 shared_scratch[BENCHMARK_BLOCK_THREADS];
-    __shared__ int shared_normal_indices[BENCHMARK_BLOCK_THREADS];
+    __shared__ int shared_normal_flags[BENCHMARK_BLOCK_THREADS];
     __shared__ int shared_stop;
     __shared__ int shared_active_count;
     __shared__ int shared_batch_ok;
@@ -390,24 +388,52 @@ __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkRe
             ++local_attempts;
         }
 
-        shared_points[threadIdx.x] = current_point;
+        bool can_use_batch_inverse =
+            active_attempt &&
+            !current_point.infinity &&
+            !step_point.infinity &&
+            secp256k1_device::cmp(current_point.x, step_point.x) != 0;
+        shared_normal_flags[threadIdx.x] = can_use_batch_inverse ? 1 : 0;
+        if (can_use_batch_inverse) {
+            secp256k1_device::sub_mod(
+                shared_denominators[threadIdx.x],
+                step_point.x,
+                current_point.x,
+                secp256k1_device::field_p());
+            if (secp256k1_device::is_zero(shared_denominators[threadIdx.x])) {
+                shared_normal_flags[threadIdx.x] = 0;
+                shared_denominators[threadIdx.x] = secp256k1_device::make_u32(1);
+            }
+        } else {
+            shared_denominators[threadIdx.x] = secp256k1_device::make_u32(1);
+        }
         __syncthreads();
         if (threadIdx.x == 0) {
-            shared_batch_ok = secp256k1_device::point_add_same_stride_batch(
-                shared_next_points,
-                shared_denominators,
+            shared_batch_ok = secp256k1_device::batch_inv_mod_p(
                 shared_inverses,
                 shared_scratch,
-                shared_normal_indices,
-                shared_points,
-                step_point,
+                shared_denominators,
                 blockDim.x) ? 1 : 0;
         }
         __syncthreads();
         if (!shared_batch_ok) {
             break;
         }
-        current_point = shared_next_points[threadIdx.x];
+        if (active_attempt) {
+            secp256k1_device::Point next_point;
+            const bool advanced =
+                shared_normal_flags[threadIdx.x]
+                    ? secp256k1_device::point_add_with_denominator_inverse(
+                          next_point,
+                          current_point,
+                          step_point,
+                          shared_inverses[threadIdx.x])
+                    : secp256k1_device::point_add(next_point, current_point, step_point);
+            if (!advanced) {
+                break;
+            }
+            current_point = next_point;
+        }
     }
 
     if (local_attempts > 0ULL) {
@@ -927,7 +953,7 @@ static int run_benchmark_cuda(int argc, char** argv) {
     std::printf("  \"notes\": [\n");
     std::printf("    \"Counts are complete TRON address attempts, not hash speed.\",\n");
     std::printf("    \"This smoke benchmark emits no private key, seed, mnemonic, token, or secret.\",\n");
-    std::printf("    \"Incremental mode uses one base scalar multiply per thread, then block-level batch inversion for stride point additions.\",\n");
+    std::printf("    \"Incremental mode uses one base scalar multiply per thread, then cooperative block-level batch inversion for stride point additions.\",\n");
     std::printf("    \"This deterministic candidate generator is intended for benchmark/correctness staging only.\"\n");
     std::printf("  ]\n");
     std::printf("}\n");
