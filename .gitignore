@@ -1,0 +1,15 @@
+build/
+*.o
+*.so
+__pycache__/
+.pycache_tmp/
+.pytest_cache/
+.DS_Store
+.env
+.env.*
+*.log
+*.pem
+*.key
+*secret*
+*token*
+tests/*validation_report.json

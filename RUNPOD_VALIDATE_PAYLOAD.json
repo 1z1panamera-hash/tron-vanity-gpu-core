@@ -1,0 +1,9 @@
+{
+  "input": {
+    "mode": "validate_vectors"
+  },
+  "policy": {
+    "executionTimeout": 300000,
+    "ttl": 900000
+  }
+}

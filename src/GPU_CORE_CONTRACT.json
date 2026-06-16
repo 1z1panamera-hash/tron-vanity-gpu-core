@@ -1,0 +1,66 @@
+{
+  "project": "vanity-address-api",
+  "component": "tron-gpu-core",
+  "default_rule": {
+    "address_format": "TRON full Base58Check address",
+    "prefix_len": 2,
+    "suffix_len": 5
+  },
+  "modes": {
+    "validate_vectors": {
+      "purpose": "Compare GPU implementation against Phase 0 public test vectors.",
+      "input": {
+        "test_vector_path": "tests/phase0_test_vectors.json"
+      },
+      "must_pass_before_benchmark": true
+    },
+    "benchmark": {
+      "purpose": "Measure complete TRON address generation speed.",
+      "preflight_tests": [
+        "tests/verify_incremental_walking.cpp",
+        "tests/verify_shard_schedule.cpp"
+      ],
+      "input": {
+        "target_address": "TRON Base58 address beginning with T",
+        "prefix_len": 2,
+        "suffix_len": 5,
+        "kernel_mode": "incremental or scalar; default incremental",
+        "duration_seconds": "1..10 for first approved tests",
+        "max_attempts": "positive cap for bounded smoke or benchmark run",
+        "start_counter": "non-negative deterministic candidate offset",
+        "shard_id": "0-based worker shard id",
+        "shard_count": "total concurrent shards"
+      },
+      "output": {
+        "attempts": "complete TRON addresses attempted",
+        "addresses_per_second": "attempts / elapsed_seconds",
+        "keys_per_second": "same as addresses_per_second",
+        "kernel_mode": "benchmark implementation path",
+        "matched": "boolean",
+        "matched_address": "only if matched",
+        "gpu_name": "reported by worker if available"
+      },
+      "gate": "blocked unless ALLOW_GPU_BENCHMARK=1 is explicitly set on approved RunPod endpoint",
+      "forbidden_output": [
+        "private_key",
+        "mnemonic",
+        "seed",
+        "token",
+        "secret"
+      ]
+    },
+    "production": {
+      "purpose": "Find a match and encrypt key material to customer age recipient.",
+      "output": {
+        "matched_address": "TRON address",
+        "encrypted_private_key": "age encrypted private key"
+      },
+      "forbidden_output": [
+        "plaintext private_key",
+        "customer age identity",
+        "token",
+        "secret"
+      ]
+    }
+  }
+}
