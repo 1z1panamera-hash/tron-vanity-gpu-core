@@ -32,6 +32,20 @@ Use git rev-parse HEAD in the repository root.
 
 Create a RunPod Serverless endpoint from GitHub integration.
 
+Current console gate:
+
+```text
+RunPod currently requires GitHub authorization before repositories can be selected.
+Docker registry deployment is blocked unless a pre-built image already exists.
+RunPod Flash is a possible fallback, but it requires local install plus `flash login`, which stores a RunPod API key locally, so use it only after explicit user confirmation.
+```
+
+See:
+
+```text
+docs/RUNPOD_DEPLOYMENT_ROUTE_DECISION_20260617.md
+```
+
 Settings:
 
 ```text
