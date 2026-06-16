@@ -68,6 +68,15 @@ flash login
 
 Flash is useful for simple Python remote GPU functions and may be useful for quick GPU environment probes. It is not yet proven as the best path for this repository's custom CUDA/C++ worker, because the target worker needs CUDA compilation and the existing RunPod Serverless handler/Dockerfile path is already prepared.
 
+Fallback probe prepared:
+
+```text
+flash/runpod_flash_cuda_probe.py
+docs/RUNPOD_FLASH_FALLBACK_PROBE.md
+```
+
+The probe defaults to no-op unless `--confirm-runpod-side-effect` is passed.
+
 Use Flash only after explicit user confirmation, and only for a minimal probe first.
 
 ## Next Action

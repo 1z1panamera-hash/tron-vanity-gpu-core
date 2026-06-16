@@ -44,6 +44,8 @@ Do not use 47.80.70.211 as the GitHub source, build machine, CUDA compiler, Dock
 - `examples/runpod_benchmark_success_sample.json`
 - `docs/RUNPOD_GITHUB_DEPLOY_PATH.md`
 - `docs/RUNPOD_ACTION_NOW.md`
+- `docs/RUNPOD_DEPLOYMENT_ROUTE_DECISION_20260617.md`
+- `docs/RUNPOD_FLASH_FALLBACK_PROBE.md`
 - `docs/RUNPOD_RESPONSE_INTAKE.md`
 - `docs/RUNPOD_RESULT_INSPECTION.md`
 - `docs/RUNPOD_CONSOLE_CHECKLIST.md`
