@@ -1,0 +1,18 @@
+{
+  "input": {
+    "mode": "benchmark",
+    "target_address": "TX8888888888888888888888888886666",
+    "prefix_len": 2,
+    "suffix_len": 5,
+    "kernel_mode": "incremental",
+    "duration_seconds": 10,
+    "max_attempts": 10000000000,
+    "start_counter": 0,
+    "shard_id": 0,
+    "shard_count": 1
+  },
+  "policy": {
+    "executionTimeout": 300000,
+    "ttl": 900000
+  }
+}

@@ -21,6 +21,7 @@ DEFAULT_SUFFIX_LEN = 5
 MAX_BENCHMARK_SECONDS = 10
 MAX_BENCHMARK_ATTEMPTS = 10_000_000_000
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+DEFAULT_CUDA_ARCH_FALLBACKS = ["native", "sm_120", "sm_80"]
 
 
 def utc_now_iso() -> str:
@@ -71,6 +72,34 @@ def validate_vector_file() -> Dict[str, Any]:
     }
 
 
+def cuda_arch_candidates() -> List[str]:
+    explicit = os.environ.get("CUDA_ARCH", "").strip()
+    fallback_raw = os.environ.get("CUDA_ARCH_FALLBACKS", "").strip()
+    raw_candidates = [explicit] if explicit else []
+    if fallback_raw:
+        raw_candidates.extend(part.strip() for part in fallback_raw.split(","))
+    else:
+        raw_candidates.extend(DEFAULT_CUDA_ARCH_FALLBACKS)
+
+    candidates: List[str] = []
+    for candidate in raw_candidates:
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+    return candidates or ["native"]
+
+
+def nvcc_command_for_arch(arch: str) -> List[str]:
+    return [
+        "nvcc",
+        "-std=c++17",
+        "-O2",
+        f"-arch={arch}",
+        str(GPU_SOURCE_PATH),
+        "-o",
+        str(GPU_BINARY_PATH),
+    ]
+
+
 def compile_gpu_binary_if_allowed(timeout_seconds: int = 120) -> Dict[str, Any]:
     if GPU_BINARY_PATH.exists():
         return {
@@ -88,48 +117,61 @@ def compile_gpu_binary_if_allowed(timeout_seconds: int = 120) -> Dict[str, Any]:
         }
 
     GPU_BINARY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    command = [
-        "nvcc",
-        "-std=c++17",
-        "-O2",
-        "-arch=native",
-        str(GPU_SOURCE_PATH),
-        "-o",
-        str(GPU_BINARY_PATH),
-    ]
-    started = time.perf_counter()
-    try:
-        result = subprocess.run(
-            command,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-            cwd=str(ROOT),
-        )
-    except FileNotFoundError:
-        return {
-            "compiled": False,
-            "ready": False,
-            "reason": "nvcc not found in worker image.",
-            "binary": str(GPU_BINARY_PATH),
+    attempts = []
+    for arch in cuda_arch_candidates():
+        command = nvcc_command_for_arch(arch)
+        started = time.perf_counter()
+        try:
+            result = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                cwd=str(ROOT),
+            )
+        except FileNotFoundError:
+            return {
+                "compiled": False,
+                "ready": False,
+                "reason": "nvcc not found in worker image.",
+                "binary": str(GPU_BINARY_PATH),
+                "arch_attempts": attempts,
+            }
+        except subprocess.TimeoutExpired:
+            attempts.append({
+                "arch": arch,
+                "returncode": None,
+                "elapsed_seconds": timeout_seconds,
+                "stderr": "nvcc compile timed out",
+            })
+            continue
+
+        attempt = {
+            "arch": arch,
+            "returncode": result.returncode,
+            "elapsed_seconds": time.perf_counter() - started,
+            "stdout": result.stdout[-2000:],
+            "stderr": result.stderr[-2000:],
         }
-    except subprocess.TimeoutExpired:
-        return {
-            "compiled": False,
-            "ready": False,
-            "reason": "nvcc compile timed out.",
-            "binary": str(GPU_BINARY_PATH),
-        }
+        attempts.append(attempt)
+        if result.returncode == 0 and GPU_BINARY_PATH.exists():
+            return {
+                "compiled": True,
+                "ready": True,
+                "returncode": result.returncode,
+                "selected_arch": arch,
+                "elapsed_seconds": attempt["elapsed_seconds"],
+                "binary": str(GPU_BINARY_PATH),
+                "arch_attempts": attempts,
+            }
 
     return {
-        "compiled": result.returncode == 0,
-        "ready": result.returncode == 0 and GPU_BINARY_PATH.exists(),
-        "returncode": result.returncode,
-        "elapsed_seconds": time.perf_counter() - started,
+        "compiled": False,
+        "ready": False,
+        "reason": "nvcc compile failed for all CUDA arch candidates.",
         "binary": str(GPU_BINARY_PATH),
-        "stdout": result.stdout[-4000:],
-        "stderr": result.stderr[-4000:],
+        "arch_attempts": attempts,
     }
 
 
@@ -183,6 +225,7 @@ def handle_health() -> Dict[str, Any]:
         "ready_for_gpu_benchmark": False,
         "gpu_binary_exists": GPU_BINARY_PATH.exists(),
         "runtime_nvcc_enabled": os.environ.get("ALLOW_RUNTIME_NVCC") == "1",
+        "cuda_arch_candidates": cuda_arch_candidates(),
         "phase0_vectors": vector_status,
         "notes": [
             "This wrapper exists, but the CUDA core must pass vector alignment before speed tests.",

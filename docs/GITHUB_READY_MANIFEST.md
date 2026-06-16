@@ -25,6 +25,8 @@ Do not use 47.80.70.211 as the GitHub source, build machine, CUDA compiler, Dock
 - `requirements.txt`
 - `RUNPOD_VALIDATE_PAYLOAD.json`
 - `RUNPOD_BENCHMARK_SMOKE_PAYLOAD.json`
+- `RUNPOD_A100_BENCHMARK_10S_PAYLOAD.json`
+- `RUNPOD_RTX5090_BENCHMARK_10S_PAYLOAD.json`
 - `src/GPU_CORE_CONTRACT.json`
 - `src/tron_gpu_core.cu`
 - `src/tron_core_device.cuh`
@@ -44,6 +46,7 @@ Do not use 47.80.70.211 as the GitHub source, build machine, CUDA compiler, Dock
 - `docs/RUNPOD_VALIDATE_TROUBLESHOOTING.md`
 - `docs/RUNPOD_FIRST_TEST_SEQUENCE.md`
 - `docs/RUNPOD_BENCHMARK_GATE.md`
+- `docs/RUNPOD_A100_RTX5090_COMPARISON.md`
 - `docs/SERVER_PREFLIGHT_47.md`
 
 ## Excluded From Git And Docker Context
@@ -161,6 +164,11 @@ ALLOW_GPU_BENCHMARK=1
 ```
 
 First benchmark must use `RUNPOD_BENCHMARK_SMOKE_PAYLOAD.json`.
+
+Only after smoke passes, compare A100 and RTX 5090-class endpoints with:
+
+- `RUNPOD_A100_BENCHMARK_10S_PAYLOAD.json`
+- `RUNPOD_RTX5090_BENCHMARK_10S_PAYLOAD.json`
 
 The benchmark output must not contain:
 

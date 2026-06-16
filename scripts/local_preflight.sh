@@ -15,11 +15,33 @@ from pathlib import Path
 for p in [
     "RUNPOD_VALIDATE_PAYLOAD.json",
     "RUNPOD_BENCHMARK_SMOKE_PAYLOAD.json",
+    "RUNPOD_A100_BENCHMARK_10S_PAYLOAD.json",
+    "RUNPOD_RTX5090_BENCHMARK_10S_PAYLOAD.json",
     "src/GPU_CORE_CONTRACT.json",
     "tests/phase0_test_vectors.json",
 ]:
     json.loads(Path(p).read_text())
     print("json_ok", p)
+PY
+
+echo "== wrapper gate"
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 - <<'PY'
+import os
+import app
+
+assert app.cuda_arch_candidates()[:3] == ["native", "sm_120", "sm_80"]
+os.environ["CUDA_ARCH"] = "sm_80"
+assert app.cuda_arch_candidates()[0] == "sm_80"
+os.environ.pop("CUDA_ARCH", None)
+result = app.handle_benchmark({
+    "target_address": "TX8888888888888888888888888886666",
+    "prefix_len": 2,
+    "suffix_len": 5,
+    "duration_seconds": 1,
+    "max_attempts": 1,
+})
+assert result["allowed"] is False
+print("wrapper_gate_ok")
 PY
 
 echo "== docker context sanity"

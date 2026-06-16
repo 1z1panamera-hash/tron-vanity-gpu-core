@@ -12,6 +12,7 @@ Current status:
 - CPU shard schedule validation is available in `tests/verify_shard_schedule.cpp`.
 - CUDA vector validation source path exists, but has not been compiled on real GPU hardware yet.
 - A gated sharded benchmark smoke path exists. Its default `kernel_mode` is `incremental`, using per-thread public-key walking after base scalar setup. It must not be used to report GPU speed until RunPod vector validation passes first.
+- Runtime CUDA compile supports explicit `CUDA_ARCH` plus fallback candidates for A100 (`sm_80`) and RTX 5090-class (`sm_120`) testing.
 
 ## Target
 
@@ -62,6 +63,10 @@ Hash-only speed is not TRON address generation speed.
 - `requirements.txt`: Python runtime dependency list for the RunPod wrapper.
 - `Dockerfile`: preferred RunPod GitHub integration Dockerfile.
 - `Dockerfile.cuda-validate`: equivalent named backup for validate-only deployments.
+- `RUNPOD_VALIDATE_PAYLOAD.json`: first RunPod request; validates CUDA against Phase 0 vectors.
+- `RUNPOD_BENCHMARK_SMOKE_PAYLOAD.json`: first tiny benchmark request after validation passes and `ALLOW_GPU_BENCHMARK=1` is set.
+- `RUNPOD_A100_BENCHMARK_10S_PAYLOAD.json`: 10 second A100 comparison payload, only after validation and smoke pass.
+- `RUNPOD_RTX5090_BENCHMARK_10S_PAYLOAD.json`: 10 second RTX 5090-class comparison payload, only after validation and smoke pass.
 - `src/tron_gpu_core.cu`: CUDA implementation contract and CLI skeleton.
 - `src/GPU_CORE_CONTRACT.json`: required input/output contract.
 - `tests/phase0_test_vectors.json`: authoritative Phase 0 public vectors.
@@ -81,6 +86,7 @@ Hash-only speed is not TRON address generation speed.
 - `docs/BUILD_AND_RUNPOD_GATE.md`: build and RunPod execution gate.
 - `docs/RUNPOD_GITHUB_DEPLOY_PATH.md`: preferred no-local-Docker deployment path using RunPod GitHub integration.
 - `docs/RUNPOD_BENCHMARK_GATE.md`: benchmark smoke-test gate and sharding rules.
+- `docs/RUNPOD_A100_RTX5090_COMPARISON.md`: exact A100 and RTX 5090-class comparison sequence.
 - `docs/RUNPOD_FIRST_TEST_SEQUENCE.md`: RunPod-first validation and benchmark order that avoids using 47.80.70.211 as a test machine.
 - `docs/SERVER_PREFLIGHT_47.md`: mandatory lightweight read-only preflight before any future operation on 47.80.70.211.
 - `docs/LOCAL_LIGHT_VALIDATION_20260617.md`: latest local no-benchmark validation evidence before RunPod CUDA validation.
@@ -95,7 +101,7 @@ Before any real benchmark:
 2. Run `validate_vectors` mode against Phase 0 vectors on RunPod.
 3. Only if validation passes, set `ALLOW_GPU_BENCHMARK=1` for an approved short smoke benchmark.
 4. Start with `RUNPOD_BENCHMARK_SMOKE_PAYLOAD.json`.
-5. Only after smoke benchmark passes, compare RTX 5090/A100 capacity.
+5. Only after smoke benchmark passes, compare A100 and RTX 5090-class capacity with the 10 second payloads.
 6. Treat current benchmark numbers as staging data until the CUDA core is optimized and independently reviewed.
 
 If smoke speed is far below the 10 second target, do not scale from the scalar kernel.

@@ -45,6 +45,20 @@ For validation only:
 ALLOW_RUNTIME_NVCC=1
 ```
 
+Optional GPU-specific runtime compile override:
+
+```text
+CUDA_ARCH=sm_80
+```
+
+for A100, or:
+
+```text
+CUDA_ARCH=sm_120
+```
+
+for RTX 5090-class GPUs. If this is not set, the worker tries `native`, `sm_120`, then `sm_80`.
+
 For the first benchmark smoke test, only after validation passes:
 
 ```text
@@ -92,8 +106,9 @@ This is only a smoke test. It is not a 10 second production capacity claim.
 
 Only after smoke passes, increase carefully:
 
+- use `RUNPOD_A100_BENCHMARK_10S_PAYLOAD.json`
 - `duration_seconds = 10`
-- `max_attempts` high enough to keep the GPU busy for 10 seconds
+- `max_attempts = 10000000000`
 - still no production private key return
 
 Record:
@@ -106,7 +121,7 @@ Record:
 
 ## Request 4: RTX 5090 Short Benchmark
 
-Repeat the same request on RTX 5090 if RunPod provides it.
+Repeat the same request on RTX 5090-class hardware with `RUNPOD_RTX5090_BENCHMARK_10S_PAYLOAD.json` if RunPod provides it.
 
 Do not compare hash speed. Compare complete TRON `addresses_per_second`.
 Do not compare `scalar` mode against production targets except as a sanity baseline.
