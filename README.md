@@ -71,6 +71,7 @@ Hash-only speed is not TRON address generation speed.
 - `scripts/local_preflight.sh`: local no-server, no-RunPod preflight before pushing to GitHub.
 - `scripts/inspect_runpod_result.py`: local JSON inspector for RunPod validate/benchmark responses.
 - `scripts/capacity_math.py`: local worker-count/probability calculator for measured complete TRON address speed.
+- `examples/`: local sample RunPod responses for the result inspector.
 - `docs/GITHUB_READY_MANIFEST.md`: exact GitHub repository readiness and first RunPod request checklist.
 - `docs/RUNPOD_CONSOLE_CHECKLIST.md`: shortest RunPod console validation checklist.
 - `docs/RUNPOD_RESULT_INSPECTION.md`: how to inspect RunPod outputs before deciding the next gate.

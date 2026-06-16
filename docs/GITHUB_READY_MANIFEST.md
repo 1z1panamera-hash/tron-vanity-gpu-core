@@ -36,6 +36,8 @@ Do not use 47.80.70.211 as the GitHub source, build machine, CUDA compiler, Dock
 - `scripts/local_preflight.sh`
 - `scripts/inspect_runpod_result.py`
 - `scripts/capacity_math.py`
+- `examples/runpod_validate_success_sample.json`
+- `examples/runpod_benchmark_success_sample.json`
 - `docs/RUNPOD_GITHUB_DEPLOY_PATH.md`
 - `docs/RUNPOD_RESULT_INSPECTION.md`
 - `docs/RUNPOD_CONSOLE_CHECKLIST.md`

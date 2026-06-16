@@ -51,34 +51,8 @@ python3 tests/verify_phase0_vectors.py
 
 echo "== result inspectors"
 python3 scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10 >/tmp/tron_gpu_capacity_check.json
-python3 - <<'PY'
-import json
-from pathlib import Path
-
-validate_sample = {
-    "mode": "validate_vectors",
-    "phase0_vectors": {"passed": True},
-    "compile": {"ready": True, "elapsed_seconds": 1.0},
-    "gpu_binary": {"returncode": 0},
-    "passed": True,
-}
-benchmark_sample = {
-    "mode": "benchmark",
-    "benchmark_result": {
-        "kernel_mode": "incremental_public_key_walk",
-        "gpu_name": "TEST_GPU",
-        "attempts": 1024,
-        "addresses_per_second": 1024.0,
-        "keys_per_second": 1024.0,
-        "matched": False,
-        "matched_address": "",
-    },
-}
-Path("/tmp/runpod_validate_sample.json").write_text(json.dumps(validate_sample))
-Path("/tmp/runpod_benchmark_sample.json").write_text(json.dumps(benchmark_sample))
-PY
-python3 scripts/inspect_runpod_result.py /tmp/runpod_validate_sample.json --mode validate_vectors >/tmp/runpod_validate_inspect.json
-python3 scripts/inspect_runpod_result.py /tmp/runpod_benchmark_sample.json --mode benchmark >/tmp/runpod_benchmark_inspect.json
+python3 scripts/inspect_runpod_result.py examples/runpod_validate_success_sample.json --mode validate_vectors >/tmp/runpod_validate_inspect.json
+python3 scripts/inspect_runpod_result.py examples/runpod_benchmark_success_sample.json --mode benchmark >/tmp/runpod_benchmark_inspect.json
 
 echo "== incremental walking"
 c++ -std=c++17 -O2 tests/verify_incremental_walking.cpp -o /tmp/verify_incremental_walking

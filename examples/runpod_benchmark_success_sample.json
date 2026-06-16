@@ -1,0 +1,12 @@
+{
+  "mode": "benchmark",
+  "benchmark_result": {
+    "kernel_mode": "incremental_public_key_walk",
+    "gpu_name": "TEST_GPU",
+    "attempts": 1024,
+    "addresses_per_second": 1024.0,
+    "keys_per_second": 1024.0,
+    "matched": false,
+    "matched_address": ""
+  }
+}

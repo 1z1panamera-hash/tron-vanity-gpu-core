@@ -1,0 +1,14 @@
+{
+  "mode": "validate_vectors",
+  "phase0_vectors": {
+    "passed": true
+  },
+  "compile": {
+    "ready": true,
+    "elapsed_seconds": 1.0
+  },
+  "gpu_binary": {
+    "returncode": 0
+  },
+  "passed": true
+}

@@ -50,7 +50,7 @@ The inspector checks:
 - `attempts`,
 - `addresses_per_second`,
 - `keys_per_second`,
-- `kernel_mode`,
+- `kernel_mode`; accepted values are `incremental_public_key_walk` and `scalar_multiply_per_candidate`,
 - `gpu_name`,
 - forbidden key leakage,
 - 10 second probability and worker-count estimates.

@@ -14,6 +14,8 @@ This document defines the first GPU benchmark gate for the TRON vanity worker.
   - prefix/suffix match
 - Default `kernel_mode` is `incremental`, which uses one base scalar multiplication per thread and then point addition by stride.
 - `kernel_mode=scalar` is retained only as a correctness/performance comparison path.
+- Input `kernel_mode=incremental` is expected to produce `benchmark_result.kernel_mode=incremental_public_key_walk`.
+- Input `kernel_mode=scalar` is expected to produce `benchmark_result.kernel_mode=scalar_multiply_per_candidate`.
 - It must report `addresses_per_second` and `keys_per_second`.
 - It must not report hash-only speed as TRON address generation speed.
 

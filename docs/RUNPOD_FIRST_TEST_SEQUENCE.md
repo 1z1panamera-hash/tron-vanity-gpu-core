@@ -80,7 +80,7 @@ First benchmark limits:
 Expected response:
 
 - `mode = benchmark`
-- `benchmark_result.kernel_mode = incremental`
+- `benchmark_result.kernel_mode = incremental_public_key_walk`
 - `benchmark_result.gpu_name` is present
 - `benchmark_result.attempts` is positive
 - `benchmark_result.addresses_per_second` is present
