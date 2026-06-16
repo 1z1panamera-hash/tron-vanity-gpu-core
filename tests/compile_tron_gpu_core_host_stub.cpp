@@ -4,6 +4,9 @@
 #define __device__
 #define __global__
 #define __host__
+#define __shared__ static
+
+void __syncthreads() {}
 
 struct FakeCudaIndex {
     int x;
@@ -16,6 +19,12 @@ FakeCudaIndex gridDim{1};
 
 unsigned long long atomicAdd(unsigned long long* target, unsigned long long value) {
     unsigned long long previous = *target;
+    *target += value;
+    return previous;
+}
+
+int atomicAdd(int* target, int value) {
+    int previous = *target;
     *target += value;
     return previous;
 }

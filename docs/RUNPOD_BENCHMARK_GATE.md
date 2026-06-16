@@ -16,7 +16,7 @@ This document defines the first GPU benchmark gate for the TRON vanity worker.
 - Incremental stride point is precomputed once per kernel launch on the host and passed to the kernel, so each CUDA thread does not repeat the same stride scalar multiplication.
 - Incremental mode counts attempts with per-thread local accumulation, then one global atomic add per thread; this keeps the benchmark from measuring global atomic contention as the main bottleneck.
 - Benchmark filters use precomputed Base58 prefix bounds and suffix target values from `BenchmarkConfig`; candidate loops must not reparse the target address for every candidate.
-- Current incremental point walking still uses affine point addition, which performs a field inversion in `point_add`. `tests/verify_batch_inversion.cpp` and `tests/verify_batch_point_add.cpp` validate the primitives needed for a future faster kernel, but those primitives are not yet wired into the benchmark kernel.
+- Incremental point walking now uses block-level batch inversion for same-stride point additions, reducing the per-candidate affine inversion bottleneck. `tests/verify_batch_inversion.cpp` and `tests/verify_batch_point_add.cpp` validate the primitive, and `src/tron_gpu_core.cu` wires it into the incremental benchmark kernel.
 - `kernel_mode=scalar` is retained only as a correctness/performance comparison path.
 - Input `kernel_mode=incremental` is expected to produce `benchmark_result.kernel_mode=incremental_public_key_walk`.
 - Input `kernel_mode=scalar` is expected to produce `benchmark_result.kernel_mode=scalar_multiply_per_candidate`.
@@ -36,6 +36,8 @@ The first benchmark request must stay small:
 - `shard_count`: 1
 
 This first run is a container/handler/kernel smoke test, not a real 5090/A100 speed number.
+
+The batch-inversion kernel path still needs RunPod `nvcc` compilation and `validate_vectors` success before any benchmark result is trusted.
 
 ## Sharding Rule
 

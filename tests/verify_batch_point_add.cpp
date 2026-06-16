@@ -41,55 +41,6 @@ std::string point_to_address(const secp256k1_device::Point& point) {
     return std::string(address, address_len);
 }
 
-bool batch_add_same_stride(
-    secp256k1_device::Point* outputs,
-    const secp256k1_device::Point* inputs,
-    const secp256k1_device::Point& stride_point,
-    int count) {
-    if (count < 0 || stride_point.infinity) return false;
-    if (count == 0) return true;
-
-    std::vector<secp256k1_device::UInt256> denominators(count);
-    std::vector<secp256k1_device::UInt256> inverses(count);
-    std::vector<secp256k1_device::UInt256> scratch(count);
-    const secp256k1_device::UInt256 p = secp256k1_device::field_p();
-
-    for (int i = 0; i < count; ++i) {
-        if (inputs[i].infinity) return false;
-        if (secp256k1_device::cmp(inputs[i].x, stride_point.x) == 0) return false;
-        secp256k1_device::sub_mod(denominators[i], stride_point.x, inputs[i].x, p);
-        if (secp256k1_device::is_zero(denominators[i])) return false;
-    }
-    if (!secp256k1_device::batch_inv_mod_p(inverses.data(), scratch.data(), denominators.data(), count)) {
-        return false;
-    }
-
-    for (int i = 0; i < count; ++i) {
-        secp256k1_device::UInt256 numerator;
-        secp256k1_device::UInt256 lambda;
-        secp256k1_device::UInt256 lambda2;
-        secp256k1_device::UInt256 xr_tmp;
-        secp256k1_device::UInt256 xr;
-        secp256k1_device::UInt256 ax_minus_xr;
-        secp256k1_device::UInt256 yr_tmp;
-        secp256k1_device::UInt256 yr;
-
-        secp256k1_device::sub_mod(numerator, stride_point.y, inputs[i].y, p);
-        secp256k1_device::mul_mod(lambda, numerator, inverses[i], p);
-        secp256k1_device::mul_mod(lambda2, lambda, lambda, p);
-        secp256k1_device::sub_mod(xr_tmp, lambda2, inputs[i].x, p);
-        secp256k1_device::sub_mod(xr, xr_tmp, stride_point.x, p);
-        secp256k1_device::sub_mod(ax_minus_xr, inputs[i].x, xr, p);
-        secp256k1_device::mul_mod(yr_tmp, lambda, ax_minus_xr, p);
-        secp256k1_device::sub_mod(yr, yr_tmp, inputs[i].y, p);
-
-        outputs[i].infinity = false;
-        outputs[i].x = xr;
-        outputs[i].y = yr;
-    }
-    return true;
-}
-
 int main() {
     static constexpr int kCount = 8;
     const unsigned long long start_scalar = 1000ULL;
@@ -112,7 +63,20 @@ int main() {
         }
     }
 
-    if (failures.empty() && !batch_add_same_stride(batch_outputs, inputs, stride_point, kCount)) {
+    std::vector<secp256k1_device::UInt256> denominators(kCount);
+    std::vector<secp256k1_device::UInt256> inverses(kCount);
+    std::vector<secp256k1_device::UInt256> scratch(kCount);
+    std::vector<int> normal_indices(kCount);
+    if (failures.empty() &&
+        !secp256k1_device::point_add_same_stride_batch(
+            batch_outputs,
+            denominators.data(),
+            inverses.data(),
+            scratch.data(),
+            normal_indices.data(),
+            inputs,
+            stride_point,
+            kCount)) {
         failures.push_back("batch_add_same_stride failed");
     }
 

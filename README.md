@@ -13,7 +13,7 @@ Current status:
 - Host-side batch point-add validation is available in `tests/verify_batch_point_add.cpp`.
 - CPU shard schedule validation is available in `tests/verify_shard_schedule.cpp`.
 - CUDA vector validation source path exists, but has not been compiled on real GPU hardware yet.
-- A gated sharded benchmark smoke path exists. Its default `kernel_mode` is `incremental`, using per-thread public-key walking after base scalar setup. It must not be used to report GPU speed until RunPod vector validation passes first.
+- A gated sharded benchmark smoke path exists. Its default `kernel_mode` is `incremental`, using per-thread public-key walking after base scalar setup and block-level batch inversion for stride point additions. It must not be used to report GPU speed until RunPod vector validation passes first.
 - Runtime CUDA compile supports explicit `CUDA_ARCH` plus fallback candidates for A100 (`sm_80`) and RTX 5090-class (`sm_120`) testing.
 
 ## Target
@@ -113,6 +113,6 @@ Before any real benchmark:
 6. Treat current benchmark numbers as staging data until the CUDA core is optimized and independently reviewed.
 
 If smoke speed is far below the 10 second target, do not scale from the scalar kernel.
-Use the incremental kernel first; if it is still too slow, the next core step is batch inversion or projective/precomputed-window point walking, then lower-level field arithmetic optimization.
+Use the incremental kernel first; it now includes block-level batch inversion for stride point additions. If it is still too slow, the next core step is projective/precomputed-window point walking, then lower-level field arithmetic optimization.
 
 Before any future operation on 47.80.70.211, run `docs/SERVER_PREFLIGHT_47.md` first. If the preflight is slow or abnormal, stop and report instead of continuing.

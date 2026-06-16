@@ -30,6 +30,7 @@ static constexpr int PAYLOAD25_LEN = 25;
 static constexpr int MAX_VECTOR_CASES = 16;
 static constexpr int BENCHMARK_KERNEL_SCALAR_MULTIPLY = 0;
 static constexpr int BENCHMARK_KERNEL_INCREMENTAL_WALK = 1;
+static constexpr int BENCHMARK_BLOCK_THREADS = 128;
 
 struct ValidationInput {
     uint8_t scalar32[32];
@@ -305,12 +306,22 @@ __global__ void benchmark_kernel(BenchmarkConfig config, BenchmarkResult* result
 }
 
 __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkResult* result) {
+    __shared__ secp256k1_device::Point shared_points[BENCHMARK_BLOCK_THREADS];
+    __shared__ secp256k1_device::Point shared_next_points[BENCHMARK_BLOCK_THREADS];
+    __shared__ secp256k1_device::UInt256 shared_denominators[BENCHMARK_BLOCK_THREADS];
+    __shared__ secp256k1_device::UInt256 shared_inverses[BENCHMARK_BLOCK_THREADS];
+    __shared__ secp256k1_device::UInt256 shared_scratch[BENCHMARK_BLOCK_THREADS];
+    __shared__ int shared_normal_indices[BENCHMARK_BLOCK_THREADS];
+    __shared__ int shared_stop;
+    __shared__ int shared_active_count;
+    __shared__ int shared_batch_ok;
+
     const unsigned long long global_idx =
         static_cast<unsigned long long>(blockIdx.x) * static_cast<unsigned long long>(blockDim.x) +
         static_cast<unsigned long long>(threadIdx.x);
     const unsigned long long total_threads =
         static_cast<unsigned long long>(gridDim.x) * static_cast<unsigned long long>(blockDim.x);
-    if (global_idx >= config.max_attempts || total_threads == 0 || config.shard_count == 0) {
+    if (total_threads == 0 || config.shard_count == 0 || blockDim.x > BENCHMARK_BLOCK_THREADS) {
         return;
     }
 
@@ -319,11 +330,13 @@ __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkRe
         global_idx * config.shard_count +
         config.shard_id +
         1ULL;
+    bool thread_has_candidate = global_idx < config.max_attempts;
     secp256k1_device::Point current_point;
     secp256k1_device::Point step_point;
     secp256k1_device::UInt256 first_scalar = uint256_from_u64(first_candidate);
     if (!secp256k1_device::scalar_multiply(current_point, first_scalar)) {
-        return;
+        current_point = secp256k1_device::generator();
+        thread_has_candidate = false;
     }
     if (config.incremental_step_point_ready) {
         step_point = config.incremental_step_point;
@@ -337,10 +350,27 @@ __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkRe
 
     char candidate_address[64];
     unsigned long long local_attempts = 0ULL;
-    for (unsigned long long attempt_idx = global_idx;
-         attempt_idx < config.max_attempts && result->matched == 0;
-         attempt_idx += total_threads) {
-        if (point_matches_target(current_point, config, candidate_address)) {
+    for (unsigned long long attempt_idx = global_idx;; attempt_idx += total_threads) {
+        if (threadIdx.x == 0) {
+            shared_stop = result->matched != 0 ? 1 : 0;
+            shared_active_count = 0;
+            shared_batch_ok = 1;
+        }
+        __syncthreads();
+        if (shared_stop) {
+            break;
+        }
+
+        const bool active_attempt = thread_has_candidate && attempt_idx < config.max_attempts;
+        if (active_attempt) {
+            atomicAdd(&shared_active_count, 1);
+        }
+        __syncthreads();
+        if (shared_active_count == 0) {
+            break;
+        }
+
+        if (active_attempt && point_matches_target(current_point, config, candidate_address)) {
             ++local_attempts;
             if (atomicCAS(&result->matched, 0, 1) == 0) {
                 int matched_len = 0;
@@ -349,17 +379,35 @@ __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkRe
                 }
                 copy_cstr64(result->matched_address, candidate_address, matched_len);
             }
-            atomicAdd(&result->attempts, local_attempts);
-            return;
+            shared_stop = 1;
+        }
+        __syncthreads();
+        if (shared_stop) {
+            break;
         }
 
-        ++local_attempts;
-        secp256k1_device::Point next_point;
-        if (!secp256k1_device::point_add(next_point, current_point, step_point)) {
-            atomicAdd(&result->attempts, local_attempts);
-            return;
+        if (active_attempt) {
+            ++local_attempts;
         }
-        current_point = next_point;
+
+        shared_points[threadIdx.x] = current_point;
+        __syncthreads();
+        if (threadIdx.x == 0) {
+            shared_batch_ok = secp256k1_device::point_add_same_stride_batch(
+                shared_next_points,
+                shared_denominators,
+                shared_inverses,
+                shared_scratch,
+                shared_normal_indices,
+                shared_points,
+                step_point,
+                blockDim.x) ? 1 : 0;
+        }
+        __syncthreads();
+        if (!shared_batch_ok) {
+            break;
+        }
+        current_point = shared_next_points[threadIdx.x];
     }
 
     if (local_attempts > 0ULL) {
@@ -777,7 +825,7 @@ static int run_benchmark_cuda(int argc, char** argv) {
         return 1;
     }
 
-    const int threads = 128;
+    const int threads = BENCHMARK_BLOCK_THREADS;
     const unsigned long long scalar_batch_limit = 1024ULL;
     const unsigned long long incremental_batch_limit = 1048576ULL;
     const unsigned long long max_incremental_launch_threads = 65536ULL;
@@ -879,7 +927,7 @@ static int run_benchmark_cuda(int argc, char** argv) {
     std::printf("  \"notes\": [\n");
     std::printf("    \"Counts are complete TRON address attempts, not hash speed.\",\n");
     std::printf("    \"This smoke benchmark emits no private key, seed, mnemonic, token, or secret.\",\n");
-    std::printf("    \"Incremental mode uses one base scalar multiply per thread, then point addition by stride.\",\n");
+    std::printf("    \"Incremental mode uses one base scalar multiply per thread, then block-level batch inversion for stride point additions.\",\n");
     std::printf("    \"This deterministic candidate generator is intended for benchmark/correctness staging only.\"\n");
     std::printf("  ]\n");
     std::printf("}\n");

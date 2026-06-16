@@ -36,8 +36,9 @@ Then each next candidate can be derived with elliptic-curve point addition inste
 - Subsequent candidates in the same thread use elliptic-curve point addition by that shared stride point.
 - Attempts are accumulated per CUDA thread and committed to the global counter once per thread, avoiding one global atomic operation per candidate in the incremental benchmark loop.
 - Prefix range bounds and suffix target values are precomputed once in `BenchmarkConfig`, so each candidate avoids reparsing target Base58 prefix/suffix strings inside the GPU loop.
+- The incremental CUDA benchmark kernel now uses block-level batch inversion for same-stride point additions, so a block can share one inversion pass across point updates instead of treating every candidate update as an independent affine inversion.
 - `tests/verify_incremental_walking.cpp` validates that walked public keys match direct scalar multiplication for small deterministic candidates.
-- `tests/verify_batch_inversion.cpp` validates a device-compatible batch inversion primitive, which is the next step for reducing per-candidate affine point-add inversions.
+- `tests/verify_batch_inversion.cpp` validates the device-compatible batch inversion primitive used by the benchmark kernel.
 - `tests/verify_batch_point_add.cpp` validates that same-stride affine point additions can share one batch inversion while matching direct `point_add` outputs.
 
 This is the first performance-oriented implementation path. It still needs RunPod `nvcc` compilation and CUDA vector validation before benchmark results are trusted.
@@ -103,4 +104,4 @@ Before claiming performance:
 ## If Smoke Speed Is Low
 
 Do not scale worker count from the `scalar` kernel mode.
-Use `incremental` mode first. If incremental mode is still too slow, the next step is batch inversion or projective/precomputed-window point walking, then lower-level field arithmetic optimization, then measure again.
+Use `incremental` mode first. It now includes block-level batch inversion. If incremental mode is still too slow, the next step is projective/precomputed-window point walking, then lower-level field arithmetic optimization, then measure again.

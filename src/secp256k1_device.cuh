@@ -326,6 +326,63 @@ SECP_HD bool point_add(Point& out, const Point& a, const Point& b) {
     return true;
 }
 
+SECP_HD bool point_add_same_stride_batch(
+    Point* outputs,
+    UInt256* denominators,
+    UInt256* inverses,
+    UInt256* scratch_prefix_products,
+    int* normal_indices,
+    const Point* inputs,
+    const Point& stride_point,
+    int count) {
+    if (count < 0 || stride_point.infinity) return false;
+    if (count == 0) return true;
+
+    const UInt256 p = field_p();
+    int normal_count = 0;
+    for (int i = 0; i < count; ++i) {
+        if (inputs[i].infinity) return false;
+        if (cmp(inputs[i].x, stride_point.x) == 0) {
+            if (!point_add(outputs[i], inputs[i], stride_point)) return false;
+            continue;
+        }
+        normal_indices[normal_count] = i;
+        sub_mod(denominators[normal_count], stride_point.x, inputs[i].x, p);
+        if (is_zero(denominators[normal_count])) return false;
+        ++normal_count;
+    }
+    if (normal_count == 0) return true;
+    if (!batch_inv_mod_p(inverses, scratch_prefix_products, denominators, normal_count)) {
+        return false;
+    }
+
+    for (int packed_index = 0; packed_index < normal_count; ++packed_index) {
+        const int i = normal_indices[packed_index];
+        UInt256 numerator;
+        UInt256 lambda;
+        UInt256 lambda2;
+        UInt256 xr_tmp;
+        UInt256 xr;
+        UInt256 ax_minus_xr;
+        UInt256 yr_tmp;
+        UInt256 yr;
+
+        sub_mod(numerator, stride_point.y, inputs[i].y, p);
+        mul_mod(lambda, numerator, inverses[packed_index], p);
+        mul_mod(lambda2, lambda, lambda, p);
+        sub_mod(xr_tmp, lambda2, inputs[i].x, p);
+        sub_mod(xr, xr_tmp, stride_point.x, p);
+        sub_mod(ax_minus_xr, inputs[i].x, xr, p);
+        mul_mod(yr_tmp, lambda, ax_minus_xr, p);
+        sub_mod(yr, yr_tmp, inputs[i].y, p);
+
+        outputs[i].infinity = false;
+        outputs[i].x = xr;
+        outputs[i].y = yr;
+    }
+    return true;
+}
+
 SECP_HD bool scalar_multiply(Point& out, const UInt256& scalar) {
     if (is_zero(scalar) || cmp(scalar, order_n()) >= 0) return false;
     Point result;
