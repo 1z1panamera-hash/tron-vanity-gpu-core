@@ -56,6 +56,8 @@ struct BenchmarkConfig {
     uint8_t prefix_upper[PAYLOAD25_LEN];
     int suffix_filter_enabled;
     unsigned long long suffix_value;
+    int incremental_step_point_ready;
+    secp256k1_device::Point incremental_step_point;
     int duration_seconds;
     int kernel_mode;
     unsigned long long max_attempts;
@@ -184,7 +186,7 @@ __device__ void scalar32_from_candidate(unsigned long long candidate, uint8_t sc
 
 __device__ void copy_cstr64(char dst[64], const char* src, int len);
 
-__device__ secp256k1_device::UInt256 uint256_from_u64(unsigned long long value) {
+SECP_HD secp256k1_device::UInt256 uint256_from_u64(unsigned long long value) {
     secp256k1_device::UInt256 out;
     secp256k1_device::zero(out);
     out.limb[0] = static_cast<uint32_t>(value & 0xffffffffULL);
@@ -317,17 +319,20 @@ __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkRe
         global_idx * config.shard_count +
         config.shard_id +
         1ULL;
-    const unsigned long long step_scalar_value = total_threads * config.shard_count;
-
     secp256k1_device::Point current_point;
     secp256k1_device::Point step_point;
     secp256k1_device::UInt256 first_scalar = uint256_from_u64(first_candidate);
-    secp256k1_device::UInt256 step_scalar = uint256_from_u64(step_scalar_value);
     if (!secp256k1_device::scalar_multiply(current_point, first_scalar)) {
         return;
     }
-    if (!secp256k1_device::scalar_multiply(step_point, step_scalar)) {
-        return;
+    if (config.incremental_step_point_ready) {
+        step_point = config.incremental_step_point;
+    } else {
+        const unsigned long long step_scalar_value = total_threads * config.shard_count;
+        secp256k1_device::UInt256 step_scalar = uint256_from_u64(step_scalar_value);
+        if (!secp256k1_device::scalar_multiply(step_point, step_scalar)) {
+            return;
+        }
     }
 
     char candidate_address[64];
@@ -802,6 +807,26 @@ static int run_benchmark_cuda(int argc, char** argv) {
             launch_threads = max_incremental_launch_threads;
         }
         int blocks = static_cast<int>((launch_threads + threads - 1) / threads);
+        const unsigned long long actual_total_threads =
+            static_cast<unsigned long long>(blocks) * static_cast<unsigned long long>(threads);
+
+        batch_config.incremental_step_point_ready = 0;
+        if (config.kernel_mode == BENCHMARK_KERNEL_INCREMENTAL_WALK) {
+            if (batch_config.shard_count != 0 &&
+                actual_total_threads > (~0ULL / batch_config.shard_count)) {
+                std::fprintf(stderr, "incremental step scalar overflow\n");
+                cudaFree(d_result);
+                return 1;
+            }
+            const unsigned long long step_scalar_value = actual_total_threads * batch_config.shard_count;
+            secp256k1_device::UInt256 step_scalar = uint256_from_u64(step_scalar_value);
+            if (!secp256k1_device::scalar_multiply(batch_config.incremental_step_point, step_scalar)) {
+                std::fprintf(stderr, "incremental step point precompute failed\n");
+                cudaFree(d_result);
+                return 1;
+            }
+            batch_config.incremental_step_point_ready = 1;
+        }
 
         if (config.kernel_mode == BENCHMARK_KERNEL_INCREMENTAL_WALK) {
             benchmark_incremental_kernel<<<blocks, threads>>>(batch_config, d_result);

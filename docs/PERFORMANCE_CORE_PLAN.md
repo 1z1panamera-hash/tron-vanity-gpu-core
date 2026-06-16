@@ -31,8 +31,9 @@ Then each next candidate can be derived with elliptic-curve point addition inste
 - `src/tron_gpu_core.cu` now has an `incremental` benchmark mode.
 - `app.py` passes `kernel_mode`, defaulting to `incremental`.
 - `RUNPOD_BENCHMARK_SMOKE_PAYLOAD.json` sets `kernel_mode = incremental`.
-- Current incremental mode computes one base scalar multiplication and one stride scalar multiplication per CUDA thread.
-- Subsequent candidates in the same thread use elliptic-curve point addition by stride.
+- Current incremental mode computes one base scalar multiplication per CUDA thread.
+- The stride point is precomputed once per kernel launch on the host and passed through `BenchmarkConfig`.
+- Subsequent candidates in the same thread use elliptic-curve point addition by that shared stride point.
 - Attempts are accumulated per CUDA thread and committed to the global counter once per thread, avoiding one global atomic operation per candidate in the incremental benchmark loop.
 - Prefix range bounds and suffix target values are precomputed once in `BenchmarkConfig`, so each candidate avoids reparsing target Base58 prefix/suffix strings inside the GPU loop.
 - `tests/verify_incremental_walking.cpp` validates that walked public keys match direct scalar multiplication for small deterministic candidates.

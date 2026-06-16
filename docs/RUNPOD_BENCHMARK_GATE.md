@@ -13,6 +13,7 @@ This document defines the first GPU benchmark gate for the TRON vanity worker.
   - Base58Check
   - prefix/suffix match
 - Default `kernel_mode` is `incremental`, which uses one base scalar multiplication per thread and then point addition by stride.
+- Incremental stride point is precomputed once per kernel launch on the host and passed to the kernel, so each CUDA thread does not repeat the same stride scalar multiplication.
 - Incremental mode counts attempts with per-thread local accumulation, then one global atomic add per thread; this keeps the benchmark from measuring global atomic contention as the main bottleneck.
 - Benchmark filters use precomputed Base58 prefix bounds and suffix target values from `BenchmarkConfig`; candidate loops must not reparse the target address for every candidate.
 - `kernel_mode=scalar` is retained only as a correctness/performance comparison path.
