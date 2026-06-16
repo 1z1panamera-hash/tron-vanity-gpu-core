@@ -154,6 +154,26 @@ int main(int argc, char** argv) {
             fail("prefix range mismatch");
         }
 
+        uint8_t prefix_lower[25];
+        uint8_t prefix_upper[25];
+        tron_device::Big256 lower_big;
+        tron_device::Big256 upper_big;
+        tron_device::Big256 payload_big;
+        if (!tron_device::base58_prefix_bounds(
+                vector.prefix2.c_str(),
+                static_cast<int>(vector.prefix2.size()),
+                static_cast<int>(vector.tron_base58_address.size()),
+                prefix_lower,
+                prefix_upper)) {
+            fail("prefix bounds precompute failed");
+        } else if (!tron_device::big256_from_payload25(prefix_lower, lower_big) ||
+                   !tron_device::big256_from_payload25(prefix_upper, upper_big) ||
+                   !tron_device::big256_from_payload25(payload25, payload_big) ||
+                   tron_device::big256_cmp(payload_big, lower_big) < 0 ||
+                   tron_device::big256_cmp(payload_big, upper_big) >= 0) {
+            fail("precomputed prefix bounds mismatch");
+        }
+
         if (!tron_device::address_matches_filter(
                 payload25,
                 vector.tron_base58_address.c_str(),

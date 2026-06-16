@@ -51,6 +51,11 @@ struct BenchmarkConfig {
     int target_len;
     int prefix_len;
     int suffix_len;
+    int prefix_range_enabled;
+    uint8_t prefix_lower[PAYLOAD25_LEN];
+    uint8_t prefix_upper[PAYLOAD25_LEN];
+    int suffix_filter_enabled;
+    unsigned long long suffix_value;
     int duration_seconds;
     int kernel_mode;
     unsigned long long max_attempts;
@@ -198,6 +203,37 @@ __device__ bool point_to_public_key64(
     return true;
 }
 
+__device__ bool payload_matches_target(
+    const uint8_t payload25[25],
+    const BenchmarkConfig& config,
+    char matched_address[64]) {
+    if (config.prefix_range_enabled &&
+        !base58_prefix_range_filter(payload25, config.prefix_lower, config.prefix_upper)) {
+        return false;
+    }
+    if (config.suffix_filter_enabled &&
+        !base58_suffix_mod_filter(payload25, config.suffix_len, config.suffix_value)) {
+        return false;
+    }
+
+    char address[tron_device::BASE58_MAX_LEN];
+    int address_len = tron_device::base58_encode_payload25(payload25, address);
+    if (address_len <= 0) {
+        return false;
+    }
+    if (!tron_device::str_prefix_suffix_match(
+            address,
+            address_len,
+            config.target_address,
+            config.target_len,
+            config.prefix_len,
+            config.suffix_len)) {
+        return false;
+    }
+    copy_cstr64(matched_address, address, address_len);
+    return true;
+}
+
 __device__ bool point_matches_target(
     const secp256k1_device::Point& point,
     const BenchmarkConfig& config,
@@ -211,21 +247,7 @@ __device__ bool point_matches_target(
     if (!tron_device::payload25_from_public_key64(public_key64, payload25, keccak_out)) {
         return false;
     }
-    if (!tron_device::address_matches_filter(
-            payload25,
-            config.target_address,
-            config.target_len,
-            config.prefix_len,
-            config.suffix_len)) {
-        return false;
-    }
-    char address[tron_device::BASE58_MAX_LEN];
-    int address_len = tron_device::base58_encode_payload25(payload25, address);
-    if (address_len <= 0) {
-        return false;
-    }
-    copy_cstr64(matched_address, address, address_len);
-    return true;
+    return payload_matches_target(payload25, config, matched_address);
 }
 
 __device__ void copy_cstr64(char dst[64], const char* src, int len) {
@@ -268,18 +290,14 @@ __global__ void benchmark_kernel(BenchmarkConfig config, BenchmarkResult* result
         return;
     }
 
-    if (tron_device::address_matches_filter(
-            payload25,
-            config.target_address,
-            config.target_len,
-            config.prefix_len,
-            config.suffix_len)) {
+    char matched_address[64];
+    if (payload_matches_target(payload25, config, matched_address)) {
         if (atomicCAS(&result->matched, 0, 1) == 0) {
-            char address[tron_device::BASE58_MAX_LEN];
-            int address_len = tron_device::base58_encode_payload25(payload25, address);
-            if (address_len > 0) {
-                copy_cstr64(result->matched_address, address, address_len);
+            int matched_len = 0;
+            while (matched_len < 63 && matched_address[matched_len] != '\0') {
+                ++matched_len;
             }
+            copy_cstr64(result->matched_address, matched_address, matched_len);
         }
     }
 }
@@ -648,6 +666,35 @@ static bool validate_target_address(const char* target_address, int* out_len) {
     return true;
 }
 
+static bool prepare_benchmark_filters(BenchmarkConfig& config, std::string& error) {
+    config.prefix_range_enabled = config.prefix_len > 0 ? 1 : 0;
+    config.suffix_filter_enabled = config.suffix_len > 0 ? 1 : 0;
+
+    if (config.prefix_range_enabled &&
+        !tron_device::base58_prefix_bounds(
+            config.target_address,
+            config.prefix_len,
+            config.target_len,
+            config.prefix_lower,
+            config.prefix_upper)) {
+        error = "failed to precompute Base58 prefix range";
+        return false;
+    }
+
+    if (config.suffix_filter_enabled) {
+        const char* suffix = config.target_address + config.target_len - config.suffix_len;
+        const uint64_t suffix_value =
+            tron_device::suffix_value_from_base58_suffix(suffix, config.suffix_len);
+        if (suffix_value == UINT64_MAX) {
+            error = "failed to precompute Base58 suffix value";
+            return false;
+        }
+        config.suffix_value = suffix_value;
+    }
+
+    return true;
+}
+
 static int parse_kernel_mode(int argc, char** argv) {
     const char* mode = arg_value(argc, argv, "--kernel-mode", "incremental");
     if (std::strcmp(mode, "incremental") == 0) {
@@ -704,6 +751,11 @@ static int run_benchmark_cuda(int argc, char** argv) {
     }
     if (config.shard_count == 0 || config.shard_id >= config.shard_count) {
         std::fprintf(stderr, "invalid shard_id/shard_count\n");
+        return 1;
+    }
+    std::string filter_error;
+    if (!prepare_benchmark_filters(config, filter_error)) {
+        std::fprintf(stderr, "%s\n", filter_error.c_str());
         return 1;
     }
 

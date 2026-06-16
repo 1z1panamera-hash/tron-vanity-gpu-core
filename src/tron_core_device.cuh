@@ -338,13 +338,32 @@ TRON_HD bool big256_from_payload25(const uint8_t payload25[25], Big256& out) {
     return true;
 }
 
-TRON_HD bool base58_prefix_range_filter(const uint8_t payload25[25], const char* prefix, int prefix_len, int total_len) {
-    if (prefix_len <= 0) return true;
+TRON_HD void big256_to_payload25(const Big256& value, uint8_t payload25[25]) {
+    for (int i = 0; i < 25; ++i) {
+        const int byte_from_right = 24 - i;
+        const int limb_index = byte_from_right / 4;
+        const int shift = (byte_from_right % 4) * 8;
+        payload25[i] = static_cast<uint8_t>((value.limb[limb_index] >> shift) & 0xffU);
+    }
+}
+
+TRON_HD bool base58_prefix_bounds(
+    const char* prefix,
+    int prefix_len,
+    int total_len,
+    uint8_t lower_payload25[25],
+    uint8_t upper_payload25[25]) {
+    if (prefix_len <= 0) {
+        for (int i = 0; i < 25; ++i) {
+            lower_payload25[i] = 0x00;
+            upper_payload25[i] = 0xff;
+        }
+        return true;
+    }
     if (prefix_len > total_len) return false;
 
     Big256 lower;
     Big256 upper;
-    Big256 value;
     if (!big256_from_base58(prefix, prefix_len, lower)) return false;
     if (!big256_from_base58(prefix, prefix_len, upper)) return false;
     if (!big256_add_small(upper, 1)) return false;
@@ -352,6 +371,23 @@ TRON_HD bool base58_prefix_range_filter(const uint8_t payload25[25], const char*
         if (!big256_mul_small(lower, 58)) return false;
         if (!big256_mul_small(upper, 58)) return false;
     }
+    big256_to_payload25(lower, lower_payload25);
+    big256_to_payload25(upper, upper_payload25);
+    return true;
+}
+
+TRON_HD bool base58_prefix_range_filter(const uint8_t payload25[25], const char* prefix, int prefix_len, int total_len) {
+    if (prefix_len <= 0) return true;
+    if (prefix_len > total_len) return false;
+
+    uint8_t lower_payload25[25];
+    uint8_t upper_payload25[25];
+    Big256 value;
+    Big256 lower;
+    Big256 upper;
+    if (!base58_prefix_bounds(prefix, prefix_len, total_len, lower_payload25, upper_payload25)) return false;
+    if (!big256_from_payload25(lower_payload25, lower)) return false;
+    if (!big256_from_payload25(upper_payload25, upper)) return false;
     if (!big256_from_payload25(payload25, value)) return false;
     return big256_cmp(value, lower) >= 0 && big256_cmp(value, upper) < 0;
 }
