@@ -18,7 +18,7 @@ That means the prepared local repository is not yet visible to RunPod.
 Latest required commit at the time this checklist was written:
 
 ```text
-85f9b145d64f1af50abc71b2ae9a38aa5d98159f
+ed7397be9f65c4657858d81fd0c97c3f88e4d04a
 ```
 
 ## Recommended GitHub Repository
@@ -39,6 +39,14 @@ scripts/local_preflight.sh
 ```
 
 Both must pass.
+
+Optional dry-run helper after the GitHub repository exists:
+
+```bash
+scripts/prepare_github_push.sh --repo-url https://github.com/OWNER/tron-vanity-gpu-core.git
+```
+
+The helper does not push unless `--push` is passed.
 
 ## Upload Rules
 

@@ -39,6 +39,7 @@ Do not use 47.80.70.211 as the GitHub source, build machine, CUDA compiler, Dock
 - `tests/verify_shard_schedule.cpp`
 - `scripts/local_preflight.sh`
 - `scripts/public_repo_audit.py`
+- `scripts/prepare_github_push.sh`
 - `scripts/inspect_runpod_result.py`
 - `scripts/capacity_math.py`
 - `examples/runpod_validate_success_sample.json`

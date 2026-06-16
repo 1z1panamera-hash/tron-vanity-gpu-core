@@ -7,6 +7,8 @@ cd "$ROOT"
 echo "== python syntax"
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile app.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile flash/runpod_flash_cuda_probe.py
+test -x scripts/public_repo_audit.py
+test -x scripts/prepare_github_push.sh
 
 echo "== json"
 python3 - <<'PY'
