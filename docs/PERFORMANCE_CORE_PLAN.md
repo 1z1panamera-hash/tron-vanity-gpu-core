@@ -33,6 +33,7 @@ Then each next candidate can be derived with elliptic-curve point addition inste
 - `RUNPOD_BENCHMARK_SMOKE_PAYLOAD.json` sets `kernel_mode = incremental`.
 - Current incremental mode computes one base scalar multiplication and one stride scalar multiplication per CUDA thread.
 - Subsequent candidates in the same thread use elliptic-curve point addition by stride.
+- Attempts are accumulated per CUDA thread and committed to the global counter once per thread, avoiding one global atomic operation per candidate in the incremental benchmark loop.
 - `tests/verify_incremental_walking.cpp` validates that walked public keys match direct scalar multiplication for small deterministic candidates.
 
 This is the first performance-oriented implementation path. It still needs RunPod `nvcc` compilation and CUDA vector validation before benchmark results are trusted.

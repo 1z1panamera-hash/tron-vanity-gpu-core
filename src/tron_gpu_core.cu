@@ -313,11 +313,12 @@ __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkRe
     }
 
     char candidate_address[64];
+    unsigned long long local_attempts = 0ULL;
     for (unsigned long long attempt_idx = global_idx;
          attempt_idx < config.max_attempts && result->matched == 0;
          attempt_idx += total_threads) {
         if (point_matches_target(current_point, config, candidate_address)) {
-            atomicAdd(&result->attempts, 1ULL);
+            ++local_attempts;
             if (atomicCAS(&result->matched, 0, 1) == 0) {
                 int matched_len = 0;
                 while (matched_len < 63 && candidate_address[matched_len] != '\0') {
@@ -325,15 +326,21 @@ __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkRe
                 }
                 copy_cstr64(result->matched_address, candidate_address, matched_len);
             }
+            atomicAdd(&result->attempts, local_attempts);
             return;
         }
 
-        atomicAdd(&result->attempts, 1ULL);
+        ++local_attempts;
         secp256k1_device::Point next_point;
         if (!secp256k1_device::point_add(next_point, current_point, step_point)) {
+            atomicAdd(&result->attempts, local_attempts);
             return;
         }
         current_point = next_point;
+    }
+
+    if (local_attempts > 0ULL) {
+        atomicAdd(&result->attempts, local_attempts);
     }
 }
 
