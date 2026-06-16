@@ -78,6 +78,7 @@ Hash-only speed is not TRON address generation speed.
 - `tests/verify_batch_point_add.cpp`: checks same-stride affine point additions using one batch inversion against direct `point_add`.
 - `tests/verify_shard_schedule.cpp`: checks shard, batch, and thread-stride candidate coverage.
 - `scripts/local_preflight.sh`: local no-server, no-RunPod preflight before pushing to GitHub.
+- `scripts/public_repo_audit.py`: local audit before exposing the repository to GitHub/RunPod.
 - `scripts/inspect_runpod_result.py`: local JSON inspector for RunPod validate/benchmark responses.
 - `scripts/capacity_math.py`: local worker-count/probability calculator for measured complete TRON address speed.
 - `examples/`: local sample RunPod responses for the result inspector.
@@ -93,6 +94,7 @@ Hash-only speed is not TRON address generation speed.
 - `docs/GPU_CORE_REVIEW_CHECKLIST.md`: review gates before benchmark.
 - `docs/BUILD_AND_RUNPOD_GATE.md`: build and RunPod execution gate.
 - `docs/RUNPOD_GITHUB_DEPLOY_PATH.md`: preferred no-local-Docker deployment path using RunPod GitHub integration.
+- `docs/RUNPOD_GITHUB_UPLOAD_CHECKLIST.md`: public/private GitHub upload gate after RunPod authorization.
 - `docs/RUNPOD_BENCHMARK_GATE.md`: benchmark smoke-test gate and sharding rules.
 - `docs/RUNPOD_A100_RTX5090_COMPARISON.md`: exact A100 and RTX 5090-class comparison sequence.
 - `docs/RUNPOD_FIRST_TEST_SEQUENCE.md`: RunPod-first validation and benchmark order that avoids using 47.80.70.211 as a test machine.

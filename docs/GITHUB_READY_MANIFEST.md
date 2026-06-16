@@ -38,11 +38,13 @@ Do not use 47.80.70.211 as the GitHub source, build machine, CUDA compiler, Dock
 - `tests/verify_batch_point_add.cpp`
 - `tests/verify_shard_schedule.cpp`
 - `scripts/local_preflight.sh`
+- `scripts/public_repo_audit.py`
 - `scripts/inspect_runpod_result.py`
 - `scripts/capacity_math.py`
 - `examples/runpod_validate_success_sample.json`
 - `examples/runpod_benchmark_success_sample.json`
 - `docs/RUNPOD_GITHUB_DEPLOY_PATH.md`
+- `docs/RUNPOD_GITHUB_UPLOAD_CHECKLIST.md`
 - `docs/RUNPOD_ACTION_NOW.md`
 - `docs/RUNPOD_DEPLOYMENT_ROUTE_DECISION_20260617.md`
 - `docs/RUNPOD_FLASH_FALLBACK_PROBE.md`
