@@ -66,6 +66,7 @@ assert rule["suffix_len"] == 5
 assert rule["search_space"] == 58 ** 6
 print("wrapper_gate_ok")
 PY
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 tests/verify_find_response_contract.py
 
 echo "== docker context sanity"
 cmp -s Dockerfile Dockerfile.cuda-validate

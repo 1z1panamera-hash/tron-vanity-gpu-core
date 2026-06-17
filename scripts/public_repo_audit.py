@@ -61,6 +61,7 @@ REQUIRED_PATHS = [
     "patches/vanitysearch_tron_gpu_payload21_word_bounds_20260618.patch",
     "scripts/inspect_vanitysearch_benchmark.py",
     "scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh",
+    "tests/verify_find_response_contract.py",
 ]
 
 

@@ -604,7 +604,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
         "gpu_name": gpu_result.get("gpu_name"),
         "notes": [
             "Plaintext private key was encrypted with customer age recipient before returning.",
-            "Response intentionally omits private_key_hex, seed, mnemonic, token, and secret.",
+            "Response intentionally omits plaintext key material and credential material.",
         ],
     }
 

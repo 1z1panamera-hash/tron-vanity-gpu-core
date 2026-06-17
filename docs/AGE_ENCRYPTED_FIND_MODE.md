@@ -79,6 +79,7 @@ Partially complete.
 - The CUDA/C++ `--find` path still needs RunPod-side nvcc compile and GPU validation.
 - The current deterministic candidate generator is a staging implementation, not the final high-performance/randomized production core.
 - Final performance target is still unproven.
+- Local response-contract test `tests/verify_find_response_contract.py` uses fake local GPU/age binaries to verify that a matched API response contains `encrypted_private_key` and omits plaintext key markers.
 
 ## CUDA Binary Output Boundary
 
