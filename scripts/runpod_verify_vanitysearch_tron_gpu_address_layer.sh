@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_address_layer_20260618.patch"
+PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_wildcard_search_20260618.patch"
 
 if [ "${ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK:-0}" != "1" ]; then
   echo "refusing_to_run_without_ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK=1" >&2
@@ -15,7 +15,7 @@ if [ ! -f "$PATCH_PATH" ]; then
   exit 1
 fi
 
-EXPECTED_SHA="a988726c561760768ba20d3b7354b497a27fa59e437c08046f73d1136e0825fc"
+EXPECTED_SHA="2be8fd3ad0f200023135a413e0c1928aa9a69661f28cd2a1ad8ddebff9a9c761"
 ACTUAL_SHA="$(sha256sum "$PATCH_PATH" | awk '{print $1}')"
 if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
   echo "patch sha256 mismatch" >&2
@@ -45,3 +45,9 @@ git apply "$PATCH_PATH"
 
 echo "== run GPU TRON address layer vector check"
 CUDA_ARCH="$CUDA_ARCH" scripts/runpod_verify_tron_gpu_address_layer.sh
+
+if [ "${RUN_TRON_PATTERN_SMOKE:-0}" = "1" ]; then
+  echo "== run optional TRON GPU pattern search smoke"
+  ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE=1 CUDA_ARCH="${CUDA_ARCH#sm_}" \
+    scripts/runpod_tron_gpu_pattern_search_smoke.sh
+fi
