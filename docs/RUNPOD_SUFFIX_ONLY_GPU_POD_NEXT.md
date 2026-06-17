@@ -44,7 +44,7 @@ git rev-parse HEAD
 Expected current minimum commit:
 
 ```text
-7779a996d13f053a666958dbd4d9f521fd33a754
+94aef3d8b429020d98a4e6f337a0e099447b9e06
 ```
 
 If the commit is older, stop and update the Pod checkout.
@@ -128,3 +128,17 @@ Can move toward Serverless only if:
 - production `find` path returns only `matched_address` and `encrypted_private_key`.
 
 If speed is below target, continue CUDA hot-path optimization before spending on Serverless.
+
+The sequence inspector reports this as:
+
+```text
+decision = serverless_speed_gate_passed_pending_find_validation
+```
+
+If it reports:
+
+```text
+decision = optimize_cuda_before_serverless
+```
+
+do not create a Serverless endpoint yet.

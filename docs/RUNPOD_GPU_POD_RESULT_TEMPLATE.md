@@ -29,10 +29,6 @@ Required markers:
 Required per-vector fields:
 
 - `xy_payload_passed` all true:
-- `prefix_possible_passed` all true:
-- `wrong_prefix_possible_rejected` all true:
-- `prefix_prefilter_passed` all true:
-- `wrong_prefix_prefilter_rejected` all true:
 - `suffix_prefilter_passed` all true:
 - `wrong_suffix_prefilter_rejected` all true:
 
@@ -79,6 +75,7 @@ Inspector summary:
 
 - `expected_mean_seconds`:
 - `p90_seconds`:
+- `single_worker_meets_goal`:
 - `required_workers.mean_5s`:
 - `required_workers.p90_8s`:
 
@@ -111,8 +108,10 @@ Inspector summary:
 
 - `expected_mean_seconds`:
 - `p90_seconds`:
+- `single_worker_meets_goal`:
 - `required_workers.mean_5s`:
 - `required_workers.p90_8s`:
+- `serverless_ready_speed_gate` from sequence inspector:
 
 ## Review Decision
 

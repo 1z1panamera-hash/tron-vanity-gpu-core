@@ -134,7 +134,9 @@ cleanup_sequence_dir() {
         "$sequence_dir/vector_gate.stdout.txt" \
         "$sequence_dir/smoke.stdout.txt" \
         "$sequence_dir/benchmark_3s.stdout.txt" \
-        "$sequence_dir/benchmark_3s.inspect.json"
+        "$sequence_dir/benchmark_3s.inspect.json" \
+        "$sequence_dir/benchmark_10s.stdout.txt" \
+        "$sequence_dir/benchmark_10s.inspect.json"
     rmdir "$sequence_dir" 2>/dev/null || true
 }
 trap cleanup_sequence_dir EXIT
@@ -147,6 +149,32 @@ printf '%s\n' "tron_gpu_pattern_smoke_passed" >"$sequence_dir/smoke.stdout.txt"
 printf '%s\n' "tron_gpu_pattern_benchmark_passed" >"$sequence_dir/benchmark_3s.stdout.txt"
 printf '%s\n' '{"passed": true, "failures": [], "summary": {"candidate_attempts_per_second_estimate": 800000000, "expected_mean_seconds": 0.82, "p90_seconds": 1.89, "single_worker_meets_goal": true, "required_workers": {"mean_5s": 1, "p90_8s": 1}}}' >"$sequence_dir/benchmark_3s.inspect.json"
 python3 scripts/inspect_runpod_sequence_result.py "$sequence_dir" >/tmp/runpod_sequence_inspect.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+data = json.loads(Path("/tmp/runpod_sequence_inspect.json").read_text())
+assert data["decision"] == "run_10s_benchmark_next", data["decision"]
+assert data["serverless_ready_speed_gate"] is False
+PY
+printf '%s\n' "tron_gpu_pattern_benchmark_passed" >"$sequence_dir/benchmark_10s.stdout.txt"
+printf '%s\n' '{"passed": true, "failures": [], "summary": {"candidate_attempts_per_second_estimate": 85050000, "expected_mean_seconds": 7.72, "p90_seconds": 17.77, "single_worker_meets_goal": false, "required_workers": {"mean_5s": 2, "p90_8s": 3}}}' >"$sequence_dir/benchmark_10s.inspect.json"
+python3 scripts/inspect_runpod_sequence_result.py "$sequence_dir" >/tmp/runpod_sequence_low_inspect.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+data = json.loads(Path("/tmp/runpod_sequence_low_inspect.json").read_text())
+assert data["decision"] == "optimize_cuda_before_serverless", data["decision"]
+assert data["serverless_ready_speed_gate"] is False
+PY
+printf '%s\n' '{"passed": true, "failures": [], "summary": {"candidate_attempts_per_second_estimate": 250000000, "expected_mean_seconds": 2.63, "p90_seconds": 6.05, "single_worker_meets_goal": true, "required_workers": {"mean_5s": 1, "p90_8s": 1}}}' >"$sequence_dir/benchmark_10s.inspect.json"
+python3 scripts/inspect_runpod_sequence_result.py "$sequence_dir" >/tmp/runpod_sequence_high_inspect.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+data = json.loads(Path("/tmp/runpod_sequence_high_inspect.json").read_text())
+assert data["decision"] == "serverless_speed_gate_passed_pending_find_validation", data["decision"]
+assert data["serverless_ready_speed_gate"] is True
+PY
 
 echo "== vanitysearch patch gate"
 python3 - <<'PY'
