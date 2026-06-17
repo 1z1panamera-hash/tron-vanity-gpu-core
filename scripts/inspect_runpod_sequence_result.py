@@ -11,7 +11,9 @@ from typing import Any, Dict, List
 
 REQUIRED_SPEED_MEAN_5S = 131_271_353.6
 REQUIRED_SPEED_P90_8S = 188_914_663.71031892
-REQUIRED_SPEED_TO_MEET_GOAL = REQUIRED_SPEED_P90_8S
+ENGINEERING_MIN_ATTEMPTS_PER_SECOND = 200_000_000.0
+ENGINEERING_PREFERRED_ATTEMPTS_PER_SECOND = 300_000_000.0
+REQUIRED_SPEED_TO_MEET_GOAL = ENGINEERING_MIN_ATTEMPTS_PER_SECOND
 
 MARKERS = {
     "vector_gate": [
@@ -82,6 +84,8 @@ def benchmark_summary(result_dir: Path, step: str) -> Dict[str, Any]:
         "meets_suffix_only_speed_goal": meets_goal,
         "required_speed_for_mean_5s": REQUIRED_SPEED_MEAN_5S,
         "required_speed_for_p90_8s": REQUIRED_SPEED_P90_8S,
+        "engineering_min_attempts_per_second": ENGINEERING_MIN_ATTEMPTS_PER_SECOND,
+        "engineering_preferred_attempts_per_second": ENGINEERING_PREFERRED_ATTEMPTS_PER_SECOND,
         "required_workers": summary.get("required_workers"),
         "failures": data.get("failures", []),
     }
@@ -137,8 +141,9 @@ def inspect_sequence(result_dir: Path) -> Dict[str, Any]:
         "notes": [
             "This inspector reads local result files only.",
             "It does not call RunPod, compile CUDA, or run benchmarks.",
-            "Suffix-only speed target is mean <= 5s and P90 <= 8s, requiring about 188.91M complete TRON addresses/s for one worker.",
-            "Age/find delivery work is paused until the speed path is stable above 100M attempts/s.",
+            "Suffix-only math requires about 188.91M complete TRON addresses/s for P90 <= 8s, but the engineering pass gate is 200M attempts/s minimum.",
+            "300M+ attempts/s is preferred before Serverless migration.",
+            "Age/find delivery work is paused until the speed path is stable above the 200M minimum.",
             "Passing this speed gate means continue profiler-driven CUDA optimization, not Serverless migration.",
         ],
     }

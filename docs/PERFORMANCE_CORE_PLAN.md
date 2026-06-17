@@ -4,7 +4,7 @@ Goal: move from correctness-first CUDA code toward a worker that can realistical
 
 The product no longer matches any prefix after fixed `T`. It matches only the last 5 Base58Check characters. The Python wrapper maps product input to internal full-address `prefix_len=0`, `suffix_len=5` for the CUDA binary. Capacity math is therefore `58^5`.
 
-Current sprint priority: speed only. Pause age/find delivery work until the GPU path is stable above `100M attempts/s`. Stage 1 target is `50M` to `100M attempts/s`; Stage 2 target is `200M+ attempts/s`. Use normal RunPod GPU Pods with short sweeps and profiler output before any Serverless migration.
+Current sprint priority: speed only. Pause age/find delivery work until the GPU path is stable above `200M attempts/s`. Treat `200M attempts/s` as the minimum engineering pass gate and `300M+ attempts/s` as the preferred buffer before Serverless migration. Use normal RunPod GPU Pods with short sweeps, `nvidia-smi` utilization evidence, and profiler output before any Serverless migration.
 
 ## Why Current Code Is Not Enough
 
@@ -83,15 +83,16 @@ Each RunPod worker gets:
 
 ## Paused Hit Delivery Work
 
-Age/find delivery work is intentionally paused during the speed sprint. Do not add encryption, private-key return plumbing, or complex response logic until the GPU path is stable above `100M attempts/s`.
+Age/find delivery work is intentionally paused during the speed sprint. Do not add encryption, private-key return plumbing, or complex response logic until the GPU path is stable above the `200M attempts/s` engineering minimum.
 
 The active engineering focus is:
 
 1. secp256k1 point walking and point-add throughput.
 2. Larger grid/batch settings that actually saturate the GPU.
-3. Profiler-driven bottleneck isolation with `nsys` or `nvprof`.
-4. Suffix-only checksum/Base58 hot-path reduction.
-5. Repeat short RunPod GPU Pod measurements after each change.
+3. GPU utilization proof with `nvidia-smi`; low utilization means kernel launch, batch size, or occupancy is still wrong.
+4. Profiler-driven bottleneck isolation with `nsys` or `nvprof`.
+5. Suffix-only checksum/Base58 hot-path reduction.
+6. Repeat short RunPod GPU Pod measurements after each change.
 
 ## Validation Gates
 

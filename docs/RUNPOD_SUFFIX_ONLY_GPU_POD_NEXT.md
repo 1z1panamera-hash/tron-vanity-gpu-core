@@ -13,6 +13,8 @@ Purpose: run the next paid GPU Pod test for the current product rule.
 - Required single-worker speed:
   - mean <= 5s: about `131.27M complete TRON addresses/s`
   - P90 <= 8s: about `188.91M complete TRON addresses/s`
+- Engineering pass gate: at least `200M complete TRON attempts/s`
+- Preferred speed before Serverless migration: `300M+ complete TRON attempts/s`
 
 The last 5 Base58Check characters depend on checksum. A candidate is valid only after the CUDA/C++ path computes:
 
@@ -30,7 +32,7 @@ Hash-only speed is not valid evidence.
 - Keep `TRON_SUPPRESS_SECRET_OUTPUT=1` for bounded VanitySearch tests.
 - Do not output plaintext key material.
 - Do not continue to Serverless during the speed sprint.
-- Age/find delivery work is paused until the GPU path is stable above `100M attempts/s`.
+- Age/find delivery work is paused until the GPU path is stable above the `200M attempts/s` engineering minimum.
 
 ## Expected Repository State
 
@@ -85,15 +87,16 @@ The sweep writes:
 
 ```text
 runpod_results/suffix_speed_sweep_<utc-run-id>/speed_sweep_summary.json
+runpod_results/suffix_speed_sweep_<utc-run-id>/nvidia_smi_initial.txt
+runpod_results/suffix_speed_sweep_<utc-run-id>/gpu_utilization.csv
 ```
 
-Stage targets:
+Speed targets:
 
-- Stage 1 minimum: `50M attempts/s`
-- Stage 1 high: `100M attempts/s`
-- Stage 2: `200M+ attempts/s`
+- Minimum engineering pass: `200M attempts/s`
+- Preferred buffer: `300M+ attempts/s`
 
-If the best grid is still below Stage 1, keep optimizing the CUDA hot path before spending on Serverless. The first bottleneck to inspect is secp256k1 point walking and point addition throughput.
+If the best grid is still below `200M`, keep optimizing the CUDA hot path before spending on Serverless. The first bottleneck to inspect is secp256k1 point walking and point addition throughput. If `gpu_utilization.csv` shows low GPU utilization, increase grid/batch or inspect launch/occupancy before changing higher-level product code.
 
 ### 1. Vector Gate Only
 
@@ -166,12 +169,14 @@ Can move toward Serverless only if:
 - vector gate passes,
 - smoke passes,
 - benchmark output contains no forbidden key markers,
-- speed is at least `188.91M complete TRON addresses/s` for single-worker P90 <= 8 seconds,
+- speed is at least `200M complete TRON attempts/s`,
+- `300M+ complete TRON attempts/s` is preferred before Serverless migration,
+- `nvidia-smi` or profiler evidence shows high GPU utilization,
 - the speed path has been profiled and remains stable under repeated short GPU Pod runs.
 
 If speed is below target, continue CUDA hot-path optimization before spending on Serverless.
 
-During the current speed sprint, do not add age encryption or production find response logic. That work resumes only after the speed path is stable above `100M attempts/s`.
+During the current speed sprint, do not add age encryption or production find response logic. That work resumes only after the speed path is stable above the `200M attempts/s` engineering minimum.
 
 The sequence inspector reports this as:
 

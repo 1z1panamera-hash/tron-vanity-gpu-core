@@ -24,7 +24,7 @@ cat <<EOF
 #   Do not run on 47.80.70.211.
 #   Do not use customer suffixes.
 #   Do not continue to Serverless during the current speed sprint.
-#   Age/find delivery work is paused until speed is stable above 100M attempts/s.
+#   Age/find delivery work is paused until speed is stable above 200M attempts/s.
 
 ## 0. Clone on a normal RunPod GPU Pod
 git clone https://github.com/1z1panamera-hash/tron-vanity-gpu-core.git
@@ -61,5 +61,5 @@ RUN_NSYS=1 PROFILE_GRID=64,128 PROFILE_SECONDS=5 \\
 #   stop Serverless work and continue CUDA optimization.
 #
 # If decision = speed_gate_passed_continue_profiling:
-#   continue profiler-driven optimization toward 200M+ attempts/s.
+#   continue profiler-driven optimization toward 300M+ attempts/s.
 EOF

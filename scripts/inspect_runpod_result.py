@@ -19,6 +19,8 @@ FORBIDDEN_KEYS = {
 }
 
 SEARCH_SPACE = 58 ** 5
+ENGINEERING_MIN_ATTEMPTS_PER_SECOND = 200_000_000.0
+ENGINEERING_PREFERRED_ATTEMPTS_PER_SECOND = 300_000_000.0
 TARGETS = {
     "p50": 0.50,
     "p90": 0.90,
@@ -138,6 +140,11 @@ def inspect_benchmark(result: Dict[str, Any]) -> Tuple[bool, List[str], Dict[str
         workers[label] = math.ceil(req / speed) if speed > 0 else None
     required_mean_5s = SEARCH_SPACE / 5.0
     required_p90_8s = required_speed(0.90, 8.0)
+    required_speed_to_meet_goal = max(
+        required_mean_5s,
+        required_p90_8s,
+        ENGINEERING_MIN_ATTEMPTS_PER_SECOND,
+    )
 
     return len(failures) == 0, failures, {
         "mode": result.get("mode"),
@@ -150,7 +157,11 @@ def inspect_benchmark(result: Dict[str, Any]) -> Tuple[bool, List[str], Dict[str
         "single_worker_probability_8s": p8,
         "required_speed_for_mean_5s": required_mean_5s,
         "required_speed_for_p90_8s": required_p90_8s,
-        "single_worker_meets_goal": speed >= max(required_mean_5s, required_p90_8s) if speed > 0 else False,
+        "engineering_min_attempts_per_second": ENGINEERING_MIN_ATTEMPTS_PER_SECOND,
+        "engineering_preferred_attempts_per_second": ENGINEERING_PREFERRED_ATTEMPTS_PER_SECOND,
+        "required_speed_to_meet_goal": required_speed_to_meet_goal,
+        "single_worker_meets_goal": speed >= required_speed_to_meet_goal if speed > 0 else False,
+        "single_worker_meets_preferred_goal": speed >= ENGINEERING_PREFERRED_ATTEMPTS_PER_SECOND if speed > 0 else False,
         "required_workers_8s_probability_targets": workers,
         "matched": benchmark.get("matched"),
         "matched_address": benchmark.get("matched_address"),

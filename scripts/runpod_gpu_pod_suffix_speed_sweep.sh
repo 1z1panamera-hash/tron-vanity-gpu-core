@@ -74,6 +74,30 @@ fi
 
 mkdir -p "$WORKDIR" "$RESULT_DIR"
 
+GPU_UTIL_PID=""
+stop_gpu_util_sampler() {
+  if [ -n "${GPU_UTIL_PID:-}" ]; then
+    kill "$GPU_UTIL_PID" 2>/dev/null || true
+    wait "$GPU_UTIL_PID" 2>/dev/null || true
+    GPU_UTIL_PID=""
+  fi
+}
+trap stop_gpu_util_sampler EXIT
+
+start_gpu_util_sampler() {
+  if ! command -v nvidia-smi >/dev/null 2>&1; then
+    echo "nvidia_smi_not_found" | tee "$RESULT_DIR/nvidia_smi_not_found.txt"
+    return
+  fi
+  nvidia-smi >"$RESULT_DIR/nvidia_smi_initial.txt" 2>&1 || true
+  nvidia-smi \
+    --query-gpu=timestamp,index,name,driver_version,utilization.gpu,utilization.memory,power.draw,memory.used,memory.total \
+    --format=csv \
+    -l 1 \
+    >"$RESULT_DIR/gpu_utilization.csv" 2>"$RESULT_DIR/gpu_utilization.stderr.txt" &
+  GPU_UTIL_PID=$!
+}
+
 echo "== suffix speed sweep"
 echo "repo_commit=$(git -C "$ROOT" rev-parse HEAD)"
 echo "cuda_arch=$CUDA_ARCH_INPUT"
@@ -82,6 +106,10 @@ echo "benchmark_seconds=$BENCHMARK_SECONDS"
 echo "benchmark_pattern=$BENCHMARK_PATTERN"
 echo "sweep_grids=$SWEEP_GRIDS"
 echo "result_dir=$RESULT_DIR"
+echo "engineering_min_attempts_per_second=200000000"
+echo "engineering_preferred_attempts_per_second=300000000"
+
+start_gpu_util_sampler
 
 echo "== clone VanitySearch candidate base"
 git clone --quiet "$VANITYSEARCH_REPO" "$WORKDIR/VanitySearch"
@@ -222,18 +250,47 @@ best = max(
     default=None,
 )
 best_speed = float(best.get("candidate_attempts_per_second_estimate") or 0.0) if best else 0.0
+util_path = result_dir / "gpu_utilization.csv"
+gpu_utilization = {
+    "path": str(util_path),
+    "present": util_path.exists(),
+    "samples": 0,
+    "avg_gpu_utilization_percent": None,
+    "max_gpu_utilization_percent": None,
+}
+if util_path.exists():
+    import csv
+    import re
+
+    samples = []
+    with util_path.open(newline="", errors="ignore") as handle:
+        for row in csv.reader(handle):
+            if not row or row[0].strip().lower() == "timestamp":
+                continue
+            if len(row) < 5:
+                continue
+            match = re.search(r"([0-9.]+)", row[4])
+            if match:
+                samples.append(float(match.group(1)))
+    if samples:
+        gpu_utilization = {
+            "path": str(util_path),
+            "present": True,
+            "samples": len(samples),
+            "avg_gpu_utilization_percent": sum(samples) / len(samples),
+            "max_gpu_utilization_percent": max(samples),
+        }
 summary = {
     "mode": "suffix_speed_sweep_summary",
     "passed": bool(best and best_speed > 0),
     "result_dir": str(result_dir),
     "best_grid": best.get("gpu_grid") if best else None,
     "best_candidate_attempts_per_second_estimate": best_speed,
-    "target_stage1_min": 50_000_000,
-    "target_stage1_high": 100_000_000,
-    "target_stage2": 200_000_000,
-    "meets_stage1_min": best_speed >= 50_000_000,
-    "meets_stage1_high": best_speed >= 100_000_000,
-    "meets_stage2": best_speed >= 200_000_000,
+    "engineering_min_attempts_per_second": 200_000_000,
+    "engineering_preferred_attempts_per_second": 300_000_000,
+    "meets_engineering_minimum": best_speed >= 200_000_000,
+    "meets_engineering_preferred": best_speed >= 300_000_000,
+    "gpu_utilization": gpu_utilization,
     "grids": grid_results,
     "notes": [
         "This is a normal RunPod GPU Pod speed sweep, not Serverless proof.",

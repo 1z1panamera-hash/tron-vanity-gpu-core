@@ -15,7 +15,7 @@ Current status:
 - CUDA vector validation source path exists, but has not been compiled on real GPU hardware yet.
 - A gated sharded benchmark smoke path exists. Its default `kernel_mode` is `incremental`, using per-thread public-key walking after base scalar setup and cooperative block-level batch inversion for stride point additions. It must not be used to report GPU speed until RunPod vector validation passes first.
 - Runtime CUDA compile supports explicit `CUDA_ARCH` plus fallback candidates for A100 (`sm_80`) and RTX 5090-class (`sm_120`) testing.
-- Current priority is a speed sprint: pause age/find delivery work until the GPU path is stable above `100M attempts/s`, then continue toward `200M+ attempts/s`.
+- Current priority is a speed sprint: pause age/find delivery work until the GPU path is stable above `200M attempts/s`; `300M+ attempts/s` is the preferred buffer before Serverless migration.
 
 ## Target
 
@@ -36,6 +36,8 @@ Target thresholds:
 
 - Average <= 5 seconds: about `131.27M addresses/s`
 - P90 <= 8 seconds: about `188.91M addresses/s`
+- Engineering pass gate: at least `200M attempts/s`
+- Preferred speed before Serverless migration: `300M+ attempts/s`
 
 ## Required GPU Chain
 
@@ -57,7 +59,7 @@ The last 5 Base58Check characters depend on checksum, so matching cannot be deci
 - Do not write RunPod API keys to files.
 - Do not read `.env`, token, password, or secret files.
 - Do not use unreviewed external binary generators.
-- Production hit handling is paused during the speed sprint; do not add delivery logic until the GPU path is stable above `100M attempts/s`.
+- Production hit handling is paused during the speed sprint; do not add delivery logic until the GPU path is stable above the `200M attempts/s` engineering minimum.
 
 ## Directory Layout
 

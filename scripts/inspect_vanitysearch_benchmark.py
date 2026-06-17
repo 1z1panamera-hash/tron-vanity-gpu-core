@@ -20,6 +20,8 @@ from typing import Any, Dict, List
 SEARCH_SPACE = 58 ** 5
 MEAN_TARGET_SECONDS = 5.0
 P90_TARGET_SECONDS = 8.0
+ENGINEERING_MIN_ATTEMPTS_PER_SECOND = 200_000_000.0
+ENGINEERING_PREFERRED_ATTEMPTS_PER_SECOND = 300_000_000.0
 FORBIDDEN_PATTERNS = [
     re.compile(pattern, re.IGNORECASE)
     for pattern in [
@@ -118,7 +120,7 @@ def inspect(data: Dict[str, Any], raw_text: str) -> Dict[str, Any]:
     p90_seconds = required_speed_for_probability(0.90, 1.0) / speed if speed > 0 else None
     required_mean_speed = SEARCH_SPACE / MEAN_TARGET_SECONDS
     required_p90_speed = required_speed_for_probability(0.90, P90_TARGET_SECONDS)
-    required_speed = max(required_mean_speed, required_p90_speed)
+    required_speed = max(required_mean_speed, required_p90_speed, ENGINEERING_MIN_ATTEMPTS_PER_SECOND)
 
     required_workers = {
         "mean_5s": math.ceil(required_mean_speed / speed) if speed > 0 else None,
@@ -141,13 +143,17 @@ def inspect(data: Dict[str, Any], raw_text: str) -> Dict[str, Any]:
             "p90_seconds": p90_seconds,
             "required_speed_for_mean_5s": required_mean_speed,
             "required_speed_for_p90_8s": required_p90_speed,
+            "engineering_min_attempts_per_second": ENGINEERING_MIN_ATTEMPTS_PER_SECOND,
+            "engineering_preferred_attempts_per_second": ENGINEERING_PREFERRED_ATTEMPTS_PER_SECOND,
             "required_speed_to_meet_goal": required_speed,
             "single_worker_meets_goal": bool(speed >= required_speed) if speed > 0 else False,
+            "single_worker_meets_preferred_goal": bool(speed >= ENGINEERING_PREFERRED_ATTEMPTS_PER_SECOND) if speed > 0 else False,
             "required_workers": required_workers,
         },
         "notes": [
             "This only inspects local text/JSON; it does not call RunPod.",
             "The target space is 58^5 because only the last 5 Base58 address characters are matched.",
+            "Engineering minimum is 200M attempts/s; 300M+ is preferred before Serverless migration.",
             "Use benchmark output from the corrected TRON counter patch; older VanitySearch TRON Mkey/s can be 6x inflated.",
             "This bounded VanitySearch signal is not final Serverless P90 proof.",
         ],

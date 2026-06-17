@@ -129,9 +129,12 @@ Summary file:
 - `speed_sweep_summary.json`:
 - Best grid:
 - Best complete TRON attempts/s:
-- Meets Stage 1 minimum `50M attempts/s`:
-- Meets Stage 1 high `100M attempts/s`:
-- Meets Stage 2 `200M attempts/s`:
+- Meets engineering minimum `200M attempts/s`:
+- Meets preferred speed `300M+ attempts/s`:
+- `nvidia_smi_initial.txt` present:
+- `gpu_utilization.csv` present:
+- Average GPU utilization:
+- Max GPU utilization:
 - Profiler used (`nsys` / `nvprof` / none):
 - Suspected bottleneck:
 
