@@ -22,22 +22,24 @@ An optional smoke can also compile patched VanitySearch and run a bounded TRON w
 Tracked patch in this repository:
 
 ```text
-patches/vanitysearch_tron_gpu_correct_attempt_counter_20260618.patch
+patches/vanitysearch_tron_gpu_direct_xy_keccak_20260618.patch
 ```
 
 SHA-256:
 
 ```text
-f8b0d7d158bfb379c135ff310d15a812a00744634d00f4ae7003f2556862ed92
+d3f250f4c4ec09de9765395a699813f6825a94751506123562966d41c622c109
 ```
 
 Candidate branch head:
 
 ```text
-486494e Correct TRON VanitySearch attempt counters
+ba65a1a Absorb TRON public key coordinates directly
 ```
 
 The TRON GPU search path now parses `T<one-char>*<five-char-suffix>` into a dedicated product rule, precomputes the `T` + `prefix_after_t` Base58 value range and suffix-5 value, checks whether the 21-byte TRON payload can possibly fall in the prefix range before computing the double-SHA256 checksum, then applies exact prefix range, suffix modulo, and full Base58 confirmation. This avoids passing host string pointers into the kernel and skips checksum/modulo/Base58 work for most non-matching candidates.
+
+The hot path now derives the TRON payload directly from VanitySearch's GPU x/y coordinate words, instead of first materializing a 64-byte public-key array and then hashing that array. The RunPod vector check compares the direct x/y Keccak absorption path with the public-key reference path through the `xy_payload_passed` field.
 
 The optional pattern smoke sets `TRON_SUPPRESS_SECRET_OUTPUT=1` before running VanitySearch. If an accidental hit happens during the bounded smoke, WIF/HEX key material is suppressed instead of printed.
 
@@ -86,6 +88,7 @@ tron_gpu_pattern_benchmark_passed
 - The script refuses to run unless `ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK=1` is set.
 - The script verifies the patch SHA-256 before applying it.
 - The script refuses to overwrite an existing work directory.
+- The GPU vector check must report `xy_payload_passed=true` for every public TEST_ONLY vector before any benchmark result is trusted.
 - The optional wildcard smoke uses the strict product-rule pattern and suppresses key material if an accidental hit occurs.
 - The optional wildcard smoke defaults to 5 seconds and may print a best-effort `tron_gpu_pattern_smoke_rate` line; this is only a startup signal.
 - The optional bounded benchmark defaults to 10 seconds, refuses durations outside 3-30 seconds, and emits JSON for review.

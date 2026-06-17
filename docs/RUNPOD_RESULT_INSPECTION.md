@@ -89,6 +89,8 @@ This is only a GPU Pod direction signal. It is not final Serverless proof and it
 
 Current VanitySearch patch note: TRON bounded benchmark counters are corrected to complete TRON address candidates per second. Do not compare older 6x-inflated VanitySearch Mkey/s output with the current `candidate_attempts_per_second_estimate`.
 
+Current GPU address-layer note: the hot path uses direct x/y coordinate Keccak absorption. Trust bounded benchmark output only after the RunPod vector check reports `xy_payload_passed=true` for every public TEST_ONLY vector.
+
 ## Safety
 
 These scripts:
