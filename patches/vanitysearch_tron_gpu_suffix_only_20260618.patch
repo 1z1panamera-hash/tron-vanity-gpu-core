@@ -1,8 +1,8 @@
 diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index 6c43e94..1b0d67a 100644
+index 6c43e94..d7efd07 100644
 --- a/GPU/GPUCompute.h
 +++ b/GPU/GPUCompute.h
-@@ -251,6 +251,155 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
+@@ -251,6 +251,147 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
  
  // -----------------------------------------------------------------------------------------
  
@@ -25,20 +25,12 @@ index 6c43e94..1b0d67a 100644
 +    return;
 +  }
 +
-+  uint8_t payload25[25];
-+  char address[48];
-+  for (int i = 0; i < 21; ++i) payload25[i] = payload21[i];
-+  for (int i = 0; i < 4; ++i) payload25[21 + i] = checksum4[i];
-+  int address_len = tron_base58_payload25(payload25, address);
-+  if (address_len < 6 || address[0] != 'T') {
-+    return;
-+  }
-+
 +  uint32_t pos = atomicAdd(out, 1);
 +  if (pos < maxFound) {
 +    out[pos*ITEM_SIZE32 + 1] = tid;
 +    out[pos*ITEM_SIZE32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(0 << 15) | (uint32_t)(endo);
-+    memcpy(out + pos*ITEM_SIZE32 + 3, payload25 + 1, 20);
++    uint8_t *hashOut = reinterpret_cast<uint8_t *>(out + pos*ITEM_SIZE32 + 3);
++    for (int i = 0; i < 20; ++i) hashOut[i] = payload21[i + 1];
 +  }
 +}
 +
