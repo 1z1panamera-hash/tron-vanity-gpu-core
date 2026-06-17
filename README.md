@@ -96,6 +96,7 @@ The last 5 Base58Check characters depend on checksum, so matching cannot be deci
 - `docs/RUNPOD_GITHUB_DEPLOY_PATH.md`: preferred no-local-Docker deployment path using RunPod GitHub integration.
 - `docs/RUNPOD_GITHUB_UPLOAD_CHECKLIST.md`: public/private GitHub upload gate after RunPod authorization.
 - `docs/RUNPOD_BENCHMARK_GATE.md`: benchmark smoke-test gate and sharding rules.
+- `docs/RUNPOD_SUFFIX_ONLY_GPU_POD_NEXT.md`: current suffix-only GPU Pod vector/smoke/benchmark sequence.
 - `docs/RUNPOD_A100_RTX5090_COMPARISON.md`: exact A100 and RTX 5090-class comparison sequence.
 - `docs/RUNPOD_FIRST_TEST_SEQUENCE.md`: RunPod-first validation and benchmark order that avoids using 47.80.70.211 as a test machine.
 - `docs/SERVER_PREFLIGHT_47.md`: mandatory lightweight read-only preflight before any future operation on 47.80.70.211.

@@ -48,7 +48,7 @@ It does not:
 - generate random private keys
 - print or save private keys
 - run vanity benchmark
-- prove 10 second前2后5 performance
+- prove suffix-only production performance
 
 ## GPU Enum Notes
 
@@ -72,9 +72,9 @@ If any item fails, do not run vanity benchmark. Use the GitHub/Dockerfile route 
 
 ## Relationship To The Main Goal
 
-This probe only answers whether RunPod Flash gives us a CUDA-capable environment. It is not the final GPU vanity worker. The final proof still requires:
+This probe only answers whether RunPod Flash gives us a CUDA-capable environment. It is not the final GPU vanity worker. The current final proof still requires:
 
 - RunPod-side `validate_vectors` pass for the real CUDA worker.
-- Controlled 10 second benchmark payloads.
+- Controlled suffix-only benchmark payloads.
 - `addresses_per_second` evidence.
-- Capacity math for TRON full Base58前2后5, approximately `58^6` effective search space.
+- Capacity math for TRON suffix-only last 5, `58^5` effective search space.

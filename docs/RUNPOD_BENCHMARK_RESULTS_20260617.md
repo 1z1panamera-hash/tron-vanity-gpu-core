@@ -1,5 +1,7 @@
 # RunPod Benchmark Results 2026-06-17
 
+Historical note: this document predates the suffix-only product rule. It is retained as old evidence only. Current work must use `docs/RUNPOD_SUFFIX_ONLY_GPU_POD_NEXT.md` and the `58^5` suffix-only target.
+
 ## Scope
 
 This records the first RunPod Serverless tests for the TRON vanity GPU core.
@@ -44,7 +46,7 @@ No private key, seed, mnemonic, token, or secret was output.
 
 The current CUDA core is useful as a correctness and integration smoke test, but it is not a production-speed vanity generator.
 
-The measured speed is far below the target needed for the product rule: 1 variable prefix character after fixed `T` plus 5 suffix characters. Python maps that product rule to internal full-address `prefix_len=2`, `suffix_len=5`. The effective random target is about `58^6` candidates. The current implementation should not be used to estimate production cost or worker count.
+The measured speed was far below the target needed for the historical old product rule. That rule has been superseded by the suffix-only target. The current implementation should not be used to estimate production cost or worker count.
 
 The likely bottleneck is the custom full address-generation path, especially secp256k1 field arithmetic and point walking implementation. Further RunPod spending on this exact core is not recommended until the core is replaced or substantially rewritten against a mature, verifiable GPU vanity-generation approach.
 

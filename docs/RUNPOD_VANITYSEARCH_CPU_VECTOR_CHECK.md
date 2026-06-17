@@ -1,5 +1,7 @@
 # RunPod VanitySearch CPU Vector Check
 
+Historical note: this document predates the suffix-only product rule. It is retained only for the old CPU adapter path. Current RunPod GPU Pod testing must use `docs/RUNPOD_SUFFIX_ONLY_GPU_POD_NEXT.md`.
+
 ## Purpose
 
 Verify the local VanitySearch TRON CPU adapter on x86 Linux before spending time on GPU TRON hot-path work.
@@ -8,10 +10,8 @@ This is not a benchmark. It must not be used to claim TRON generation speed.
 
 ## Matching Rule
 
-- Runtime API still uses full TRON Base58 `prefix_len=2` and `suffix_len=5`.
-- The leading `T` is fixed for normal TRON addresses.
-- Effective random search is therefore `T` plus 1 variable prefix character plus 5 suffix characters.
-- Capacity math uses `58^6`.
+- Current runtime API uses suffix-only `prefix_len=0` and `suffix_len=5`.
+- Current capacity math uses `58^5`.
 
 ## Local Patch Export
 

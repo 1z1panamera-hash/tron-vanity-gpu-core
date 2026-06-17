@@ -80,7 +80,7 @@ No search was run. No benchmark was run. No RunPod API call was made. `47.80.70.
 
 RunPod is next needed only for a short compile/correctness check on an x86 Linux CUDA image.
 
-This is still before the final goal gate. The final goal requires a RunPod Serverless GPU worker that demonstrates enough complete TRON `addresses_per_second` for the `58^6` target.
+This is historical status from before the suffix-only rule change. The current final goal requires a RunPod Serverless GPU worker that demonstrates enough complete TRON `addresses_per_second` for the `58^5` suffix-only target.
 
 Recommended next pod:
 

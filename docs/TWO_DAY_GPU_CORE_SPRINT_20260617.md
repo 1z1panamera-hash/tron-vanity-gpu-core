@@ -1,5 +1,7 @@
 # Two-Day GPU Core Sprint 2026-06-17
 
+Historical note: this sprint plan predates the suffix-only rule change. Current target is suffix-only last 5 Base58Check characters, search space `58^5`, average <= 5 seconds, P90 <= 8 seconds.
+
 ## Goal
 
 Try to find or build a viable high-performance GPU core for TRON vanity address generation.
@@ -11,7 +13,7 @@ Target matching rule:
 - Internal full TRON Base58 address prefix length: 2, including fixed leading `T`
 - Internal full TRON Base58 address suffix length: 5
 - Effective random search: `T` plus 1 variable prefix character plus 5 suffix characters
-- Effective random search space: about `58^6 = 38,068,692,544`, not `58^7`
+- Effective random search space: historical old rule, superseded by current suffix-only `58^5` target
 
 Hard speed target:
 

@@ -67,12 +67,9 @@ Required device additions:
 
 ### Matching Rule
 
-Default production rule:
+Historical note: this section predates the suffix-only rule change. Current production rule is suffix-only last 5 Base58Check characters, with internal `prefix_len = 0` and `suffix_len = 5`.
 
-- Product input uses `prefix_after_t` with exactly 1 custom Base58 character.
-- Product input uses `suffix` with exactly 5 custom Base58 characters.
-- Internal matching can still use full-address `prefix_len = 2` and `suffix_len = 5`.
-- Since normal TRON addresses start with fixed `T`, the actual random prefix work is only 1 character after `T`.
+Old production rule details are intentionally omitted here to avoid copying obsolete inputs into current RunPod tests.
 
 For `TX8888888888888888888888888886666`, target prefix/suffix are:
 
