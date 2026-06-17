@@ -191,7 +191,8 @@ run_benchmark_grid() {
     exit 1
   fi
 
-  if grep -Eiq "Priv|WIF|HEX|private_key|mnemonic|seed|token|secret" "$stdout_file" "$stderr_file"; then
+  if sed 's/TRON_SUPPRESS_SECRET_OUTPUT//g' "$stdout_file" "$stderr_file" \
+      | grep -Eiq "Priv|WIF|HEX|private_key|mnemonic|seed|token|secret"; then
     echo "unexpected sensitive marker or hit output in benchmark grid=$grid" >&2
     exit 1
   fi
