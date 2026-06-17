@@ -9,6 +9,8 @@ PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile flash/runpod_flash_cuda_probe.py
 test -x scripts/public_repo_audit.py
 test -x scripts/prepare_github_push.sh
+test -x scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
+bash -n scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
 
 echo "== json"
 python3 - <<'PY'
@@ -121,6 +123,26 @@ python3 scripts/validate_goal_rule.py >/tmp/tron_gpu_goal_rule.json
 python3 scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10 >/tmp/tron_gpu_capacity_check.json
 python3 scripts/inspect_runpod_result.py examples/runpod_validate_success_sample.json --mode validate_vectors >/tmp/runpod_validate_inspect.json
 python3 scripts/inspect_runpod_result.py examples/runpod_benchmark_success_sample.json --mode benchmark >/tmp/runpod_benchmark_inspect.json
+
+echo "== vanitysearch patch gate"
+python3 - <<'PY'
+from hashlib import sha256
+from pathlib import Path
+
+patch = Path("patches/vanitysearch_tron_gpu_address_layer_20260617.patch")
+expected = "9b70fda59b3edec26e4ee11cfb28267ca1c2432df17f0f44e12ff1a9722d40f8"
+actual = sha256(patch.read_bytes()).hexdigest()
+assert actual == expected, actual
+print("vanitysearch_patch_sha_ok")
+PY
+set +e
+scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh >/tmp/runpod_vanitysearch_gate_stdout.txt 2>/tmp/runpod_vanitysearch_gate_stderr.txt
+rc=$?
+set -e
+if [ "$rc" -ne 2 ]; then
+    echo "expected RunPod VanitySearch GPU check script to refuse without env gate rc=2, got rc=$rc" >&2
+    exit 1
+fi
 
 echo "== incremental walking"
 c++ -std=c++17 -O2 tests/verify_incremental_walking.cpp -o /tmp/verify_incremental_walking

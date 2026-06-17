@@ -16,10 +16,10 @@ It is not a search benchmark and cannot be used as an address generation speed r
 
 ## Candidate Patch
 
-Local patch:
+Tracked patch in this repository:
 
 ```text
-工作记录/vanitysearch_tron_gpu_address_layer_20260617.patch
+patches/vanitysearch_tron_gpu_address_layer_20260617.patch
 ```
 
 SHA-256:
@@ -36,10 +36,10 @@ Candidate branch head:
 
 ## RunPod Command
 
-On a short-lived CUDA-capable RunPod Pod, from the patched VanitySearch candidate repository:
+On a short-lived CUDA-capable RunPod Pod, from this repository:
 
 ```bash
-CUDA_ARCH=sm_80 scripts/runpod_verify_tron_gpu_address_layer.sh
+ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK=1 CUDA_ARCH=sm_80 scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
 ```
 
 Expected success marker:
@@ -50,6 +50,9 @@ tron_gpu_address_layer_script_passed
 
 ## Safety
 
+- The script refuses to run unless `ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK=1` is set.
+- The script verifies the patch SHA-256 before applying it.
+- The script refuses to overwrite an existing work directory.
 - Do not run this on `47.80.70.211`.
 - Do not run a search benchmark from this check.
 - Do not treat this as proof of production speed.

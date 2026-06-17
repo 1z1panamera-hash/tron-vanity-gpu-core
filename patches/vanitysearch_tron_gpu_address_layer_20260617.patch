@@ -1,0 +1,815 @@
+From 221922d62bde31625d8abd2ec9f5054db76f635a Mon Sep 17 00:00:00 2001
+From: 1z1 <1z1@1z1deMacBook-Air.local>
+Date: Wed, 17 Jun 2026 21:37:26 +0800
+Subject: [PATCH 1/3] Add local TRON CPU address prototype
+
+---
+ Makefile           |  7 ++--
+ SECP256K1.cpp      | 20 ++++++++++
+ SECP256k1.h        |  1 +
+ hash/keccak256.cpp | 94 ++++++++++++++++++++++++++++++++++++++++++++++
+ hash/keccak256.h   |  8 ++++
+ main.cpp           | 10 +++++
+ 6 files changed, 136 insertions(+), 4 deletions(-)
+ create mode 100644 hash/keccak256.cpp
+ create mode 100644 hash/keccak256.h
+
+diff --git a/Makefile b/Makefile
+index 70b98bd..edf9e3e 100644
+--- a/Makefile
++++ b/Makefile
+@@ -6,7 +6,7 @@
+ SRC = Base58.cpp IntGroup.cpp main.cpp Random.cpp \
+       Timer.cpp Int.cpp IntMod.cpp Point.cpp SECP256K1.cpp \
+       Vanity.cpp GPU/GPUGenerate.cpp hash/ripemd160.cpp \
+-      hash/sha256.cpp hash/sha512.cpp hash/ripemd160_sse.cpp \
++      hash/sha256.cpp hash/sha512.cpp hash/keccak256.cpp hash/ripemd160_sse.cpp \
+       hash/sha256_sse.cpp Bech32.cpp Wildcard.cpp
+ 
+ OBJDIR = obj
+@@ -16,7 +16,7 @@ ifdef gpu
+ OBJET = $(addprefix $(OBJDIR)/, \
+         Base58.o IntGroup.o main.o Random.o Timer.o Int.o \
+         IntMod.o Point.o SECP256K1.o Vanity.o GPU/GPUGenerate.o \
+-        hash/ripemd160.o hash/sha256.o hash/sha512.o \
++        hash/ripemd160.o hash/sha256.o hash/sha512.o hash/keccak256.o \
+         hash/ripemd160_sse.o hash/sha256_sse.o \
+         GPU/GPUEngine.o Bech32.o Wildcard.o)
+ 
+@@ -25,7 +25,7 @@ else
+ OBJET = $(addprefix $(OBJDIR)/, \
+         Base58.o IntGroup.o main.o Random.o Timer.o Int.o \
+         IntMod.o Point.o SECP256K1.o Vanity.o GPU/GPUGenerate.o \
+-        hash/ripemd160.o hash/sha256.o hash/sha512.o \
++        hash/ripemd160.o hash/sha256.o hash/sha512.o hash/keccak256.o \
+         hash/ripemd160_sse.o hash/sha256_sse.o Bech32.o Wildcard.o)
+ 
+ endif
+@@ -91,4 +91,3 @@ clean:
+ 	@rm -f obj/*.o
+ 	@rm -f obj/GPU/*.o
+ 	@rm -f obj/hash/*.o
+-
+diff --git a/SECP256K1.cpp b/SECP256K1.cpp
+index fd36f85..e6d7262 100644
+--- a/SECP256K1.cpp
++++ b/SECP256K1.cpp
+@@ -18,6 +18,7 @@
+ #include "SECP256k1.h"
+ #include "hash/sha256.h"
+ #include "hash/ripemd160.h"
++#include "hash/keccak256.h"
+ #include "Base58.h"
+ #include "Bech32.h"
+ #include <string.h>
+@@ -775,6 +776,25 @@ std::string Secp256K1::GetAddress(int type, bool compressed, Point &pubKey) {
+ 
+ }
+ 
++std::string Secp256K1::GetTronAddress(Point &pubKey) {
++
++  unsigned char publicKeyBytes[64];
++  unsigned char digest[32];
++  unsigned char address[25];
++
++  pubKey.x.Get32Bytes(publicKeyBytes);
++  pubKey.y.Get32Bytes(publicKeyBytes + 32);
++
++  keccak256(publicKeyBytes, 64, digest);
++
++  address[0] = 0x41;
++  memcpy(address + 1, digest + 12, 20);
++  sha256_checksum(address, 21, address + 21);
++
++  return EncodeBase58(address, address + 25);
++
++}
++
+ bool Secp256K1::CheckPudAddress(std::string address) {
+ 
+   std::vector<unsigned char> pubKey;
+diff --git a/SECP256k1.h b/SECP256k1.h
+index 8cf4881..f2fd75e 100644
+--- a/SECP256k1.h
++++ b/SECP256k1.h
+@@ -48,6 +48,7 @@ public:
+   std::string GetAddress(int type, bool compressed, Point &pubKey);
+   std::string GetAddress(int type, bool compressed, unsigned char *hash160);
+   std::vector<std::string> GetAddress(int type, bool compressed, unsigned char *h1, unsigned char *h2, unsigned char *h3, unsigned char *h4);
++  std::string GetTronAddress(Point &pubKey);
+   std::string GetPrivAddress(bool compressed, Int &privKey );
+   std::string GetPublicKeyHex(bool compressed, Point &p);
+   Point ParsePublicKeyHex(std::string str, bool &isCompressed);
+diff --git a/hash/keccak256.cpp b/hash/keccak256.cpp
+new file mode 100644
+index 0000000..17dd6cd
+--- /dev/null
++++ b/hash/keccak256.cpp
+@@ -0,0 +1,94 @@
++#include "keccak256.h"
++
++#include <string.h>
++
++static inline uint64_t rotl64(uint64_t value, int shift) {
++  shift &= 63;
++  return (value << shift) | (value >> ((64 - shift) & 63));
++}
++
++static void keccak_f1600(uint64_t state[25]) {
++  static const int rho[5][5] = {
++    {0, 36, 3, 41, 18},
++    {1, 44, 10, 45, 2},
++    {62, 6, 43, 15, 61},
++    {28, 55, 25, 21, 56},
++    {27, 20, 39, 8, 14},
++  };
++  static const uint64_t rc[24] = {
++    0x0000000000000001ULL, 0x0000000000008082ULL,
++    0x800000000000808aULL, 0x8000000080008000ULL,
++    0x000000000000808bULL, 0x0000000080000001ULL,
++    0x8000000080008081ULL, 0x8000000000008009ULL,
++    0x000000000000008aULL, 0x0000000000000088ULL,
++    0x0000000080008009ULL, 0x000000008000000aULL,
++    0x000000008000808bULL, 0x800000000000008bULL,
++    0x8000000000008089ULL, 0x8000000000008003ULL,
++    0x8000000000008002ULL, 0x8000000000000080ULL,
++    0x000000000000800aULL, 0x800000008000000aULL,
++    0x8000000080008081ULL, 0x8000000000008080ULL,
++    0x0000000080000001ULL, 0x8000000080008008ULL,
++  };
++
++  for (int round = 0; round < 24; ++round) {
++    uint64_t c[5];
++    uint64_t d[5];
++    for (int x = 0; x < 5; ++x) {
++      c[x] = state[x] ^ state[x + 5] ^ state[x + 10] ^ state[x + 15] ^ state[x + 20];
++    }
++    for (int x = 0; x < 5; ++x) {
++      d[x] = c[(x + 4) % 5] ^ rotl64(c[(x + 1) % 5], 1);
++    }
++    for (int x = 0; x < 5; ++x) {
++      for (int y = 0; y < 5; ++y) {
++        state[x + 5 * y] ^= d[x];
++      }
++    }
++
++    uint64_t b[25];
++    memset(b, 0, sizeof(b));
++    for (int x = 0; x < 5; ++x) {
++      for (int y = 0; y < 5; ++y) {
++        b[y + 5 * ((2 * x + 3 * y) % 5)] = rotl64(state[x + 5 * y], rho[x][y]);
++      }
++    }
++
++    for (int x = 0; x < 5; ++x) {
++      for (int y = 0; y < 5; ++y) {
++        state[x + 5 * y] =
++          b[x + 5 * y] ^ ((~b[((x + 1) % 5) + 5 * y]) & b[((x + 2) % 5) + 5 * y]);
++      }
++    }
++    state[0] ^= rc[round];
++  }
++}
++
++void keccak256(uint8_t *input, int length, uint8_t *digest) {
++  uint64_t state[25];
++  uint8_t block[136];
++
++  memset(state, 0, sizeof(state));
++  memset(block, 0, sizeof(block));
++  if (length < 0) length = 0;
++  if (length > 135) length = 135;
++  memcpy(block, input, length);
++  block[length] = 0x01;
++  block[135] |= 0x80;
++
++  for (int lane = 0; lane < 17; ++lane) {
++    uint64_t value = 0;
++    for (int b = 0; b < 8; ++b) {
++      value |= (uint64_t)block[lane * 8 + b] << (8 * b);
++    }
++    state[lane] ^= value;
++  }
++
++  keccak_f1600(state);
++
++  int pos = 0;
++  for (int lane = 0; lane < 17 && pos < 32; ++lane) {
++    for (int b = 0; b < 8 && pos < 32; ++b) {
++      digest[pos++] = (uint8_t)((state[lane] >> (8 * b)) & 0xff);
++    }
++  }
++}
+diff --git a/hash/keccak256.h b/hash/keccak256.h
+new file mode 100644
+index 0000000..646d3a0
+--- /dev/null
++++ b/hash/keccak256.h
+@@ -0,0 +1,8 @@
++#ifndef KECCAK256_H
++#define KECCAK256_H
++
++#include <stdint.h>
++
++void keccak256(uint8_t *input, int length, uint8_t *digest);
++
++#endif
+diff --git a/main.cpp b/main.cpp
+index f404066..55c41f4 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -57,6 +57,7 @@ void printUsage() {
+   printf(" -l: List cuda enabled devices\n");
+   printf(" -check: Check CPU and GPU kernel vs CPU\n");
+   printf(" -cp privKey: Compute public key (privKey in hex hormat)\n");
++  printf(" -ct privKey: Compute TRON address only (privKey in hex format, no private key output)\n");
+   printf(" -ca pubKey: Compute address (pubKey in hex hormat)\n");
+   printf(" -kp: Generate key pair\n");
+   printf(" -rp privkey partialkeyfile: Reconstruct final private key(s) from partial key(s) info.\n");
+@@ -461,6 +462,14 @@ int main(int argc, char* argv[]) {
+       printf("Addr (P2PKH): %s\n",secp->GetAddress(P2PKH,isComp,p).c_str());
+       printf("Addr (P2SH): %s\n",secp->GetAddress(P2SH,isComp,p).c_str());
+       printf("Addr (BECH32): %s\n",secp->GetAddress(BECH32,isComp,p).c_str());
++      printf("Addr (TRON): %s\n",secp->GetTronAddress(p).c_str());
++      exit(0);
++    } else if(strcmp(argv[a],"-ct") == 0) {
++      a++;
++      Int k;
++      k.SetBase16(argv[a]);
++      Point p = secp->ComputePublicKey(&k);
++      printf("Addr (TRON): %s\n", secp->GetTronAddress(p).c_str());
+       exit(0);
+     } else if (strcmp(argv[a], "-cp") == 0) {
+       a++;
+@@ -478,6 +487,7 @@ int main(int argc, char* argv[]) {
+       printf("Addr (P2PKH): %s\n", secp->GetAddress(P2PKH,isComp,p).c_str());
+       printf("Addr (P2SH): %s\n", secp->GetAddress(P2SH,isComp,p).c_str());
+       printf("Addr (BECH32): %s\n", secp->GetAddress(BECH32,isComp,p).c_str());
++      printf("Addr (TRON): %s\n", secp->GetTronAddress(p).c_str());
+       exit(0);
+     } else if (strcmp(argv[a], "-rp") == 0) {
+       a++;
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 55470e4c21b5d213323850b6daa3c165abea41f0 Mon Sep 17 00:00:00 2001
+From: 1z1 <1z1@1z1deMacBook-Air.local>
+Date: Wed, 17 Jun 2026 21:49:24 +0800
+Subject: [PATCH 2/3] Add RunPod TRON CPU vector check
+
+---
+ scripts/runpod_verify_tron_cpu_vectors.sh | 47 +++++++++++++++++++++++
+ 1 file changed, 47 insertions(+)
+ create mode 100755 scripts/runpod_verify_tron_cpu_vectors.sh
+
+diff --git a/scripts/runpod_verify_tron_cpu_vectors.sh b/scripts/runpod_verify_tron_cpu_vectors.sh
+new file mode 100755
+index 0000000..074dfab
+--- /dev/null
++++ b/scripts/runpod_verify_tron_cpu_vectors.sh
+@@ -0,0 +1,47 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++cd "$ROOT"
++
++echo "== purpose"
++echo "Verify VanitySearch TRON CPU address adapter against public TEST_ONLY vectors."
++echo "This script does not run vanity search, GPU benchmark, or brute force."
++
++echo "== build"
++make clean >/tmp/vanitysearch_tron_cpu_make_clean.log 2>&1 || true
++make all
++
++echo "== public TEST_ONLY vectors"
++keys=(
++  "0000000000000000000000000000000000000000000000000000000000000001"
++  "0000000000000000000000000000000000000000000000000000000000000002"
++  "0000000000000000000000000000000000000000000000000000000000000003"
++  "0000000000000000000000000000000000000000000000000000000000001234"
++)
++expected=(
++  "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC"
++  "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K"
++  "TKTX96CBxr5kvhjsDHcqoiPWZageGxoTW3"
++  "TUqoWCpNbTPc7EwG2GbLpyPr7TYzEVYjhb"
++)
++
++for i in "${!keys[@]}"; do
++  output="$(./VanitySearch -ct "${keys[$i]}")"
++  echo "$output"
++
++  if echo "$output" | grep -E 'Priv|WIF|HEX|private_key|mnemonic|seed|token|secret' >/dev/null; then
++    echo "forbidden sensitive-looking output in vector $i" >&2
++    exit 1
++  fi
++
++  actual="$(echo "$output" | awk -F': ' '/Addr \(TRON\):/{print $2}' | tail -1)"
++  if [[ "$actual" != "${expected[$i]}" ]]; then
++    echo "vector $i mismatch" >&2
++    echo "expected=${expected[$i]}" >&2
++    echo "actual=$actual" >&2
++    exit 1
++  fi
++done
++
++echo "tron_cpu_vectors_passed"
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 4c938377714b95d74f65296b0828e05245e5402f Mon Sep 17 00:00:00 2001
+From: 1z1 <1z1@1z1deMacBook-Air.local>
+Date: Thu, 18 Jun 2026 00:15:10 +0800
+Subject: [PATCH 3/3] Add TRON GPU address layer vector check
+
+---
+ GPU/GPUTron.h                                 | 190 ++++++++++++++++++
+ GPU/GPUTronVectorCheck.cu                     | 183 +++++++++++++++++
+ docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md   |  43 ++++
+ .../runpod_verify_tron_gpu_address_layer.sh   |  34 ++++
+ 4 files changed, 450 insertions(+)
+ create mode 100644 GPU/GPUTron.h
+ create mode 100644 GPU/GPUTronVectorCheck.cu
+ create mode 100644 docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
+ create mode 100755 scripts/runpod_verify_tron_gpu_address_layer.sh
+
+diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
+new file mode 100644
+index 0000000..8fae95c
+--- /dev/null
++++ b/GPU/GPUTron.h
+@@ -0,0 +1,190 @@
++/*
++ * TRON address helpers for the VanitySearch GPU adaptation prototype.
++ *
++ * This header is a correctness bridge for public test vectors first. It does
++ * not generate private keys and does not return secret material.
++ */
++
++#ifndef GPU_TRON_H
++#define GPU_TRON_H
++
++#include <stdint.h>
++
++__device__ __forceinline__ uint64_t tron_rotl64(uint64_t value, int shift) {
++  shift &= 63;
++  return (value << shift) | (value >> ((64 - shift) & 63));
++}
++
++__device__ __noinline__ void tron_keccak_f1600(uint64_t state[25]) {
++  const int rho[25] = {
++     0, 36,  3, 41, 18,
++     1, 44, 10, 45,  2,
++    62,  6, 43, 15, 61,
++    28, 55, 25, 21, 56,
++    27, 20, 39,  8, 14,
++  };
++  const uint64_t rc[24] = {
++    0x0000000000000001ULL, 0x0000000000008082ULL,
++    0x800000000000808aULL, 0x8000000080008000ULL,
++    0x000000000000808bULL, 0x0000000080000001ULL,
++    0x8000000080008081ULL, 0x8000000000008009ULL,
++    0x000000000000008aULL, 0x0000000000000088ULL,
++    0x0000000080008009ULL, 0x000000008000000aULL,
++    0x000000008000808bULL, 0x800000000000008bULL,
++    0x8000000000008089ULL, 0x8000000000008003ULL,
++    0x8000000000008002ULL, 0x8000000000000080ULL,
++    0x000000000000800aULL, 0x800000008000000aULL,
++    0x8000000080008081ULL, 0x8000000000008080ULL,
++    0x0000000080000001ULL, 0x8000000080008008ULL,
++  };
++
++  for (int round = 0; round < 24; ++round) {
++    uint64_t c[5];
++    uint64_t d[5];
++    uint64_t b[25];
++    for (int x = 0; x < 5; ++x) {
++      c[x] = state[x] ^ state[x + 5] ^ state[x + 10] ^ state[x + 15] ^ state[x + 20];
++    }
++    for (int x = 0; x < 5; ++x) {
++      d[x] = c[(x + 4) % 5] ^ tron_rotl64(c[(x + 1) % 5], 1);
++    }
++    for (int x = 0; x < 5; ++x) {
++      for (int y = 0; y < 5; ++y) {
++        state[x + 5 * y] ^= d[x];
++      }
++    }
++    for (int i = 0; i < 25; ++i) {
++      b[i] = 0;
++    }
++    for (int x = 0; x < 5; ++x) {
++      for (int y = 0; y < 5; ++y) {
++        b[y + 5 * ((2 * x + 3 * y) % 5)] =
++            tron_rotl64(state[x + 5 * y], rho[x * 5 + y]);
++      }
++    }
++    for (int x = 0; x < 5; ++x) {
++      for (int y = 0; y < 5; ++y) {
++        state[x + 5 * y] =
++            b[x + 5 * y] ^
++            ((~b[((x + 1) % 5) + 5 * y]) & b[((x + 2) % 5) + 5 * y]);
++      }
++    }
++    state[0] ^= rc[round];
++  }
++}
++
++__device__ __noinline__ void tron_keccak256_64(const uint8_t input64[64], uint8_t digest32[32]) {
++  uint64_t state[25];
++  uint8_t block[136];
++  for (int i = 0; i < 25; ++i) state[i] = 0;
++  for (int i = 0; i < 136; ++i) block[i] = 0;
++  for (int i = 0; i < 64; ++i) block[i] = input64[i];
++  block[64] = 0x01;
++  block[135] |= 0x80;
++
++  for (int lane = 0; lane < 17; ++lane) {
++    uint64_t value = 0;
++    for (int b = 0; b < 8; ++b) {
++      value |= static_cast<uint64_t>(block[lane * 8 + b]) << (8 * b);
++    }
++    state[lane] ^= value;
++  }
++
++  tron_keccak_f1600(state);
++
++  int pos = 0;
++  for (int lane = 0; lane < 17 && pos < 32; ++lane) {
++    for (int b = 0; b < 8 && pos < 32; ++b) {
++      digest32[pos++] = static_cast<uint8_t>((state[lane] >> (8 * b)) & 0xff);
++    }
++  }
++}
++
++__device__ __noinline__ void tron_sha256_single_block(
++    const uint8_t *input,
++    int length,
++    uint8_t digest32[32]) {
++  uint32_t s[8];
++  uint32_t w[16];
++  uint8_t block[64];
++
++  for (int i = 0; i < 64; ++i) block[i] = 0;
++  for (int i = 0; i < length && i < 56; ++i) block[i] = input[i];
++  block[length] = 0x80;
++  uint64_t bit_len = static_cast<uint64_t>(length) * 8ULL;
++  for (int i = 0; i < 8; ++i) {
++    block[63 - i] = static_cast<uint8_t>((bit_len >> (8 * i)) & 0xff);
++  }
++
++  for (int i = 0; i < 16; ++i) {
++    w[i] =
++        (static_cast<uint32_t>(block[i * 4]) << 24) |
++        (static_cast<uint32_t>(block[i * 4 + 1]) << 16) |
++        (static_cast<uint32_t>(block[i * 4 + 2]) << 8) |
++        static_cast<uint32_t>(block[i * 4 + 3]);
++  }
++
++  SHA256Initialize(s);
++  SHA256Transform(s, w);
++
++  for (int i = 0; i < 8; ++i) {
++    digest32[i * 4] = static_cast<uint8_t>((s[i] >> 24) & 0xff);
++    digest32[i * 4 + 1] = static_cast<uint8_t>((s[i] >> 16) & 0xff);
++    digest32[i * 4 + 2] = static_cast<uint8_t>((s[i] >> 8) & 0xff);
++    digest32[i * 4 + 3] = static_cast<uint8_t>(s[i] & 0xff);
++  }
++}
++
++__device__ __noinline__ void tron_checksum4(const uint8_t payload21[21], uint8_t checksum4[4]) {
++  uint8_t first[32];
++  uint8_t second[32];
++  tron_sha256_single_block(payload21, 21, first);
++  tron_sha256_single_block(first, 32, second);
++  for (int i = 0; i < 4; ++i) checksum4[i] = second[i];
++}
++
++__device__ __noinline__ int tron_base58_payload25(const uint8_t payload25[25], char out[48]) {
++  const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
++  uint8_t digits[64];
++  int ret_pos = 0;
++  int first = 0;
++  while (first < 25 && payload25[first] == 0) {
++    out[ret_pos++] = '1';
++    ++first;
++  }
++  int digits_len = 1;
++  digits[0] = 0;
++  for (int i = first; i < 25; ++i) {
++    uint32_t carry = payload25[i];
++    for (int j = 0; j < digits_len; ++j) {
++      carry += static_cast<uint32_t>(digits[j]) << 8;
++      digits[j] = static_cast<uint8_t>(carry % 58);
++      carry /= 58;
++    }
++    while (carry > 0) {
++      digits[digits_len++] = static_cast<uint8_t>(carry % 58);
++      carry /= 58;
++    }
++  }
++  for (int i = 0; i < digits_len; ++i) {
++    out[ret_pos++] = alphabet[digits[digits_len - 1 - i]];
++  }
++  out[ret_pos] = 0;
++  return ret_pos;
++}
++
++__device__ __noinline__ int tron_address_from_public_key64(
++    const uint8_t public_key64[64],
++    char address[48],
++    uint8_t payload25[25]) {
++  uint8_t digest[32];
++  uint8_t checksum[4];
++  tron_keccak256_64(public_key64, digest);
++  payload25[0] = 0x41;
++  for (int i = 0; i < 20; ++i) payload25[i + 1] = digest[i + 12];
++  tron_checksum4(payload25, checksum);
++  for (int i = 0; i < 4; ++i) payload25[21 + i] = checksum[i];
++  return tron_base58_payload25(payload25, address);
++}
++
++#endif
+diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
+new file mode 100644
+index 0000000..e6b0c7b
+--- /dev/null
++++ b/GPU/GPUTronVectorCheck.cu
+@@ -0,0 +1,183 @@
++/*
++ * RunPod-only CUDA correctness check for TRON address construction.
++ *
++ * This uses public TEST_ONLY public-key vectors. It does not generate private
++ * keys, does not search, and does not benchmark.
++ */
++
++#include <cuda_runtime.h>
++
++#include <cstdint>
++#include <cstdio>
++#include <cstring>
++#include <stdexcept>
++#include <string>
++#include <vector>
++
++#include "GPUHash.h"
++#include "GPUTron.h"
++
++struct TronVectorInput {
++  uint8_t public_key64[64];
++  char expected_address[48];
++};
++
++struct TronVectorResult {
++  int passed;
++  int address_len;
++  char computed_address[48];
++  uint8_t payload25[25];
++};
++
++__global__ void tron_vector_kernel(
++    const TronVectorInput *inputs,
++    TronVectorResult *results,
++    int count) {
++  int idx = blockIdx.x * blockDim.x + threadIdx.x;
++  if (idx >= count) return;
++
++  TronVectorResult result{};
++  result.address_len =
++      tron_address_from_public_key64(inputs[idx].public_key64, result.computed_address, result.payload25);
++  result.passed = 1;
++  for (int i = 0; i < 48; ++i) {
++    if (result.computed_address[i] != inputs[idx].expected_address[i]) {
++      result.passed = 0;
++      break;
++    }
++    if (inputs[idx].expected_address[i] == 0) break;
++  }
++  results[idx] = result;
++}
++
++static uint8_t hex_value(char c) {
++  if (c >= '0' && c <= '9') return static_cast<uint8_t>(c - '0');
++  if (c >= 'a' && c <= 'f') return static_cast<uint8_t>(c - 'a' + 10);
++  if (c >= 'A' && c <= 'F') return static_cast<uint8_t>(c - 'A' + 10);
++  throw std::runtime_error("invalid hex");
++}
++
++static std::vector<uint8_t> hex_to_bytes(const char *hex) {
++  const size_t len = std::strlen(hex);
++  if (len % 2 != 0) throw std::runtime_error("invalid hex length");
++  std::vector<uint8_t> out(len / 2);
++  for (size_t i = 0; i < out.size(); ++i) {
++    out[i] = static_cast<uint8_t>((hex_value(hex[i * 2]) << 4) | hex_value(hex[i * 2 + 1]));
++  }
++  return out;
++}
++
++static TronVectorInput make_input(const char *public_key_uncompressed_hex, const char *expected_address) {
++  TronVectorInput input{};
++  const char *public_key64_hex = public_key_uncompressed_hex;
++  if (std::strlen(public_key_uncompressed_hex) == 130 &&
++      public_key_uncompressed_hex[0] == '0' &&
++      public_key_uncompressed_hex[1] == '4') {
++    public_key64_hex = public_key_uncompressed_hex + 2;
++  }
++  std::vector<uint8_t> public_key = hex_to_bytes(public_key64_hex);
++  if (public_key.size() != 64) throw std::runtime_error("public key must be 64 bytes");
++  std::memcpy(input.public_key64, public_key.data(), 64);
++  if (std::strlen(expected_address) >= sizeof(input.expected_address)) {
++    throw std::runtime_error("expected address too long");
++  }
++  std::strncpy(input.expected_address, expected_address, sizeof(input.expected_address) - 1);
++  return input;
++}
++
++static const char *cuda_status(cudaError_t status) {
++  return cudaGetErrorString(status);
++}
++
++int main() {
++  std::vector<TronVectorInput> inputs;
++  inputs.push_back(make_input(
++      "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
++      "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC"));
++  inputs.push_back(make_input(
++      "04c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee51ae168fea63dc339a3c58419466ceaeef7f632653266d0e1236431a950cfe52a",
++      "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K"));
++  inputs.push_back(make_input(
++      "04f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9388f7b0f632de8140fe337e62a37f3566500a99934c2231b6cb9fd7584b8e672",
++      "TKTX96CBxr5kvhjsDHcqoiPWZageGxoTW3"));
++  inputs.push_back(make_input(
++      "0437a4aef1f8423ca076e4b7d99a8cabff40ddb8231f2a9f01081f15d7fa65c1bab96ced90a1b8f9b43a18fc900ff55af2be0e94b90a434fca5b9e226b835024cd",
++      "TUqoWCpNbTPc7EwG2GbLpyPr7TYzEVYjhb"));
++
++  TronVectorInput *d_inputs = nullptr;
++  TronVectorResult *d_results = nullptr;
++  std::vector<TronVectorResult> results(inputs.size());
++
++  cudaError_t status = cudaMalloc(&d_inputs, inputs.size() * sizeof(TronVectorInput));
++  if (status != cudaSuccess) {
++    std::fprintf(stderr, "cudaMalloc inputs failed: %s\n", cuda_status(status));
++    return 1;
++  }
++  status = cudaMalloc(&d_results, inputs.size() * sizeof(TronVectorResult));
++  if (status != cudaSuccess) {
++    std::fprintf(stderr, "cudaMalloc results failed: %s\n", cuda_status(status));
++    cudaFree(d_inputs);
++    return 1;
++  }
++  status = cudaMemcpy(
++      d_inputs,
++      inputs.data(),
++      inputs.size() * sizeof(TronVectorInput),
++      cudaMemcpyHostToDevice);
++  if (status != cudaSuccess) {
++    std::fprintf(stderr, "cudaMemcpy inputs failed: %s\n", cuda_status(status));
++    cudaFree(d_inputs);
++    cudaFree(d_results);
++    return 1;
++  }
++
++  tron_vector_kernel<<<1, 32>>>(d_inputs, d_results, static_cast<int>(inputs.size()));
++  status = cudaDeviceSynchronize();
++  if (status != cudaSuccess) {
++    std::fprintf(stderr, "tron_vector_kernel failed: %s\n", cuda_status(status));
++    cudaFree(d_inputs);
++    cudaFree(d_results);
++    return 1;
++  }
++
++  status = cudaMemcpy(
++      results.data(),
++      d_results,
++      results.size() * sizeof(TronVectorResult),
++      cudaMemcpyDeviceToHost);
++  cudaFree(d_inputs);
++  cudaFree(d_results);
++  if (status != cudaSuccess) {
++    std::fprintf(stderr, "cudaMemcpy results failed: %s\n", cuda_status(status));
++    return 1;
++  }
++
++  int passed = 0;
++  std::printf("{\n");
++  std::printf("  \"mode\": \"tron_gpu_address_layer_vectors\",\n");
++  std::printf("  \"total_vectors\": %zu,\n", results.size());
++  std::printf("  \"results\": [\n");
++  for (size_t i = 0; i < results.size(); ++i) {
++    if (results[i].passed) ++passed;
++    std::printf(
++        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\"}%s\n",
++        i,
++        results[i].passed ? "true" : "false",
++        results[i].computed_address,
++        i + 1 == results.size() ? "" : ",");
++  }
++  std::printf("  ],\n");
++  std::printf("  \"passed\": %d,\n", passed);
++  std::printf("  \"failed\": %zu,\n", results.size() - static_cast<size_t>(passed));
++  std::printf("  \"notes\": [\n");
++  std::printf("    \"GPU TRON address layer vector check only; no search or benchmark is run.\",\n");
++  std::printf("    \"Inputs are public TEST_ONLY public-key vectors; no scalar material is generated or printed.\"\n");
++  std::printf("  ]\n");
++  std::printf("}\n");
++
++  if (passed == static_cast<int>(results.size())) {
++    std::printf("tron_gpu_address_layer_passed\n");
++    return 0;
++  }
++  return 1;
++}
+diff --git a/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md b/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
+new file mode 100644
+index 0000000..797f6c9
+--- /dev/null
++++ b/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
+@@ -0,0 +1,43 @@
++# RunPod TRON GPU Address Layer Check
++
++## Purpose
++
++This is a short CUDA correctness check for the VanitySearch TRON adaptation.
++
++It verifies:
++
++- Keccak-256 over uncompressed secp256k1 public key bytes without the `04` prefix
++- TRON payload construction with leading `0x41`
++- double-SHA256 checksum
++- Base58Check address encoding
++- four public TEST_ONLY public-key vectors
++
++It does not:
++
++- generate scalar material
++- search vanity addresses
++- benchmark speed
++- call RunPod APIs
++- touch `47.80.70.211`
++
++## RunPod Command
++
++From the VanitySearch candidate repository on a CUDA-capable RunPod Pod:
++
++```bash
++CUDA_ARCH=sm_80 scripts/runpod_verify_tron_gpu_address_layer.sh
++```
++
++Use the correct `CUDA_ARCH` for the selected GPU if needed.
++
++Expected success marker:
++
++```text
++tron_gpu_address_layer_script_passed
++```
++
++## Next Gate
++
++Only after this check passes should the TRON address layer be wired into the existing VanitySearch GPU point-walking search loop.
++
++Do not treat this check as an address generation speed result.
+diff --git a/scripts/runpod_verify_tron_gpu_address_layer.sh b/scripts/runpod_verify_tron_gpu_address_layer.sh
+new file mode 100755
+index 0000000..a6aeff3
+--- /dev/null
++++ b/scripts/runpod_verify_tron_gpu_address_layer.sh
+@@ -0,0 +1,34 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++cd "$ROOT"
++
++NVCC_BIN="${NVCC:-nvcc}"
++CUDA_ARCH="${CUDA_ARCH:-sm_80}"
++OUT="${OUT:-/tmp/tron_gpu_address_layer_check}"
++
++echo "== compile TRON GPU address layer vector check"
++"$NVCC_BIN" \
++  -std=c++17 \
++  -O2 \
++  -I. \
++  -I./GPU \
++  -arch="$CUDA_ARCH" \
++  GPU/GPUTronVectorCheck.cu \
++  -o "$OUT"
++
++echo "== run TRON GPU address layer vector check"
++"$OUT" | tee /tmp/tron_gpu_address_layer_check.json
++
++if ! grep -q "tron_gpu_address_layer_passed" /tmp/tron_gpu_address_layer_check.json; then
++  echo "tron_gpu_address_layer_failed" >&2
++  exit 1
++fi
++
++if grep -Eiq "private_key|mnemonic|seed|token|secret|wif|priv" /tmp/tron_gpu_address_layer_check.json; then
++  echo "unexpected sensitive marker in GPU address layer output" >&2
++  exit 1
++fi
++
++echo "tron_gpu_address_layer_script_passed"
+-- 
+2.50.1 (Apple Git-155)
+
