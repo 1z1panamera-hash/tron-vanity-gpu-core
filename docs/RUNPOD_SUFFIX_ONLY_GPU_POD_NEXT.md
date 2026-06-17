@@ -73,13 +73,20 @@ ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=sm_80 BENCHMARK_SECONDS=3 \
   scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 ```
 
+Default sweep dimensions:
+
+```text
+SWEEP_STEP_SIZES="1024 2048 4096"
+SWEEP_GRIDS="8,128 16,128 32,128 64,128 128,128"
+```
+
 For H100 or a Blackwell image without native Blackwell CUDA support, start with `CUDA_ARCH=sm_90`. If the CUDA image supports the native Blackwell architecture, test that separately and record the image tag.
 
 Optional profiler run:
 
 ```bash
 ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=sm_80 BENCHMARK_SECONDS=3 \
-RUN_NSYS=1 PROFILE_GRID=64,128 PROFILE_SECONDS=5 \
+RUN_NSYS=1 PROFILE_STEP_SIZE=4096 PROFILE_GRID=64,128 PROFILE_SECONDS=5 \
   scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 ```
 
@@ -96,7 +103,7 @@ Speed targets:
 - Minimum engineering pass: `200M attempts/s`
 - Preferred buffer: `300M+ attempts/s`
 
-If the best grid is still below `200M`, keep optimizing the CUDA hot path before spending on Serverless. The first bottleneck to inspect is secp256k1 point walking and point addition throughput. If `gpu_utilization.csv` shows low GPU utilization, increase grid/batch or inspect launch/occupancy before changing higher-level product code.
+If the best `STEP_SIZE + grid` pair is still below `200M`, keep optimizing the CUDA hot path before spending on Serverless. The first bottleneck to inspect is secp256k1 point walking and point addition throughput. If `gpu_utilization.csv` shows low GPU utilization, increase grid/batch or inspect launch/occupancy before changing higher-level product code.
 
 ### 1. Vector Gate Only
 

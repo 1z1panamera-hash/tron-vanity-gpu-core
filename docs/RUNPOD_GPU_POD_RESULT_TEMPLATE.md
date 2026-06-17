@@ -127,6 +127,7 @@ ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=sm_80 BENCHMARK_SECONDS=3 \
 Summary file:
 
 - `speed_sweep_summary.json`:
+- Best STEP_SIZE:
 - Best grid:
 - Best complete TRON attempts/s:
 - Meets engineering minimum `200M attempts/s`:

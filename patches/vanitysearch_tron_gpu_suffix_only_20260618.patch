@@ -273,7 +273,7 @@ index ccb113c..735e401 100644
 -
 -
 diff --git a/GPU/GPUEngine.h b/GPU/GPUEngine.h
-index 6d00aab..7970290 100644
+index 6d00aab..f008147 100644
 --- a/GPU/GPUEngine.h
 +++ b/GPU/GPUEngine.h
 @@ -20,6 +20,7 @@
@@ -284,7 +284,20 @@ index 6d00aab..7970290 100644
  
  #define SEARCH_COMPRESSED 0
  #define SEARCH_UNCOMPRESSED 1
-@@ -64,6 +65,7 @@ public:
+@@ -27,8 +28,11 @@
+ 
+ static const char *searchModes[] = {"Compressed","Uncompressed","Compressed or Uncompressed"};
+ 
+-// Number of key per thread (must be a multiple of GRP_SIZE) per kernel call
++// Number of key per thread (must be a multiple of GRP_SIZE) per kernel call.
++// RunPod speed sweeps can override this at compile time with -DSTEP_SIZE=...
++#ifndef STEP_SIZE
+ #define STEP_SIZE 1024
++#endif
+ 
+ // Number of thread per block
+ #define ITEM_SIZE 28
+@@ -64,6 +68,7 @@ public:
    void SetSearchMode(int searchMode);
    void SetSearchType(int searchType);
    void SetPattern(const char *pattern);
@@ -292,7 +305,7 @@ index 6d00aab..7970290 100644
    bool Launch(std::vector<ITEM> &prefixFound,bool spinWait=false);
    int GetNbThread();
    int GetGroupSize();
-@@ -101,6 +103,10 @@ private:
+@@ -101,6 +106,10 @@ private:
    uint32_t outputSize;
    std::string pattern;
    bool hasPattern;
@@ -1073,7 +1086,7 @@ index 0000000..f6c46cc
 +  return 1;
 +}
 diff --git a/Makefile b/Makefile
-index 70b98bd..83feb91 100644
+index 70b98bd..3259299 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -6,7 +6,7 @@
@@ -1103,20 +1116,46 @@ index 70b98bd..83feb91 100644
          hash/ripemd160_sse.o hash/sha256_sse.o Bech32.o Wildcard.o)
  
  endif
-@@ -59,10 +59,10 @@ endif
+@@ -36,19 +36,21 @@ CXXCUDA    = /usr/bin/g++-4.8
+ NVCC       = $(CUDA)/bin/nvcc
+ # nvcc requires joint notation w/o dot, i.e. "5.2" -> "52"
+ ccap       = $(shell echo $(CCAP) | tr -d '.')
++STEP_SIZE  ?= 1024
++STEP_SIZE_FLAG = -DSTEP_SIZE=$(STEP_SIZE)
+ 
+ ifdef gpu
+ ifdef debug
+-CXXFLAGS   = -DWITHGPU -m64  -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include
++CXXFLAGS   = -DWITHGPU $(STEP_SIZE_FLAG) -m64  -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include
+ else
+-CXXFLAGS   =  -DWITHGPU -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include
++CXXFLAGS   =  -DWITHGPU $(STEP_SIZE_FLAG) -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include
+ endif
+ LFLAGS     = -lpthread -L$(CUDA)/lib64 -lcudart
+ else
+ ifdef debug
+-CXXFLAGS   = -m64 -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include
++CXXFLAGS   = $(STEP_SIZE_FLAG) -m64 -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include
+ else
+-CXXFLAGS   =  -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include
++CXXFLAGS   =  $(STEP_SIZE_FLAG) -m64 -mssse3 -Wno-write-strings -O2 -I. -I$(CUDA)/include
+ endif
+ LFLAGS     = -lpthread
+ endif
+@@ -59,10 +61,10 @@ endif
  ifdef gpu
  ifdef debug
  $(OBJDIR)/GPU/GPUEngine.o: GPU/GPUEngine.cu
 -	$(NVCC) -G -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -g -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
-+	$(NVCC) -G -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -g -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -gencode=arch=compute_$(ccap),code=compute_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
++	$(NVCC) -G -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -g $(STEP_SIZE_FLAG) -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -gencode=arch=compute_$(ccap),code=compute_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
  else
  $(OBJDIR)/GPU/GPUEngine.o: GPU/GPUEngine.cu
 -	$(NVCC) -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -O2 -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
-+	$(NVCC) -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -O2 -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -gencode=arch=compute_$(ccap),code=compute_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
++	$(NVCC) -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -O2 $(STEP_SIZE_FLAG) -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -gencode=arch=compute_$(ccap),code=compute_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
  endif
  endif
  
-@@ -91,4 +91,3 @@ clean:
+@@ -91,4 +93,3 @@ clean:
  	@rm -f obj/*.o
  	@rm -f obj/GPU/*.o
  	@rm -f obj/hash/*.o
