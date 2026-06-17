@@ -28,7 +28,7 @@ patches/vanitysearch_tron_gpu_suffix_only_20260618.patch
 SHA-256:
 
 ```text
-873b485a69cf2618ea482c2a560c332934b962da2f033c7d160bb559bb8d3044
+c2d9132500cd11f003990cfdfe0ea9f9821df95e1d3a84af40d3175977c36177
 ```
 
 Candidate branch head:
