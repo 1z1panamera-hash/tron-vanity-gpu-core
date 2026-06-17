@@ -128,9 +128,17 @@ Do not compare `scalar` mode against production targets except as a sanity basel
 
 ## Capacity Formula
 
-Default rule: full TRON Base58 `prefix_len=2` + `suffix_len=5`.
+Default product rule: `prefix_after_t` + `suffix`.
 
-The leading `T` is fixed for normal TRON addresses, so the random part is only `T` after 1 variable prefix character plus 5 suffix characters.
+The leading `T` is fixed for normal TRON addresses, so the random part is only 1 variable prefix character after `T` plus 5 suffix characters.
+
+Python derives internal full-address matcher fields:
+
+```text
+target_address = "T" + prefix_after_t + filler + suffix
+prefix_len = 2
+suffix_len = 5
+```
 
 Effective random search space:
 

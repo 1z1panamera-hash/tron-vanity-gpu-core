@@ -181,7 +181,7 @@ def main() -> int:
         "summary": summary,
         "notes": [
             "This inspector does not call RunPod.",
-            "Benchmark capacity uses full TRON Base58 prefix_len=2 + suffix_len=5, with fixed leading T, so search space is 58^6.",
+            "Benchmark capacity uses product rule prefix_after_t=1 + suffix=5; Python maps it to full-address prefix_len=2 + suffix_len=5 and search space is 58^6.",
             "Do not treat benchmark results as production proof until validate_vectors passes on RunPod.",
         ],
     }, indent=2))

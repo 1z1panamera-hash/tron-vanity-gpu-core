@@ -3,8 +3,10 @@
   "component": "tron-gpu-core",
   "default_rule": {
     "address_format": "TRON full Base58Check address",
-    "prefix_len": 2,
-    "suffix_len": 5,
+    "product_prefix_after_t_len": 1,
+    "product_suffix_len": 5,
+    "internal_full_address_prefix_len": 2,
+    "internal_suffix_len": 5,
     "fixed_leading_char": "T",
     "effective_random_prefix_chars": 1,
     "effective_random_suffix_chars": 5,
@@ -25,9 +27,11 @@
         "tests/verify_shard_schedule.cpp"
       ],
       "input": {
-        "target_address": "TRON Base58 address beginning with T",
-        "prefix_len": 2,
-        "suffix_len": 5,
+        "prefix_after_t": "one custom Base58 character immediately after fixed T",
+        "suffix": "five custom Base58 characters at the end of the address",
+        "internal_target_address": "derived by Python wrapper for CUDA binary",
+        "internal_prefix_len": 2,
+        "internal_suffix_len": 5,
         "kernel_mode": "incremental or scalar; default incremental",
         "duration_seconds": "1..10 for first approved tests",
         "max_attempts": "positive cap for bounded smoke or benchmark run",

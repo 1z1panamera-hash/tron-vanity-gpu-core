@@ -1,9 +1,8 @@
 {
   "input": {
     "mode": "benchmark",
-    "target_address": "TX8888888888888888888888888886666",
-    "prefix_len": 2,
-    "suffix_len": 5,
+    "prefix_after_t": "X",
+    "suffix": "86666",
     "kernel_mode": "incremental",
     "duration_seconds": 5,
     "max_attempts": 1024,

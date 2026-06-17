@@ -38,8 +38,9 @@ def main() -> int:
     }
 
     print(json.dumps({
-        "rule": "TRON full Base58 prefix_len=2 + suffix_len=5",
-        "effective_random_rule": "TRON leading T is fixed; random search is T+1 prefix character plus 5 suffix characters.",
+        "rule": "TRON product rule prefix_after_t=1 + suffix=5",
+        "internal_rule": "Python maps product input to full Base58 prefix_len=2 + suffix_len=5 for the CUDA binary.",
+        "effective_random_rule": "TRON leading T is fixed; random search is 1 character after T plus 5 suffix characters.",
         "search_space": SEARCH_SPACE,
         "seconds": seconds,
         "single_worker_addresses_per_second": speed,

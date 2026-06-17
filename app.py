@@ -18,6 +18,7 @@ GPU_BINARY_PATH = ROOT / "build" / "tron_gpu_worker"
 GPU_SOURCE_PATH = ROOT / "src" / "tron_gpu_core.cu"
 DEFAULT_PREFIX_LEN = 2
 DEFAULT_SUFFIX_LEN = 5
+DEFAULT_TRON_ADDRESS_LEN = 34
 MAX_BENCHMARK_SECONDS = 10
 MAX_BENCHMARK_ATTEMPTS = 10_000_000_000
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -98,6 +99,62 @@ def nvcc_command_for_arch(arch: str) -> List[str]:
         "-o",
         str(GPU_BINARY_PATH),
     ]
+
+
+def synthesize_target_address(prefix_after_t: str, suffix: str) -> str:
+    if not isinstance(prefix_after_t, str) or len(prefix_after_t) != 1:
+        raise ValueError("prefix_after_t must be exactly one Base58 character after fixed T")
+    if not isinstance(suffix, str) or len(suffix) != DEFAULT_SUFFIX_LEN:
+        raise ValueError("suffix must be exactly 5 Base58 characters")
+    if prefix_after_t not in BASE58_ALPHABET:
+        raise ValueError("prefix_after_t contains a non-Base58 character")
+    if any(ch not in BASE58_ALPHABET for ch in suffix):
+        raise ValueError("suffix contains a non-Base58 character")
+
+    filler_len = DEFAULT_TRON_ADDRESS_LEN - 1 - len(prefix_after_t) - len(suffix)
+    if filler_len < 0:
+        raise ValueError("invalid target rule length")
+    return "T" + prefix_after_t + ("8" * filler_len) + suffix
+
+
+def normalize_match_rule(payload: Dict[str, Any]) -> Dict[str, Any]:
+    if "prefix_after_t" in payload or "suffix" in payload:
+        prefix_after_t = payload.get("prefix_after_t")
+        suffix = payload.get("suffix")
+        target_address = synthesize_target_address(prefix_after_t, suffix)
+        return {
+            "target_address": target_address,
+            "prefix_len": DEFAULT_PREFIX_LEN,
+            "suffix_len": DEFAULT_SUFFIX_LEN,
+            "prefix_after_t": prefix_after_t,
+            "suffix": suffix,
+            "effective_random_chars": 1 + DEFAULT_SUFFIX_LEN,
+            "search_space": 58 ** (1 + DEFAULT_SUFFIX_LEN),
+            "rule": "TRON fixed T + prefix_after_t(1) + suffix(5)",
+        }
+
+    target_address = payload.get("target_address")
+    prefix_len = int(payload.get("prefix_len", DEFAULT_PREFIX_LEN))
+    suffix_len = int(payload.get("suffix_len", DEFAULT_SUFFIX_LEN))
+    if (
+        not isinstance(target_address, str)
+        or not target_address.startswith("T")
+        or not 26 <= len(target_address) <= 40
+        or any(ch not in BASE58_ALPHABET for ch in target_address)
+    ):
+        raise ValueError("target_address must be a reasonable TRON Base58 address string starting with T")
+    if prefix_len != DEFAULT_PREFIX_LEN or suffix_len != DEFAULT_SUFFIX_LEN:
+        raise ValueError("product rule requires full-address prefix_len=2 and suffix_len=5")
+    return {
+        "target_address": target_address,
+        "prefix_len": prefix_len,
+        "suffix_len": suffix_len,
+        "prefix_after_t": target_address[1:2],
+        "suffix": target_address[-suffix_len:],
+        "effective_random_chars": 1 + suffix_len,
+        "search_space": 58 ** (1 + suffix_len),
+        "rule": "TRON fixed T + prefix_after_t(1) + suffix(5)",
+    }
 
 
 def compile_gpu_binary_if_allowed(timeout_seconds: int = 120) -> Dict[str, Any]:
@@ -274,16 +331,10 @@ def handle_benchmark(payload: Dict[str, Any]) -> Dict[str, Any]:
     shard_id = int(payload.get("shard_id", 0))
     shard_count = int(payload.get("shard_count", 1))
     kernel_mode = payload.get("kernel_mode", "incremental")
-    target_address = payload.get("target_address")
-    prefix_len = int(payload.get("prefix_len", DEFAULT_PREFIX_LEN))
-    suffix_len = int(payload.get("suffix_len", DEFAULT_SUFFIX_LEN))
-    if (
-        not isinstance(target_address, str)
-        or not target_address.startswith("T")
-        or not 26 <= len(target_address) <= 40
-        or any(ch not in BASE58_ALPHABET for ch in target_address)
-    ):
-        raise ValueError("target_address must be a reasonable TRON Base58 address string starting with T")
+    match_rule = normalize_match_rule(payload)
+    target_address = match_rule["target_address"]
+    prefix_len = match_rule["prefix_len"]
+    suffix_len = match_rule["suffix_len"]
     if shard_count < 1 or shard_id < 0 or shard_id >= shard_count:
         raise ValueError("invalid shard_id/shard_count")
     if start_counter < 0:
@@ -339,6 +390,7 @@ def handle_benchmark(payload: Dict[str, Any]) -> Dict[str, Any]:
         "shard_id": shard_id,
         "shard_count": shard_count,
         "kernel_mode": kernel_mode,
+        "match_rule": match_rule,
         "elapsed_seconds": elapsed,
         "compile": compile_status,
         "gpu_binary": binary_status,

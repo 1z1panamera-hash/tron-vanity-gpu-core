@@ -44,7 +44,7 @@ No private key, seed, mnemonic, token, or secret was output.
 
 The current CUDA core is useful as a correctness and integration smoke test, but it is not a production-speed vanity generator.
 
-The measured speed is far below the target needed for default matching rule `prefix_len=2`, `suffix_len=5` over the full TRON Base58 address. Because TRON's leading `T` is fixed, the effective random target is 1 variable prefix character after `T` plus 5 suffix characters, or about `58^6` candidates. The current implementation should not be used to estimate production cost or worker count.
+The measured speed is far below the target needed for the product rule: 1 variable prefix character after fixed `T` plus 5 suffix characters. Python maps that product rule to internal full-address `prefix_len=2`, `suffix_len=5`. The effective random target is about `58^6` candidates. The current implementation should not be used to estimate production cost or worker count.
 
 The likely bottleneck is the custom full address-generation path, especially secp256k1 field arithmetic and point walking implementation. Further RunPod spending on this exact core is not recommended until the core is replaced or substantially rewritten against a mature, verifiable GPU vanity-generation approach.
 

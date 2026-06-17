@@ -1,8 +1,8 @@
 # RunPod Sharding Strategy
 
-Goal: make full-address `prefix_len=2` + `suffix_len=5` feasible by running many independent GPU workers.
+Goal: make product rule `prefix_after_t=1` + `suffix=5` feasible by running many independent GPU workers.
 
-Normal TRON addresses have fixed leading `T`, so this is effectively `T` plus 1 random prefix character plus 5 suffix characters.
+Normal TRON addresses have fixed leading `T`, so Python maps this to internal full-address `prefix_len=2` plus `suffix_len=5`.
 
 ## Search Space
 
@@ -53,8 +53,8 @@ The CPU-side schedule test `tests/verify_shard_schedule.cpp` validates that shar
 {
   "mode": "benchmark",
   "target_address": "T...",
-  "prefix_len": 2,
-  "suffix_len": 5,
+  "prefix_after_t": "X",
+  "suffix": "86666",
   "kernel_mode": "incremental",
   "duration_seconds": 5,
   "max_attempts": 1024,

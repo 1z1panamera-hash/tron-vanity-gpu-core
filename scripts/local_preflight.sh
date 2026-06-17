@@ -37,13 +37,21 @@ os.environ["CUDA_ARCH"] = "sm_80"
 assert app.cuda_arch_candidates()[0] == "sm_80"
 os.environ.pop("CUDA_ARCH", None)
 result = app.handle_benchmark({
-    "target_address": "TX8888888888888888888888888886666",
-    "prefix_len": 2,
-    "suffix_len": 5,
+    "prefix_after_t": "X",
+    "suffix": "86666",
     "duration_seconds": 1,
     "max_attempts": 1,
 })
 assert result["allowed"] is False
+rule = app.normalize_match_rule({
+    "prefix_after_t": "X",
+    "suffix": "86666",
+})
+assert rule["target_address"].startswith("TX")
+assert rule["target_address"].endswith("86666")
+assert rule["prefix_len"] == 2
+assert rule["suffix_len"] == 5
+assert rule["search_space"] == 58 ** 6
 print("wrapper_gate_ok")
 PY
 

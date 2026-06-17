@@ -1,8 +1,8 @@
 # Performance Core Plan
 
-Goal: move from correctness-first CUDA code toward a worker that can realistically approach TRON full-address `prefix_len=2` + `suffix_len=5` within 10 seconds using RunPod GPUs.
+Goal: move from correctness-first CUDA code toward a worker that can realistically approach TRON product rule `prefix_after_t=1 char` + `suffix=5 chars` within 10 seconds on average, with P90 no more than 15 seconds, using RunPod GPUs.
 
-TRON addresses normally start with fixed `T`, so the effective random target is `T` plus 1 variable prefix character plus 5 suffix characters. Capacity math is therefore `58^6`, not `58^7`.
+TRON addresses normally start with fixed `T`, so the effective random target is `T` plus 1 variable prefix character plus 5 suffix characters. The Python wrapper maps product input to internal full-address `prefix_len=2`, `suffix_len=5` for the CUDA binary. Capacity math is therefore `58^6`, not `58^7`.
 
 ## Why Current Code Is Not Enough
 
@@ -70,9 +70,11 @@ candidate_range = [start_counter + global_worker_id * stride, ...)
 Each RunPod worker gets:
 
 - `job_id`
-- `target_address`
-- `prefix_len` on the full Base58 address, normally `2` to include `T` plus one variable prefix character
-- `suffix_len`
+- `prefix_after_t`
+- `suffix`
+- derived `target_address`
+- derived full-address `prefix_len = 2`
+- derived `suffix_len = 5`
 - `start_counter`
 - `shard_id`
 - `shard_count`
@@ -102,6 +104,7 @@ Before claiming performance:
 4. Benchmark smoke emits `gpu_name` and complete `addresses_per_second`.
 5. A100 and RTX 5090 tests use the same target rule and output schema.
 6. The output is inspected for absence of `private_key`, `mnemonic`, `seed`, `token`, and `secret`.
+7. Final performance evidence must report mean time to match and P90 time to match for the `58^6` rule.
 
 ## If Smoke Speed Is Low
 

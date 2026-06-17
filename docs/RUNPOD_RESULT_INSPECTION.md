@@ -65,7 +65,7 @@ scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10
 
 The input must be complete TRON `addresses_per_second`, not hash speed.
 
-The product rule is full-address `prefix_len=2` plus `suffix_len=5`. Because normal TRON addresses have fixed leading `T`, the effective random space is `58^6`.
+The product rule is `prefix_after_t` plus `suffix`. Python maps it to full-address `prefix_len=2` plus `suffix_len=5` for the CUDA binary. Because normal TRON addresses have fixed leading `T`, the effective random space is `58^6`.
 
 ## Safety
 

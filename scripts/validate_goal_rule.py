@@ -15,6 +15,7 @@ PAYLOADS = [
 EXPECTED_SEARCH_SPACE = 58 ** 6
 EXPECTED_PREFIX_LEN = 2
 EXPECTED_SUFFIX_LEN = 5
+EXPECTED_PREFIX_AFTER_T_LEN = 1
 
 
 def load_json(rel: str) -> dict:
@@ -36,25 +37,26 @@ def main() -> int:
 
     contract = load_json("src/GPU_CORE_CONTRACT.json")
     default_rule = contract.get("default_rule", {})
-    if default_rule.get("prefix_len") != EXPECTED_PREFIX_LEN:
-        failures.append("GPU_CORE_CONTRACT default prefix_len must be 2 on full TRON address")
-    if default_rule.get("suffix_len") != EXPECTED_SUFFIX_LEN:
-        failures.append("GPU_CORE_CONTRACT default suffix_len must be 5")
+    if default_rule.get("product_prefix_after_t_len") != EXPECTED_PREFIX_AFTER_T_LEN:
+        failures.append("GPU_CORE_CONTRACT product_prefix_after_t_len must be 1")
+    if default_rule.get("product_suffix_len") != EXPECTED_SUFFIX_LEN:
+        failures.append("GPU_CORE_CONTRACT product_suffix_len must be 5")
+    if default_rule.get("internal_full_address_prefix_len") != EXPECTED_PREFIX_LEN:
+        failures.append("GPU_CORE_CONTRACT internal_full_address_prefix_len must be 2")
+    if default_rule.get("internal_suffix_len") != EXPECTED_SUFFIX_LEN:
+        failures.append("GPU_CORE_CONTRACT internal_suffix_len must be 5")
 
     for rel in PAYLOADS:
         payload = load_json(rel)
         input_payload = payload.get("input", {})
-        address = input_payload.get("target_address", "")
-        if not isinstance(address, str) or not address.startswith("T"):
-            failures.append(f"{rel}: target_address must start with fixed TRON T")
-        if input_payload.get("prefix_len") != EXPECTED_PREFIX_LEN:
-            failures.append(f"{rel}: prefix_len must be 2, including fixed leading T")
-        if input_payload.get("suffix_len") != EXPECTED_SUFFIX_LEN:
-            failures.append(f"{rel}: suffix_len must be 5")
-        if isinstance(address, str) and input_payload.get("prefix_len") == EXPECTED_PREFIX_LEN:
-            variable_prefix = address[1:EXPECTED_PREFIX_LEN]
-            if len(variable_prefix) != 1:
-                failures.append(f"{rel}: effective variable prefix after T must be exactly 1 char")
+        prefix_after_t = input_payload.get("prefix_after_t")
+        suffix = input_payload.get("suffix")
+        if not isinstance(prefix_after_t, str) or len(prefix_after_t) != EXPECTED_PREFIX_AFTER_T_LEN:
+            failures.append(f"{rel}: prefix_after_t must be exactly 1 character")
+        if not isinstance(suffix, str) or len(suffix) != EXPECTED_SUFFIX_LEN:
+            failures.append(f"{rel}: suffix must be exactly 5 characters")
+        if "prefix_len" in input_payload or "suffix_len" in input_payload:
+            failures.append(f"{rel}: product payload must use prefix_after_t/suffix, not prefix_len/suffix_len")
 
     result = {
         "mode": "validate_goal_rule",
@@ -62,6 +64,7 @@ def main() -> int:
         "failures": failures,
         "rule": {
             "full_address_prefix_len": EXPECTED_PREFIX_LEN,
+            "product_prefix_after_t_len": EXPECTED_PREFIX_AFTER_T_LEN,
             "suffix_len": EXPECTED_SUFFIX_LEN,
             "fixed_leading_char": "T",
             "effective_variable_prefix_chars": 1,
@@ -71,7 +74,7 @@ def main() -> int:
         },
         "notes": [
             "TRON leading T is fixed and must not be counted as a random Base58 character.",
-            "Runtime payloads still use prefix_len=2 because matching is against the full TRON Base58 address.",
+            "Product payloads use prefix_after_t/suffix; Python maps them to full-address prefix_len=2/suffix_len=5 for the CUDA binary.",
             "This script does not call RunPod and does not run a benchmark.",
         ],
     }

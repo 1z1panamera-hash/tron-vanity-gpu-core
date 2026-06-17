@@ -6,10 +6,13 @@ Find a TRON vanity address in about 10 seconds using RunPod Serverless workers, 
 
 ## Matching Rule
 
-- Matching is performed on the full TRON Base58Check address.
-- Runtime parameters:
-  - `prefix_len = 2`
-  - `suffix_len = 5`
+- Product input:
+  - `prefix_after_t`: 1 custom Base58 character immediately after fixed `T`
+  - `suffix`: 5 custom Base58 characters at the end of the address
+- Python wrapper derives the lower-level full-address matcher:
+  - internal `target_address = "T" + prefix_after_t + filler + suffix`
+  - internal `prefix_len = 2`
+  - internal `suffix_len = 5`
 - Normal TRON addresses start with fixed `T`.
 - Effective random target:
   - 1 variable prefix character after `T`
@@ -20,7 +23,7 @@ Find a TRON vanity address in about 10 seconds using RunPod Serverless workers, 
 58^6 = 38,068,692,544
 ```
 
-Do not report `58^7` capacity math for this product rule.
+Do not call the product rule "front2+back5" and do not report `58^7` capacity math for this product rule.
 
 ## Completion Requirements
 
@@ -28,14 +31,18 @@ The goal is not complete until all of these are true:
 
 1. RunPod Serverless worker uses a CUDA/OpenCL GPU core, not CPU correctness mode.
 2. Worker validates TRON address math against public test vectors.
-3. Benchmark reports complete TRON `addresses_per_second`, not hash speed or raw key stepping only.
-4. A 10-second Serverless run shows enough throughput for the `58^6` target, or sharded workers demonstrate the needed aggregate throughput.
-5. Output contains no plaintext `private_key`, WIF, mnemonic, seed, token, or secret.
-6. Production hit flow returns only `matched_address` and `encrypted_private_key`.
-7. Private key encryption uses customer `age recipient`.
-8. `47.80.70.211` does not run GPU, CUDA compile, brute force, or high benchmark.
-9. `47.80.70.211` only runs the controller/API and persists non-secret job metadata.
-10. Existing ports `8000`, `8001`, and `18022` remain unaffected.
+3. Worker accepts product input `prefix_after_t` + `suffix`.
+4. Python remains a thin RunPod Serverless handler and calls a CUDA/C++ binary for computation.
+5. CUDA/C++ implements private-key generation, secp256k1 point math, Keccak, Base58Check, and matching.
+6. Benchmark reports complete TRON `addresses_per_second`, not hash speed or raw key stepping only.
+7. Average time to match is no more than 10 seconds.
+8. P90 time to match is no more than 15 seconds.
+9. Output contains no plaintext `private_key`, WIF, mnemonic, seed, token, or secret.
+10. Production hit flow returns only `matched_address` and `encrypted_private_key`.
+11. Private key encryption uses customer `age recipient`.
+12. `47.80.70.211` does not run GPU, CUDA compile, brute force, or high benchmark.
+13. `47.80.70.211` only runs the controller/API and persists non-secret job metadata.
+14. Existing ports `8000`, `8001`, and `18022` remain unaffected.
 
 ## Current Status
 
