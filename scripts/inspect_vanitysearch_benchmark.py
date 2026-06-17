@@ -148,6 +148,7 @@ def inspect(data: Dict[str, Any], raw_text: str) -> Dict[str, Any]:
         "notes": [
             "This only inspects local text/JSON; it does not call RunPod.",
             "The target space is 58^6 because TRON leading T is fixed.",
+            "Use benchmark output from the corrected TRON counter patch; older VanitySearch TRON Mkey/s can be 6x inflated.",
             "This bounded VanitySearch signal is not final Serverless P90 proof.",
         ],
     }

@@ -87,6 +87,8 @@ The inspector reports:
 
 This is only a GPU Pod direction signal. It is not final Serverless proof and it does not replace the eventual age-encrypted worker path.
 
+Current VanitySearch patch note: TRON bounded benchmark counters are corrected to complete TRON address candidates per second. Do not compare older 6x-inflated VanitySearch Mkey/s output with the current `candidate_attempts_per_second_estimate`.
+
 ## Safety
 
 These scripts:

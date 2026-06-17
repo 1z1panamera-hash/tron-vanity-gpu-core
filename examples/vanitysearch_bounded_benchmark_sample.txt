@@ -8,11 +8,11 @@
   "return_code": 124,
   "timeout_reached": true,
   "samples": 4,
-  "reported_total_mkey_s": 4800.0,
-  "reported_gpu_mkey_s": 4800.0,
-  "candidate_attempts_per_second_estimate": 4800000000.0,
+  "reported_total_mkey_s": 800.0,
+  "reported_gpu_mkey_s": 800.0,
+  "candidate_attempts_per_second_estimate": 800000000.0,
   "notes": [
-    "This is a bounded RunPod GPU Pod benchmark signal, not final Serverless P90 proof.",
+    "This is a corrected-counter bounded RunPod GPU Pod benchmark signal, not final Serverless P90 proof.",
     "TRON_SUPPRESS_SECRET_OUTPUT=1 is required and was set by the script.",
     "Use only TEST patterns; do not use customer patterns or customer data.",
     "Final production delivery must use the Python wrapper and age encryption."

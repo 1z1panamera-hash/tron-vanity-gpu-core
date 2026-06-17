@@ -1,7 +1,7 @@
 From 221922d62bde31625d8abd2ec9f5054db76f635a Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:37:26 +0800
-Subject: [PATCH 01/11] Add local TRON CPU address prototype
+Subject: [PATCH 01/12] Add local TRON CPU address prototype
 
 ---
  Makefile           |  7 ++--
@@ -256,7 +256,7 @@ index f404066..55c41f4 100644
 From 55470e4c21b5d213323850b6daa3c165abea41f0 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:49:24 +0800
-Subject: [PATCH 02/11] Add RunPod TRON CPU vector check
+Subject: [PATCH 02/12] Add RunPod TRON CPU vector check
 
 ---
  scripts/runpod_verify_tron_cpu_vectors.sh | 47 +++++++++++++++++++++++
@@ -323,7 +323,7 @@ index 0000000..074dfab
 From 4c938377714b95d74f65296b0828e05245e5402f Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:15:10 +0800
-Subject: [PATCH 03/11] Add TRON GPU address layer vector check
+Subject: [PATCH 03/12] Add TRON GPU address layer vector check
 
 ---
  GPU/GPUTron.h                                 | 190 ++++++++++++++++++
@@ -817,7 +817,7 @@ index 0000000..a6aeff3
 From 98a05c73c7b0bdd61d105a7984b8a4a1173fa4b7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:26:41 +0800
-Subject: [PATCH 04/11] Add TRON GPU product rule vector checks
+Subject: [PATCH 04/12] Add TRON GPU product rule vector checks
 
 ---
  GPU/GPUTron.h                               | 14 +++++++++
@@ -953,7 +953,7 @@ index 797f6c9..05a64a9 100644
 From 6224f8980c57e95ec149c15c01b6f95cd9b1abb7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:35:56 +0800
-Subject: [PATCH 05/11] Add TRON GPU wildcard search path
+Subject: [PATCH 05/12] Add TRON GPU wildcard search path
 
 ---
  GPU/GPUCompute.h                              | 143 ++++++++++++++++++
@@ -1466,7 +1466,7 @@ index 0000000..c7e9640
 From 2403869713f9b64c07556beaf7aec7475e0bddf7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:46:37 +0800
-Subject: [PATCH 06/11] Use dedicated TRON prefix suffix GPU rule
+Subject: [PATCH 06/12] Use dedicated TRON prefix suffix GPU rule
 
 ---
  GPU/GPUCompute.h                              | 14 ++++----
@@ -1691,7 +1691,7 @@ index c7e9640..1eadcce 100755
 From ff433253cd0ece485062f0cbc944f3e74e7d43d8 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 01:22:44 +0800
-Subject: [PATCH 07/11] Add TRON suffix modulo GPU prefilter
+Subject: [PATCH 07/12] Add TRON suffix modulo GPU prefilter
 
 ---
  GPU/GPUCompute.h          | 16 ++++++++------
@@ -1974,7 +1974,7 @@ index 64f99f8..d56bb43 100644
 From 25fcd54ad53a68dfe99fb1330bbb062f3f8c1be9 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:15:53 +0800
-Subject: [PATCH 08/11] Add TRON prefix range GPU prefilter
+Subject: [PATCH 08/12] Add TRON prefix range GPU prefilter
 
 ---
  GPU/GPUCompute.h          |  9 +++--
@@ -2346,7 +2346,7 @@ index d56bb43..72e5f0f 100644
 From fef351d2eaddd76ec5de46d993523f23a4de934d Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:27:46 +0800
-Subject: [PATCH 09/11] Gate TRON checksum behind prefix range
+Subject: [PATCH 09/12] Gate TRON checksum behind prefix range
 
 ---
  GPU/GPUCompute.h          |  8 ++++++-
@@ -2510,7 +2510,7 @@ index 72e5f0f..1d64dc8 100644
 From d79918f448348063ccd76f4feb0cf8a72ddefef8 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:44:28 +0800
-Subject: [PATCH 10/11] Suppress TRON secrets in bounded GPU smoke
+Subject: [PATCH 10/12] Suppress TRON secrets in bounded GPU smoke
 
 ---
  Vanity.cpp                                    | 21 ++++++++++++++++---
@@ -2649,7 +2649,7 @@ index 1eadcce..2ec8b95 100755
 From 13b202c70a39a73684fc942971d16fc478696503 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:48:16 +0800
-Subject: [PATCH 11/11] Add bounded TRON GPU pattern benchmark script
+Subject: [PATCH 11/12] Add bounded TRON GPU pattern benchmark script
 
 ---
  docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md    | 50 +++++++++++
@@ -2815,6 +2815,42 @@ index 0000000..67ab22e
 +PY
 +
 +echo "tron_gpu_pattern_benchmark_passed"
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 486494e7c2439eeb6b9418b70feead7c674d4cf4 Mon Sep 17 00:00:00 2001
+From: 1z1 <1z1@1z1deMacBook-Air.local>
+Date: Thu, 18 Jun 2026 04:11:57 +0800
+Subject: [PATCH 12/12] Correct TRON VanitySearch attempt counters
+
+---
+ Vanity.cpp | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/Vanity.cpp b/Vanity.cpp
+index d9b9f57..a867c6b 100644
+--- a/Vanity.cpp
++++ b/Vanity.cpp
+@@ -1540,7 +1540,7 @@ void VanitySearch::FindKeyCPU(TH_PARAM *ph) {
+     }
+ 
+     key.Add((uint64_t)CPU_GRP_SIZE);
+-    counters[thId]+= 6*CPU_GRP_SIZE; // Point + endo #1 + endo #2 + Symetric point + endo #1 + endo #2
++    counters[thId] += (searchType == TRON_ADDR) ? CPU_GRP_SIZE : 6 * CPU_GRP_SIZE;
+ 
+   }
+ 
+@@ -1636,7 +1636,8 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
+       for (int i = 0; i < nbThread; i++) {
+         keys[i].Add((uint64_t)STEP_SIZE);
+       }
+-      counters[thId] += 6ULL * STEP_SIZE * nbThread; // Point +  endo1 + endo2 + symetrics
++      uint64_t attemptsPerThread = (searchType == TRON_ADDR) ? STEP_SIZE : 6ULL * STEP_SIZE;
++      counters[thId] += attemptsPerThread * nbThread;
+     }
+ 
+   }
 -- 
 2.50.1 (Apple Git-155)
 

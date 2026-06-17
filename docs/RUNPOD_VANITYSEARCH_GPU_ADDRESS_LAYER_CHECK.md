@@ -22,26 +22,26 @@ An optional smoke can also compile patched VanitySearch and run a bounded TRON w
 Tracked patch in this repository:
 
 ```text
-patches/vanitysearch_tron_gpu_bounded_benchmark_20260618.patch
+patches/vanitysearch_tron_gpu_correct_attempt_counter_20260618.patch
 ```
 
 SHA-256:
 
 ```text
-7584003c3fefe537eff86ae3b7f7cb42a3eb8b8d0a598f18d97ab7f955a0c44f
+f8b0d7d158bfb379c135ff310d15a812a00744634d00f4ae7003f2556862ed92
 ```
 
 Candidate branch head:
 
 ```text
-13b202c Add bounded TRON GPU pattern benchmark script
+486494e Correct TRON VanitySearch attempt counters
 ```
 
 The TRON GPU search path now parses `T<one-char>*<five-char-suffix>` into a dedicated product rule, precomputes the `T` + `prefix_after_t` Base58 value range and suffix-5 value, checks whether the 21-byte TRON payload can possibly fall in the prefix range before computing the double-SHA256 checksum, then applies exact prefix range, suffix modulo, and full Base58 confirmation. This avoids passing host string pointers into the kernel and skips checksum/modulo/Base58 work for most non-matching candidates.
 
 The optional pattern smoke sets `TRON_SUPPRESS_SECRET_OUTPUT=1` before running VanitySearch. If an accidental hit happens during the bounded smoke, WIF/HEX key material is suppressed instead of printed.
 
-The optional bounded benchmark also sets `TRON_SUPPRESS_SECRET_OUTPUT=1`, limits runtime to 3-30 seconds, and reports `candidate_attempts_per_second_estimate` from VanitySearch's GPU Mkey/s output. It is a GPU Pod direction signal, not final production proof.
+The optional bounded benchmark also sets `TRON_SUPPRESS_SECRET_OUTPUT=1`, limits runtime to 3-30 seconds, and reports `candidate_attempts_per_second_estimate` from VanitySearch's GPU Mkey/s output. The patch corrects TRON counters to count complete TRON address candidates (`STEP_SIZE * nbThread`) instead of the generic Bitcoin 6x endomorphism/symmetry count. It is a GPU Pod direction signal, not final production proof.
 
 ## RunPod Command
 
@@ -89,6 +89,7 @@ tron_gpu_pattern_benchmark_passed
 - The optional wildcard smoke uses the strict product-rule pattern and suppresses key material if an accidental hit occurs.
 - The optional wildcard smoke defaults to 5 seconds and may print a best-effort `tron_gpu_pattern_smoke_rate` line; this is only a startup signal.
 - The optional bounded benchmark defaults to 10 seconds, refuses durations outside 3-30 seconds, and emits JSON for review.
+- The optional bounded benchmark rate is corrected to complete TRON address candidates per second, not raw hash speed and not the old generic 6x VanitySearch counter.
 - The checksum-gated prefix range and suffix modulo prefilters are optimization gates, not proof of final production speed.
 - Do not run this on `47.80.70.211`.
 - Do not run a search benchmark from this check.
