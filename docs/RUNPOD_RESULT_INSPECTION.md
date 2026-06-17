@@ -67,6 +67,26 @@ The input must be complete TRON `addresses_per_second`, not hash speed.
 
 The product rule is `prefix_after_t` plus `suffix`. Python maps it to full-address `prefix_len=2` plus `suffix_len=5` for the CUDA binary. Because normal TRON addresses have fixed leading `T`, the effective random space is `58^6`.
 
+## VanitySearch Bounded Benchmark Signal
+
+If the patched VanitySearch bounded benchmark prints mixed stdout plus JSON, save it locally and run:
+
+```bash
+scripts/inspect_vanitysearch_benchmark.py vanitysearch_benchmark_stdout.txt
+```
+
+The inspector reports:
+
+- `candidate_attempts_per_second_estimate`
+- single-worker 10 second and 15 second hit probability
+- expected mean seconds
+- P90 seconds
+- speed required for mean <= 10 seconds
+- speed required for P90 <= 15 seconds
+- required worker count for both targets
+
+This is only a GPU Pod direction signal. It is not final Serverless proof and it does not replace the eventual age-encrypted worker path.
+
 ## Safety
 
 These scripts:

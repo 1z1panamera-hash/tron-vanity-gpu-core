@@ -51,11 +51,13 @@ REQUIRED_PATHS = [
     "RUNPOD_BENCHMARK_SMOKE_PAYLOAD.json",
     "RUNPOD_A100_BENCHMARK_10S_PAYLOAD.json",
     "RUNPOD_RTX5090_BENCHMARK_10S_PAYLOAD.json",
+    "examples/vanitysearch_bounded_benchmark_sample.txt",
     "docs/RUNPOD_ACTION_NOW.md",
     "docs/RUNPOD_BENCHMARK_GATE.md",
     "docs/RUNPOD_GITHUB_UPLOAD_CHECKLIST.md",
     "docs/RUNPOD_VANITYSEARCH_GPU_ADDRESS_LAYER_CHECK.md",
     "patches/vanitysearch_tron_gpu_bounded_benchmark_20260618.patch",
+    "scripts/inspect_vanitysearch_benchmark.py",
     "scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh",
 ]
 

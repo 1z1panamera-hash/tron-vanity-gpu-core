@@ -98,3 +98,9 @@ tron_gpu_pattern_benchmark_passed
 ## Next Gate
 
 After this passes on RunPod, inspect the bounded benchmark JSON locally and compare it with the `58^6` target space. If it is promising, replace this signal path with a dedicated benchmark-only worker and then run controlled GPU-class comparisons.
+
+Local inspection command:
+
+```bash
+scripts/inspect_vanitysearch_benchmark.py vanitysearch_benchmark_stdout.txt
+```
