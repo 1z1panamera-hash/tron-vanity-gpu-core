@@ -13,15 +13,24 @@ namespace tron_device {
 
 static constexpr int PAYLOAD25_LEN = 25;
 static constexpr int BASE58_MAX_LEN = 64;
-static constexpr char BASE58_ALPHABET[] =
-    "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+TRON_HD char base58_char(int digit) {
+    if (digit >= 0 && digit <= 8) return static_cast<char>('1' + digit);
+    if (digit >= 9 && digit <= 16) return static_cast<char>('A' + (digit - 9));
+    if (digit >= 17 && digit <= 21) return static_cast<char>('J' + (digit - 17));
+    if (digit >= 22 && digit <= 32) return static_cast<char>('P' + (digit - 22));
+    if (digit >= 33 && digit <= 43) return static_cast<char>('a' + (digit - 33));
+    if (digit >= 44 && digit <= 57) return static_cast<char>('m' + (digit - 44));
+    return '\0';
+}
 
 TRON_HD int base58_index(char c) {
-    for (int i = 0; i < 58; ++i) {
-        if (BASE58_ALPHABET[i] == c) {
-            return i;
-        }
-    }
+    if (c >= '1' && c <= '9') return c - '1';
+    if (c >= 'A' && c <= 'H') return 9 + c - 'A';
+    if (c >= 'J' && c <= 'N') return 17 + c - 'J';
+    if (c >= 'P' && c <= 'Z') return 22 + c - 'P';
+    if (c >= 'a' && c <= 'k') return 33 + c - 'a';
+    if (c >= 'm' && c <= 'z') return 44 + c - 'm';
     return -1;
 }
 
@@ -241,7 +250,7 @@ TRON_HD int base58_encode_payload25(const uint8_t payload25[25], char out[BASE58
             remainder = value % 58;
         }
         if (reverse_len >= BASE58_MAX_LEN - 1) return -1;
-        reverse[reverse_len++] = BASE58_ALPHABET[remainder];
+        reverse[reverse_len++] = base58_char(remainder);
         while (start < 25 && digits[start] == 0) {
             ++start;
         }
