@@ -15,6 +15,7 @@ Current status:
 - CUDA vector validation source path exists, but has not been compiled on real GPU hardware yet.
 - A gated sharded benchmark smoke path exists. Its default `kernel_mode` is `incremental`, using per-thread public-key walking after base scalar setup and cooperative block-level batch inversion for stride point additions. It must not be used to report GPU speed until RunPod vector validation passes first.
 - Runtime CUDA compile supports explicit `CUDA_ARCH` plus fallback candidates for A100 (`sm_80`) and RTX 5090-class (`sm_120`) testing.
+- Current priority is a speed sprint: pause age/find delivery work until the GPU path is stable above `100M attempts/s`, then continue toward `200M+ attempts/s`.
 
 ## Target
 
@@ -56,7 +57,7 @@ The last 5 Base58Check characters depend on checksum, so matching cannot be deci
 - Do not write RunPod API keys to files.
 - Do not read `.env`, token, password, or secret files.
 - Do not use unreviewed external binary generators.
-- Production hit handling must use customer `age` recipient encryption before returning any key material.
+- Production hit handling is paused during the speed sprint; do not add delivery logic until the GPU path is stable above `100M attempts/s`.
 
 ## Directory Layout
 
@@ -81,6 +82,7 @@ The last 5 Base58Check characters depend on checksum, so matching cannot be deci
 - `scripts/prepare_github_push.sh`: dry-run-first helper for setting GitHub remote and pushing only after explicit confirmation.
 - `scripts/inspect_runpod_result.py`: local JSON inspector for RunPod validate/benchmark responses.
 - `scripts/capacity_math.py`: local worker-count/probability calculator for measured complete TRON address speed.
+- `scripts/runpod_gpu_pod_suffix_speed_sweep.sh`: gated normal RunPod GPU Pod speed sweep/profiler helper for suffix-only optimization.
 - `examples/`: local sample RunPod responses for the result inspector.
 - `docs/GITHUB_READY_MANIFEST.md`: exact GitHub repository readiness and first RunPod request checklist.
 - `docs/RUNPOD_CONSOLE_CHECKLIST.md`: shortest RunPod console validation checklist.

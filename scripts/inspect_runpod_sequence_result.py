@@ -107,12 +107,12 @@ def inspect_sequence(result_dir: Path) -> Dict[str, Any]:
         if steps[step]["present"] and not benchmarks[step]["passed"]:
             failures.append(f"{step} inspector missing or failed")
 
-    serverless_ready_speed_gate = False
+    speed_gate_passed = False
     decision = "run_vector_gate_first"
     if steps["benchmark_10s"]["passed"] and benchmarks["benchmark_10s"]["passed"]:
         if benchmarks["benchmark_10s"]["meets_suffix_only_speed_goal"]:
-            serverless_ready_speed_gate = True
-            decision = "serverless_speed_gate_passed_pending_find_validation"
+            speed_gate_passed = True
+            decision = "speed_gate_passed_continue_profiling"
         else:
             decision = "optimize_cuda_before_serverless"
     elif steps["vector_gate"]["passed"] and not steps["smoke"]["present"]:
@@ -128,7 +128,8 @@ def inspect_sequence(result_dir: Path) -> Dict[str, Any]:
         "mode": "inspect_runpod_sequence_result",
         "result_dir": str(result_dir),
         "passed": not failures,
-        "serverless_ready_speed_gate": serverless_ready_speed_gate,
+        "serverless_ready_speed_gate": False,
+        "speed_gate_passed": speed_gate_passed,
         "decision": decision,
         "failures": failures,
         "steps": steps,
@@ -137,7 +138,8 @@ def inspect_sequence(result_dir: Path) -> Dict[str, Any]:
             "This inspector reads local result files only.",
             "It does not call RunPod, compile CUDA, or run benchmarks.",
             "Suffix-only speed target is mean <= 5s and P90 <= 8s, requiring about 188.91M complete TRON addresses/s for one worker.",
-            "Serverless migration still requires real GPU Pod evidence and age-encrypted find validation.",
+            "Age/find delivery work is paused until the speed path is stable above 100M attempts/s.",
+            "Passing this speed gate means continue profiler-driven CUDA optimization, not Serverless migration.",
         ],
     }
 

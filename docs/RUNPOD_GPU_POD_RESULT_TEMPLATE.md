@@ -113,9 +113,30 @@ Inspector summary:
 - `required_workers.p90_8s`:
 - `serverless_ready_speed_gate` from sequence inspector:
 
+## Speed Sweep
+
+Command:
+
+```bash
+ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=sm_80 BENCHMARK_SECONDS=3 \
+  scripts/runpod_gpu_pod_suffix_speed_sweep.sh
+```
+
+Summary file:
+
+- `speed_sweep_summary.json`:
+- Best grid:
+- Best complete TRON attempts/s:
+- Meets Stage 1 minimum `50M attempts/s`:
+- Meets Stage 1 high `100M attempts/s`:
+- Meets Stage 2 `200M attempts/s`:
+- Profiler used (`nsys` / `nvprof` / none):
+- Suspected bottleneck:
+
 ## Review Decision
 
-- Can proceed toward Serverless:
+- Speed gate passed:
 - Needs more CUDA optimization:
+- Continue profiling:
 - Needs rollback:
 - Notes:

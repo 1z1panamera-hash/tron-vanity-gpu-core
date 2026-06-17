@@ -4,6 +4,8 @@ Goal: move from correctness-first CUDA code toward a worker that can realistical
 
 The product no longer matches any prefix after fixed `T`. It matches only the last 5 Base58Check characters. The Python wrapper maps product input to internal full-address `prefix_len=0`, `suffix_len=5` for the CUDA binary. Capacity math is therefore `58^5`.
 
+Current sprint priority: speed only. Pause age/find delivery work until the GPU path is stable above `100M attempts/s`. Stage 1 target is `50M` to `100M attempts/s`; Stage 2 target is `200M+ attempts/s`. Use normal RunPod GPU Pods with short sweeps and profiler output before any Serverless migration.
+
 ## Why Current Code Is Not Enough
 
 The current benchmark smoke path computes each candidate as:
@@ -78,26 +80,17 @@ Each RunPod worker gets:
 - `shard_count`
 - `duration_seconds`
 
-## Production Hit Handling
+## Paused Hit Delivery Work
 
-For production, a hit must use age encryption before returning key material:
+Age/find delivery work is intentionally paused during the speed sprint. Do not add encryption, private-key return plumbing, or complex response logic until the GPU path is stable above `100M attempts/s`.
 
-1. Worker finds `matched_address`.
-2. Worker reconstructs the matching private scalar.
-3. Worker encrypts private key using customer `age recipient`.
-4. Worker returns only:
-   - `matched_address`
-   - `encrypted_private_key`
+The active engineering focus is:
 
-The worker must not log plaintext key material.
-47.80.70.211 must not store plaintext key material or customer age identity.
-
-Current wrapper status:
-
-- `mode=find` exists behind `ALLOW_GPU_FIND=1`.
-- Product input is `suffix` + `age_recipient`.
-- CUDA/C++ `--find` mode is still required before this can generate production results.
-- See `docs/AGE_ENCRYPTED_FIND_MODE.md`.
+1. secp256k1 point walking and point-add throughput.
+2. Larger grid/batch settings that actually saturate the GPU.
+3. Profiler-driven bottleneck isolation with `nsys` or `nvprof`.
+4. Suffix-only checksum/Base58 hot-path reduction.
+5. Repeat short RunPod GPU Pod measurements after each change.
 
 ## Validation Gates
 
@@ -115,3 +108,5 @@ Before claiming performance:
 
 Do not scale worker count from the `scalar` kernel mode.
 Use `incremental` mode first. It now includes cooperative block-level batch inversion. If incremental mode is still too slow, the next step is suffix-only checksum/Base58 hot-path reduction, projective/precomputed-window point walking, then lower-level field arithmetic optimization, then measure again.
+
+Use `scripts/runpod_gpu_pod_suffix_speed_sweep.sh` on a normal RunPod GPU Pod to compare grid settings and optionally collect `nsys` / `nvprof` output. This script is gated by `ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1` and must not be run on `47.80.70.211`.

@@ -11,10 +11,14 @@ test -x scripts/public_repo_audit.py
 test -x scripts/prepare_github_push.sh
 test -x scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
 test -x scripts/runpod_gpu_pod_sequence.sh
+test -x scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 test -x scripts/inspect_runpod_sequence_result.py
+test -x scripts/print_runpod_suffix_only_commands.sh
 test -x scripts/inspect_vanitysearch_benchmark.py
 bash -n scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
 bash -n scripts/runpod_gpu_pod_sequence.sh
+bash -n scripts/runpod_gpu_pod_suffix_speed_sweep.sh
+bash -n scripts/print_runpod_suffix_only_commands.sh
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_runpod_sequence_result.py
 
 echo "== json"
@@ -50,13 +54,6 @@ result = app.handle_benchmark({
     "max_attempts": 1,
 })
 assert result["allowed"] is False
-find_result = app.handle_find({
-    "suffix": "CDEFG",
-    "age_recipient": "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
-    "duration_seconds": 1,
-    "max_attempts": 1,
-})
-assert find_result["allowed"] is False
 rule = app.normalize_match_rule({
     "suffix": "86666",
 })
@@ -67,7 +64,6 @@ assert rule["suffix_len"] == 5
 assert rule["search_space"] == 58 ** 5
 print("wrapper_gate_ok")
 PY
-PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 tests/verify_find_response_contract.py
 
 echo "== docker context sanity"
 cmp -s Dockerfile Dockerfile.cuda-validate
@@ -172,8 +168,9 @@ python3 - <<'PY'
 import json
 from pathlib import Path
 data = json.loads(Path("/tmp/runpod_sequence_high_inspect.json").read_text())
-assert data["decision"] == "serverless_speed_gate_passed_pending_find_validation", data["decision"]
-assert data["serverless_ready_speed_gate"] is True
+assert data["decision"] == "speed_gate_passed_continue_profiling", data["decision"]
+assert data["speed_gate_passed"] is True
+assert data["serverless_ready_speed_gate"] is False
 PY
 
 echo "== vanitysearch patch gate"
@@ -193,6 +190,14 @@ rc=$?
 set -e
 if [ "$rc" -ne 2 ]; then
     echo "expected RunPod VanitySearch GPU check script to refuse without env gate rc=2, got rc=$rc" >&2
+    exit 1
+fi
+set +e
+scripts/runpod_gpu_pod_suffix_speed_sweep.sh >/tmp/runpod_suffix_speed_sweep_gate_stdout.txt 2>/tmp/runpod_suffix_speed_sweep_gate_stderr.txt
+rc=$?
+set -e
+if [ "$rc" -ne 2 ]; then
+    echo "expected RunPod suffix speed sweep script to refuse without env gate rc=2, got rc=$rc" >&2
     exit 1
 fi
 

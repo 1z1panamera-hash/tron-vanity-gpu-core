@@ -29,7 +29,8 @@ Hash-only speed is not valid evidence.
 - Do not use customer suffixes or customer data.
 - Keep `TRON_SUPPRESS_SECRET_OUTPUT=1` for bounded VanitySearch tests.
 - Do not output plaintext key material.
-- Do not continue to Serverless until GPU Pod vector gate and speed evidence are clean.
+- Do not continue to Serverless during the speed sprint.
+- Age/find delivery work is paused until the GPU path is stable above `100M attempts/s`.
 
 ## Expected Repository State
 
@@ -52,6 +53,47 @@ If the commit is older, stop and update the Pod checkout.
 ## Recommended Sequence
 
 Use the sequence script so each stage is saved under `runpod_results/<utc-run-id>/`.
+
+To print the exact command sequence from the current repository commit:
+
+```bash
+scripts/print_runpod_suffix_only_commands.sh
+```
+
+This helper only prints commands. It does not call RunPod or run CUDA.
+
+## Current Speed Sprint Path
+
+Use the speed sweep only after the vector gate is known to pass on the selected GPU image.
+
+```bash
+ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=sm_80 BENCHMARK_SECONDS=3 \
+  scripts/runpod_gpu_pod_suffix_speed_sweep.sh
+```
+
+For H100 or a Blackwell image without native Blackwell CUDA support, start with `CUDA_ARCH=sm_90`. If the CUDA image supports the native Blackwell architecture, test that separately and record the image tag.
+
+Optional profiler run:
+
+```bash
+ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=sm_80 BENCHMARK_SECONDS=3 \
+RUN_NSYS=1 PROFILE_GRID=64,128 PROFILE_SECONDS=5 \
+  scripts/runpod_gpu_pod_suffix_speed_sweep.sh
+```
+
+The sweep writes:
+
+```text
+runpod_results/suffix_speed_sweep_<utc-run-id>/speed_sweep_summary.json
+```
+
+Stage targets:
+
+- Stage 1 minimum: `50M attempts/s`
+- Stage 1 high: `100M attempts/s`
+- Stage 2: `200M+ attempts/s`
+
+If the best grid is still below Stage 1, keep optimizing the CUDA hot path before spending on Serverless. The first bottleneck to inspect is secp256k1 point walking and point addition throughput.
 
 ### 1. Vector Gate Only
 
@@ -124,15 +166,17 @@ Can move toward Serverless only if:
 - vector gate passes,
 - smoke passes,
 - benchmark output contains no forbidden key markers,
-- speed is at least `188.91M complete TRON addresses/s` for single-worker P90 <= 8 seconds, or sharding math is explicitly accepted,
-- production `find` path returns only `matched_address` and `encrypted_private_key`.
+- speed is at least `188.91M complete TRON addresses/s` for single-worker P90 <= 8 seconds,
+- the speed path has been profiled and remains stable under repeated short GPU Pod runs.
 
 If speed is below target, continue CUDA hot-path optimization before spending on Serverless.
+
+During the current speed sprint, do not add age encryption or production find response logic. That work resumes only after the speed path is stable above `100M attempts/s`.
 
 The sequence inspector reports this as:
 
 ```text
-decision = serverless_speed_gate_passed_pending_find_validation
+decision = speed_gate_passed_continue_profiling
 ```
 
 If it reports:
