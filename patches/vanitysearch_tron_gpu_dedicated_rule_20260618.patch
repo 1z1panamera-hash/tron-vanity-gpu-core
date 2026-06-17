@@ -1,7 +1,7 @@
 From 221922d62bde31625d8abd2ec9f5054db76f635a Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:37:26 +0800
-Subject: [PATCH 1/5] Add local TRON CPU address prototype
+Subject: [PATCH 1/6] Add local TRON CPU address prototype
 
 ---
  Makefile           |  7 ++--
@@ -256,7 +256,7 @@ index f404066..55c41f4 100644
 From 55470e4c21b5d213323850b6daa3c165abea41f0 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:49:24 +0800
-Subject: [PATCH 2/5] Add RunPod TRON CPU vector check
+Subject: [PATCH 2/6] Add RunPod TRON CPU vector check
 
 ---
  scripts/runpod_verify_tron_cpu_vectors.sh | 47 +++++++++++++++++++++++
@@ -323,7 +323,7 @@ index 0000000..074dfab
 From 4c938377714b95d74f65296b0828e05245e5402f Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:15:10 +0800
-Subject: [PATCH 3/5] Add TRON GPU address layer vector check
+Subject: [PATCH 3/6] Add TRON GPU address layer vector check
 
 ---
  GPU/GPUTron.h                                 | 190 ++++++++++++++++++
@@ -817,7 +817,7 @@ index 0000000..a6aeff3
 From 98a05c73c7b0bdd61d105a7984b8a4a1173fa4b7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:26:41 +0800
-Subject: [PATCH 4/5] Add TRON GPU product rule vector checks
+Subject: [PATCH 4/6] Add TRON GPU product rule vector checks
 
 ---
  GPU/GPUTron.h                               | 14 +++++++++
@@ -953,7 +953,7 @@ index 797f6c9..05a64a9 100644
 From 6224f8980c57e95ec149c15c01b6f95cd9b1abb7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:35:56 +0800
-Subject: [PATCH 5/5] Add TRON GPU wildcard search path
+Subject: [PATCH 5/6] Add TRON GPU wildcard search path
 
 ---
  GPU/GPUCompute.h                              | 143 ++++++++++++++++++
@@ -1459,6 +1459,231 @@ index 0000000..c7e9640
 +fi
 +
 +echo "tron_gpu_pattern_smoke_passed"
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 2403869713f9b64c07556beaf7aec7475e0bddf7 Mon Sep 17 00:00:00 2001
+From: 1z1 <1z1@1z1deMacBook-Air.local>
+Date: Thu, 18 Jun 2026 00:46:37 +0800
+Subject: [PATCH 6/6] Use dedicated TRON prefix suffix GPU rule
+
+---
+ GPU/GPUCompute.h                              | 14 ++++----
+ GPU/GPUEngine.cu                              | 34 ++++++++++++++++---
+ GPU/GPUEngine.h                               |  4 +++
+ Vanity.cpp                                    |  4 ++-
+ docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md  |  5 +--
+ .../runpod_tron_gpu_pattern_search_smoke.sh   |  2 +-
+ 6 files changed, 47 insertions(+), 16 deletions(-)
+
+diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
+index d7747e2..740e512 100644
+--- a/GPU/GPUCompute.h
++++ b/GPU/GPUCompute.h
+@@ -256,7 +256,8 @@ __device__ __noinline__ void CheckTronPoint(
+     uint64_t *py,
+     int32_t incr,
+     int32_t endo,
+-    char *pattern,
++    char prefixAfterT,
++    const char suffix5[6],
+     uint32_t maxFound,
+     uint32_t *out) {
+ 
+@@ -267,7 +268,8 @@ __device__ __noinline__ void CheckTronPoint(
+ 
+   tron_public_key64_from_xy(px, py, public_key64);
+   int address_len = tron_address_from_public_key64(public_key64, address, payload25);
+-  if (address_len <= 0 || !_Match(address, pattern)) {
++  if (address_len <= 0 ||
++      !tron_match_prefix_after_t_suffix(address, address_len, prefixAfterT, suffix5)) {
+     return;
+   }
+ 
+@@ -279,10 +281,10 @@ __device__ __noinline__ void CheckTronPoint(
+   }
+ }
+ 
+-#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, localPattern, maxFound, out)
++#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, prefixAfterT, suffix5, maxFound, out)
+ 
+-__device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char *pattern,
+-                                       uint32_t maxFound, uint32_t *out) {
++__device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char prefixAfterT,
++                                       const char suffix5[6], uint32_t maxFound, uint32_t *out) {
+ 
+   uint64_t dx[GRP_SIZE/2+1][4];
+   uint64_t px[4];
+@@ -293,14 +295,12 @@ __device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char
+   uint64_t dy[4];
+   uint64_t _s[4];
+   uint64_t _p2[4];
+-  char localPattern[48];
+ 
+   __syncthreads();
+   Load256A(sx, startx);
+   Load256A(sy, starty);
+   Load256(px, sx);
+   Load256(py, sy);
+-  memcpy(localPattern, pattern, 48);
+ 
+   for (uint32_t j = 0; j < STEP_SIZE / GRP_SIZE; j++) {
+ 
+diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
+index e337878..a18db4a 100644
+--- a/GPU/GPUEngine.cu
++++ b/GPU/GPUEngine.cu
+@@ -79,11 +79,12 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
+ 
+ }
+ 
+-__global__ void comp_keys_tron_pattern(prefix_t *pattern, uint64_t *keys, uint32_t maxFound, uint32_t *found) {
++__global__ void comp_keys_tron_pattern(char prefixAfterT, const char *suffix5, uint64_t *keys,
++                                       uint32_t maxFound, uint32_t *found) {
+ 
+   int xPtr = (blockIdx.x*blockDim.x) * 8;
+   int yPtr = xPtr + 4 * blockDim.x;
+-  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, (char *)pattern, maxFound, found);
++  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, prefixAfterT, suffix5, maxFound, found);
+ 
+ }
+ 
+@@ -293,6 +294,9 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
+   initialised = true;
+   pattern = "";
+   hasPattern = false;
++  hasTronRule = false;
++  tronPrefixAfterT = 0;
++  memset(tronSuffix5, 0, sizeof(tronSuffix5));
+   inputPrefixLookUp = NULL;
+ 
+ }
+@@ -413,6 +417,27 @@ void GPUEngine::SetPattern(const char *pattern) {
+ 
+ }
+ 
++bool GPUEngine::SetTronPattern(const char *pattern) {
++
++  if (!pattern) {
++    printf("GPUEngine: missing TRON pattern\n");
++    return false;
++  }
++  size_t len = strlen(pattern);
++  if (len != 8 || pattern[0] != 'T' || pattern[2] != '*') {
++    printf("GPUEngine: TRON pattern must be T<one-char>*<five-char-suffix>, for example TA*CDEFG\n");
++    return false;
++  }
++
++  SetPattern(pattern);
++  tronPrefixAfterT = pattern[1];
++  memcpy(tronSuffix5, pattern + 3, 5);
++  tronSuffix5[5] = 0;
++  hasTronRule = true;
++  return true;
++
++}
++
+ void GPUEngine::SetPrefix(std::vector<LPREFIX> prefixes, uint32_t totalPrefix) {
+ 
+   // Allocate memory for the second level of lookup tables
+@@ -470,12 +495,12 @@ bool GPUEngine::callKernel() {
+   // Call the kernel (Perform STEP_SIZE keys per thread)
+   if (searchType == TRON_ADDR) {
+ 
+-    if (!hasPattern) {
++    if (!hasPattern || !hasTronRule) {
+       printf("GPUEngine: TRON currently requires wildcard pattern mode, for example TA*CDEFG\n");
+       return false;
+     }
+     comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+-      (inputPrefix, inputKey, maxFound, outputPrefix);
++      (tronPrefixAfterT, tronSuffix5, inputKey, maxFound, outputPrefix);
+ 
+   } else if (searchType == P2SH) {
+ 
+@@ -858,4 +883,3 @@ bool GPUEngine::Check(Secp256K1 *secp) {
+   return ok;
+ 
+ }
+-
+diff --git a/GPU/GPUEngine.h b/GPU/GPUEngine.h
+index 6d00aab..25eea11 100644
+--- a/GPU/GPUEngine.h
++++ b/GPU/GPUEngine.h
+@@ -64,6 +64,7 @@ public:
+   void SetSearchMode(int searchMode);
+   void SetSearchType(int searchType);
+   void SetPattern(const char *pattern);
++  bool SetTronPattern(const char *pattern);
+   bool Launch(std::vector<ITEM> &prefixFound,bool spinWait=false);
+   int GetNbThread();
+   int GetGroupSize();
+@@ -101,6 +102,9 @@ private:
+   uint32_t outputSize;
+   std::string pattern;
+   bool hasPattern;
++  bool hasTronRule;
++  char tronPrefixAfterT;
++  char tronSuffix5[6];
+ 
+ };
+ 
+diff --git a/Vanity.cpp b/Vanity.cpp
+index ae2b9d3..b15f443 100644
+--- a/Vanity.cpp
++++ b/Vanity.cpp
+@@ -1585,7 +1585,9 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
+     g.SetPrefix(usedPrefixL,nbPrefix);
+   } else {
+     if(hasPattern)
+-      g.SetPattern(inputPrefixes[0].c_str());
++      ok = (searchType == TRON_ADDR)
++        ? g.SetTronPattern(inputPrefixes[0].c_str())
++        : (g.SetPattern(inputPrefixes[0].c_str()), true);
+     else
+       g.SetPrefix(usedPrefix);
+   }
+diff --git a/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
+index 86e366d..87ae6f3 100644
+--- a/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
++++ b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
+@@ -23,11 +23,12 @@ This is not a performance benchmark.
+ 
+ - `TRON_ADDR` is a separate address type.
+ - `T...` wildcard patterns select TRON search.
++- TRON pattern parsing is strict: `T<one-char>*<five-char-suffix>`.
+ - GPU pattern mode calls `ComputeKeysTronPattern`.
+ - GPU returns the 20-byte TRON payload body.
+ - CPU reconstructs the TRON Base58Check address and verifies the candidate key.
+ 
+-The current TRON GPU pattern path uses full address construction for pattern matching. It is intended as a functional bridge before adding faster prefix/suffix filters.
++The current TRON GPU pattern path uses full address construction, then a dedicated fixed-position `prefix_after_t` plus suffix-5 comparison. It is intended as a functional bridge before adding faster Base58 prefix/suffix prefilters.
+ 
+ ## RunPod Build And Smoke
+ 
+@@ -39,7 +40,7 @@ ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE=1 CUDA_ARCH=80 scripts/runpod_tron_gpu_patte
+ 
+ `timeout` exit code `124` is acceptable for this smoke if there is no crash before timeout.
+ 
+-The default smoke pattern is intentionally longer than the product's 5-character suffix so an accidental hit is very unlikely during a short compile/run check. Product-rule matching is covered by `scripts/runpod_verify_tron_gpu_address_layer.sh`.
++The default smoke pattern is `TA*CDEFG`, which is the strict product-rule format. The smoke treats any hit output as a failure because production delivery must go through the Python/age wrapper.
+ 
+ ## Safety
+ 
+diff --git a/scripts/runpod_tron_gpu_pattern_search_smoke.sh b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
+index c7e9640..1eadcce 100755
+--- a/scripts/runpod_tron_gpu_pattern_search_smoke.sh
++++ b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
+@@ -10,7 +10,7 @@ fi
+ CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
+ CUDA_ARCH="${CUDA_ARCH:-80}"
+ CXXCUDA="${CXXCUDA:-/usr/bin/g++}"
+-SMOKE_PATTERN="${SMOKE_PATTERN:-TA*123456789ABCDEFGH}"
++SMOKE_PATTERN="${SMOKE_PATTERN:-TA*CDEFG}"
+ SMOKE_SECONDS="${SMOKE_SECONDS:-10}"
+ 
+ echo "== build VanitySearch with GPU support"
 -- 
 2.50.1 (Apple Git-155)
 

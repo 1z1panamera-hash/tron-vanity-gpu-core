@@ -22,20 +22,22 @@ An optional smoke can also compile patched VanitySearch and run a bounded TRON w
 Tracked patch in this repository:
 
 ```text
-patches/vanitysearch_tron_gpu_wildcard_search_20260618.patch
+patches/vanitysearch_tron_gpu_dedicated_rule_20260618.patch
 ```
 
 SHA-256:
 
 ```text
-2be8fd3ad0f200023135a413e0c1928aa9a69661f28cd2a1ad8ddebff9a9c761
+8b3a9a18d0472c5804e793ed4f4fe74ad2ce361d2c96944a95173382ed4c660c
 ```
 
 Candidate branch head:
 
 ```text
-6224f89 Add TRON GPU wildcard search path
+2403869 Use dedicated TRON prefix suffix GPU rule
 ```
+
+The TRON GPU search path now parses `T<one-char>*<five-char-suffix>` into a dedicated `prefix_after_t` and suffix-5 comparison instead of running the generic wildcard matcher for every candidate.
 
 ## RunPod Command
 
