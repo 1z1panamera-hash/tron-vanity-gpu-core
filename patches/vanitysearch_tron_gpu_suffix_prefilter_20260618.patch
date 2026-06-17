@@ -1,7 +1,7 @@
 From 221922d62bde31625d8abd2ec9f5054db76f635a Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:37:26 +0800
-Subject: [PATCH 1/6] Add local TRON CPU address prototype
+Subject: [PATCH 1/7] Add local TRON CPU address prototype
 
 ---
  Makefile           |  7 ++--
@@ -256,7 +256,7 @@ index f404066..55c41f4 100644
 From 55470e4c21b5d213323850b6daa3c165abea41f0 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:49:24 +0800
-Subject: [PATCH 2/6] Add RunPod TRON CPU vector check
+Subject: [PATCH 2/7] Add RunPod TRON CPU vector check
 
 ---
  scripts/runpod_verify_tron_cpu_vectors.sh | 47 +++++++++++++++++++++++
@@ -323,7 +323,7 @@ index 0000000..074dfab
 From 4c938377714b95d74f65296b0828e05245e5402f Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:15:10 +0800
-Subject: [PATCH 3/6] Add TRON GPU address layer vector check
+Subject: [PATCH 3/7] Add TRON GPU address layer vector check
 
 ---
  GPU/GPUTron.h                                 | 190 ++++++++++++++++++
@@ -817,7 +817,7 @@ index 0000000..a6aeff3
 From 98a05c73c7b0bdd61d105a7984b8a4a1173fa4b7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:26:41 +0800
-Subject: [PATCH 4/6] Add TRON GPU product rule vector checks
+Subject: [PATCH 4/7] Add TRON GPU product rule vector checks
 
 ---
  GPU/GPUTron.h                               | 14 +++++++++
@@ -953,7 +953,7 @@ index 797f6c9..05a64a9 100644
 From 6224f8980c57e95ec149c15c01b6f95cd9b1abb7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:35:56 +0800
-Subject: [PATCH 5/6] Add TRON GPU wildcard search path
+Subject: [PATCH 5/7] Add TRON GPU wildcard search path
 
 ---
  GPU/GPUCompute.h                              | 143 ++++++++++++++++++
@@ -1466,7 +1466,7 @@ index 0000000..c7e9640
 From 2403869713f9b64c07556beaf7aec7475e0bddf7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:46:37 +0800
-Subject: [PATCH 6/6] Use dedicated TRON prefix suffix GPU rule
+Subject: [PATCH 6/7] Use dedicated TRON prefix suffix GPU rule
 
 ---
  GPU/GPUCompute.h                              | 14 ++++----
@@ -1684,6 +1684,289 @@ index c7e9640..1eadcce 100755
  SMOKE_SECONDS="${SMOKE_SECONDS:-10}"
  
  echo "== build VanitySearch with GPU support"
+-- 
+2.50.1 (Apple Git-155)
+
+
+From ff433253cd0ece485062f0cbc944f3e74e7d43d8 Mon Sep 17 00:00:00 2001
+From: 1z1 <1z1@1z1deMacBook-Air.local>
+Date: Thu, 18 Jun 2026 01:22:44 +0800
+Subject: [PATCH 7/7] Add TRON suffix modulo GPU prefilter
+
+---
+ GPU/GPUCompute.h          | 16 ++++++++------
+ GPU/GPUEngine.cu          | 38 ++++++++++++++++++++++++++++++---
+ GPU/GPUEngine.h           |  1 +
+ GPU/GPUTron.h             | 45 +++++++++++++++++++++++++++++++++++++--
+ GPU/GPUTronVectorCheck.cu | 17 +++++++++++++--
+ 5 files changed, 104 insertions(+), 13 deletions(-)
+
+diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
+index 740e512..e623de3 100644
+--- a/GPU/GPUCompute.h
++++ b/GPU/GPUCompute.h
+@@ -257,7 +257,7 @@ __device__ __noinline__ void CheckTronPoint(
+     int32_t incr,
+     int32_t endo,
+     char prefixAfterT,
+-    const char suffix5[6],
++    uint64_t suffix5Value,
+     uint32_t maxFound,
+     uint32_t *out) {
+ 
+@@ -267,9 +267,13 @@ __device__ __noinline__ void CheckTronPoint(
+   uint32_t tid = (blockIdx.x*blockDim.x) + threadIdx.x;
+ 
+   tron_public_key64_from_xy(px, py, public_key64);
+-  int address_len = tron_address_from_public_key64(public_key64, address, payload25);
+-  if (address_len <= 0 ||
+-      !tron_match_prefix_after_t_suffix(address, address_len, prefixAfterT, suffix5)) {
++  tron_payload25_from_public_key64(public_key64, payload25);
++  if (!tron_payload25_matches_suffix5(payload25, suffix5Value)) {
++    return;
++  }
++
++  int address_len = tron_base58_payload25(payload25, address);
++  if (address_len < 2 || address[0] != 'T' || address[1] != prefixAfterT) {
+     return;
+   }
+ 
+@@ -281,10 +285,10 @@ __device__ __noinline__ void CheckTronPoint(
+   }
+ }
+ 
+-#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, prefixAfterT, suffix5, maxFound, out)
++#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, prefixAfterT, suffix5Value, maxFound, out)
+ 
+ __device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char prefixAfterT,
+-                                       const char suffix5[6], uint32_t maxFound, uint32_t *out) {
++                                       uint64_t suffix5Value, uint32_t maxFound, uint32_t *out) {
+ 
+   uint64_t dx[GRP_SIZE/2+1][4];
+   uint64_t px[4];
+diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
+index a18db4a..9899e2f 100644
+--- a/GPU/GPUEngine.cu
++++ b/GPU/GPUEngine.cu
+@@ -39,6 +39,27 @@
+ 
+ // ---------------------------------------------------------------------------------------
+ 
++static int host_tron_base58_value(char c) {
++  const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
++  for (int i = 0; i < 58; ++i) {
++    if (alphabet[i] == c) return i;
++  }
++  return -1;
++}
++
++static bool host_tron_suffix5_value(const char *suffix5, uint64_t *value) {
++  uint64_t out = 0;
++  for (int i = 0; i < 5; ++i) {
++    int digit = host_tron_base58_value(suffix5[i]);
++    if (digit < 0) return false;
++    out = out * 58ULL + (uint64_t)digit;
++  }
++  *value = out;
++  return true;
++}
++
++// ---------------------------------------------------------------------------------------
++
+ __global__ void comp_keys(uint32_t mode,prefix_t *prefix, uint32_t *lookup32, uint64_t *keys, uint32_t maxFound, uint32_t *found) {
+ 
+   int xPtr = (blockIdx.x*blockDim.x) * 8;
+@@ -79,12 +100,12 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
+ 
+ }
+ 
+-__global__ void comp_keys_tron_pattern(char prefixAfterT, const char *suffix5, uint64_t *keys,
++__global__ void comp_keys_tron_pattern(char prefixAfterT, uint64_t suffix5Value, uint64_t *keys,
+                                        uint32_t maxFound, uint32_t *found) {
+ 
+   int xPtr = (blockIdx.x*blockDim.x) * 8;
+   int yPtr = xPtr + 4 * blockDim.x;
+-  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, prefixAfterT, suffix5, maxFound, found);
++  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, prefixAfterT, suffix5Value, maxFound, found);
+ 
+ }
+ 
+@@ -297,6 +318,7 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
+   hasTronRule = false;
+   tronPrefixAfterT = 0;
+   memset(tronSuffix5, 0, sizeof(tronSuffix5));
++  tronSuffixValue = 0;
+   inputPrefixLookUp = NULL;
+ 
+ }
+@@ -428,11 +450,21 @@ bool GPUEngine::SetTronPattern(const char *pattern) {
+     printf("GPUEngine: TRON pattern must be T<one-char>*<five-char-suffix>, for example TA*CDEFG\n");
+     return false;
+   }
++  if (host_tron_base58_value(pattern[1]) < 0) {
++    printf("GPUEngine: invalid TRON prefix character after T\n");
++    return false;
++  }
++  uint64_t suffixValue = 0;
++  if (!host_tron_suffix5_value(pattern + 3, &suffixValue)) {
++    printf("GPUEngine: invalid TRON Base58 suffix\n");
++    return false;
++  }
+ 
+   SetPattern(pattern);
+   tronPrefixAfterT = pattern[1];
+   memcpy(tronSuffix5, pattern + 3, 5);
+   tronSuffix5[5] = 0;
++  tronSuffixValue = suffixValue;
+   hasTronRule = true;
+   return true;
+ 
+@@ -500,7 +532,7 @@ bool GPUEngine::callKernel() {
+       return false;
+     }
+     comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+-      (tronPrefixAfterT, tronSuffix5, inputKey, maxFound, outputPrefix);
++      (tronPrefixAfterT, tronSuffixValue, inputKey, maxFound, outputPrefix);
+ 
+   } else if (searchType == P2SH) {
+ 
+diff --git a/GPU/GPUEngine.h b/GPU/GPUEngine.h
+index 25eea11..0b069f5 100644
+--- a/GPU/GPUEngine.h
++++ b/GPU/GPUEngine.h
+@@ -105,6 +105,7 @@ private:
+   bool hasTronRule;
+   char tronPrefixAfterT;
+   char tronSuffix5[6];
++  uint64_t tronSuffixValue;
+ 
+ };
+ 
+diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
+index 631cadb..b756f0d 100644
+--- a/GPU/GPUTron.h
++++ b/GPU/GPUTron.h
+@@ -10,6 +10,41 @@
+ 
+ #include <stdint.h>
+ 
++__device__ __forceinline__ int tron_base58_value(char c) {
++  const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
++  for (int i = 0; i < 58; ++i) {
++    if (alphabet[i] == c) return i;
++  }
++  return -1;
++}
++
++__device__ __noinline__ uint64_t tron_suffix5_value(const char suffix5[6]) {
++  uint64_t value = 0;
++  for (int i = 0; i < 5; ++i) {
++    int digit = tron_base58_value(suffix5[i]);
++    if (digit < 0) return UINT64_MAX;
++    value = value * 58ULL + static_cast<uint64_t>(digit);
++  }
++  return value;
++}
++
++__device__ __noinline__ uint64_t tron_payload25_mod_base58_power(
++    const uint8_t payload25[25],
++    uint64_t modulus) {
++  uint64_t value = 0;
++  for (int i = 0; i < 25; ++i) {
++    value = ((value * 256ULL) + static_cast<uint64_t>(payload25[i])) % modulus;
++  }
++  return value;
++}
++
++__device__ __noinline__ bool tron_payload25_matches_suffix5(
++    const uint8_t payload25[25],
++    uint64_t suffix5_value) {
++  const uint64_t base58_power_5 = 656356768ULL;
++  return tron_payload25_mod_base58_power(payload25, base58_power_5) == suffix5_value;
++}
++
+ __device__ __forceinline__ uint64_t tron_rotl64(uint64_t value, int shift) {
+   shift &= 63;
+   return (value << shift) | (value >> ((64 - shift) & 63));
+@@ -173,9 +208,8 @@ __device__ __noinline__ int tron_base58_payload25(const uint8_t payload25[25], c
+   return ret_pos;
+ }
+ 
+-__device__ __noinline__ int tron_address_from_public_key64(
++__device__ __noinline__ void tron_payload25_from_public_key64(
+     const uint8_t public_key64[64],
+-    char address[48],
+     uint8_t payload25[25]) {
+   uint8_t digest[32];
+   uint8_t checksum[4];
+@@ -184,6 +218,13 @@ __device__ __noinline__ int tron_address_from_public_key64(
+   for (int i = 0; i < 20; ++i) payload25[i + 1] = digest[i + 12];
+   tron_checksum4(payload25, checksum);
+   for (int i = 0; i < 4; ++i) payload25[21 + i] = checksum[i];
++}
++
++__device__ __noinline__ int tron_address_from_public_key64(
++    const uint8_t public_key64[64],
++    char address[48],
++    uint8_t payload25[25]) {
++  tron_payload25_from_public_key64(public_key64, payload25);
+   return tron_base58_payload25(payload25, address);
+ }
+ 
+diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
+index 64f99f8..d56bb43 100644
+--- a/GPU/GPUTronVectorCheck.cu
++++ b/GPU/GPUTronVectorCheck.cu
+@@ -30,6 +30,8 @@ struct TronVectorResult {
+   int address_len;
+   int match_rule_passed;
+   int wrong_rule_rejected;
++  int suffix_prefilter_passed;
++  int wrong_suffix_prefilter_rejected;
+   char computed_address[48];
+   uint8_t payload25[25];
+ };
+@@ -54,6 +56,12 @@ __global__ void tron_vector_kernel(
+       result.address_len,
+       inputs[idx].prefix_after_t,
+       inputs[idx].wrong_suffix5) ? 1 : 0;
++  uint64_t suffix_value = tron_suffix5_value(inputs[idx].suffix5);
++  uint64_t wrong_suffix_value = tron_suffix5_value(inputs[idx].wrong_suffix5);
++  result.suffix_prefilter_passed =
++      tron_payload25_matches_suffix5(result.payload25, suffix_value) ? 1 : 0;
++  result.wrong_suffix_prefilter_rejected =
++      !tron_payload25_matches_suffix5(result.payload25, wrong_suffix_value) ? 1 : 0;
+   result.passed = 1;
+   for (int i = 0; i < 48; ++i) {
+     if (result.computed_address[i] != inputs[idx].expected_address[i]) {
+@@ -62,7 +70,10 @@ __global__ void tron_vector_kernel(
+     }
+     if (inputs[idx].expected_address[i] == 0) break;
+   }
+-  if (!result.match_rule_passed || !result.wrong_rule_rejected) {
++  if (!result.match_rule_passed ||
++      !result.wrong_rule_rejected ||
++      !result.suffix_prefilter_passed ||
++      !result.wrong_suffix_prefilter_rejected) {
+     result.passed = 0;
+   }
+   results[idx] = result;
+@@ -187,12 +198,14 @@ int main() {
+   for (size_t i = 0; i < results.size(); ++i) {
+     if (results[i].passed) ++passed;
+     std::printf(
+-        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s}%s\n",
++        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s}%s\n",
+         i,
+         results[i].passed ? "true" : "false",
+         results[i].computed_address,
+         results[i].match_rule_passed ? "true" : "false",
+         results[i].wrong_rule_rejected ? "true" : "false",
++        results[i].suffix_prefilter_passed ? "true" : "false",
++        results[i].wrong_suffix_prefilter_rejected ? "true" : "false",
+         i + 1 == results.size() ? "" : ",");
+   }
+   std::printf("  ],\n");
 -- 
 2.50.1 (Apple Git-155)
 

@@ -22,22 +22,22 @@ An optional smoke can also compile patched VanitySearch and run a bounded TRON w
 Tracked patch in this repository:
 
 ```text
-patches/vanitysearch_tron_gpu_dedicated_rule_20260618.patch
+patches/vanitysearch_tron_gpu_suffix_prefilter_20260618.patch
 ```
 
 SHA-256:
 
 ```text
-8b3a9a18d0472c5804e793ed4f4fe74ad2ce361d2c96944a95173382ed4c660c
+f90f69c0001d16f94a4175d369635814e3247895bb16e7676097f94c8de32fad
 ```
 
 Candidate branch head:
 
 ```text
-2403869 Use dedicated TRON prefix suffix GPU rule
+ff43325 Add TRON suffix modulo GPU prefilter
 ```
 
-The TRON GPU search path now parses `T<one-char>*<five-char-suffix>` into a dedicated `prefix_after_t` and suffix-5 comparison instead of running the generic wildcard matcher for every candidate.
+The TRON GPU search path now parses `T<one-char>*<five-char-suffix>` into a dedicated product rule, passes the suffix target into the kernel as a precomputed Base58 value, and uses a suffix-5 modulo prefilter before full Base58 confirmation. This avoids passing a host string pointer into the kernel and reduces full Base58 work for most candidates.
 
 ## RunPod Command
 
@@ -71,6 +71,7 @@ tron_gpu_pattern_smoke_passed
 - The script verifies the patch SHA-256 before applying it.
 - The script refuses to overwrite an existing work directory.
 - The optional wildcard smoke uses a long default suffix to avoid accidental hits and plaintext hit output.
+- The suffix prefilter is an optimization gate, not proof of final production speed.
 - Do not run this on `47.80.70.211`.
 - Do not run a search benchmark from this check.
 - Do not treat this as proof of production speed.
@@ -78,4 +79,4 @@ tron_gpu_pattern_smoke_passed
 
 ## Next Gate
 
-After this passes on RunPod, wire `GPU/GPUTron.h` into VanitySearch's existing point-walking kernel and add TRON prefix-after-T plus suffix filtering.
+After this passes on RunPod, measure the patched VanitySearch path with short bounded runs on a GPU Pod, then continue optimizing the secp256k1 and TRON address hot path. Do not treat this address-layer check as a benchmark.
