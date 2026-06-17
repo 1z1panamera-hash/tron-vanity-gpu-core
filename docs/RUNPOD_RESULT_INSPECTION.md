@@ -95,6 +95,22 @@ Current prefix-gate note: the hot reject path uses precomputed 3-word possible p
 
 Current RunPod gate note: `scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh` parses the vector JSON and must print `tron_gpu_vector_fields_verified` before any smoke or bounded benchmark output is considered usable.
 
+## GPU Pod Sequence Result Directory
+
+If the normal GPU Pod test was run through:
+
+```bash
+scripts/runpod_gpu_pod_sequence.sh
+```
+
+inspect the whole saved directory:
+
+```bash
+scripts/inspect_runpod_sequence_result.py runpod_results/<utc-run-id>
+```
+
+The sequence inspector checks the vector gate markers, optional smoke marker, optional benchmark markers, and benchmark inspector JSON. Its `decision` field tells whether to run smoke next, run a 3 second benchmark next, run a 10 second benchmark next, review the speed for Serverless, or stop and review failures.
+
 ## Safety
 
 These scripts:

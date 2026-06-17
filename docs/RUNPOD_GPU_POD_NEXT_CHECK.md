@@ -45,6 +45,14 @@ RUN_SMOKE=1 RUN_BENCHMARK_3=1 RUN_BENCHMARK_10=1 CUDA_ARCH=sm_80 \
 
 The script writes stdout and inspector files under `runpod_results/<utc-run-id>/`. That directory is ignored by git.
 
+After each run, inspect the whole result directory locally:
+
+```bash
+scripts/inspect_runpod_sequence_result.py runpod_results/<utc-run-id>
+```
+
+Use the `decision` field to decide the next step. If it says `stop_and_review_failures`, do not continue to smoke or benchmark.
+
 ## 2. Vector Gate Only
 
 ```bash
@@ -105,6 +113,12 @@ Save the full stdout locally and inspect it with:
 
 ```bash
 scripts/inspect_vanitysearch_benchmark.py vanitysearch_benchmark_stdout.txt
+```
+
+If the benchmark was produced by `scripts/runpod_gpu_pod_sequence.sh`, prefer inspecting the whole directory:
+
+```bash
+scripts/inspect_runpod_sequence_result.py runpod_results/<utc-run-id>
 ```
 
 Record the result using:

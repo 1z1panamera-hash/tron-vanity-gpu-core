@@ -11,9 +11,11 @@ test -x scripts/public_repo_audit.py
 test -x scripts/prepare_github_push.sh
 test -x scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
 test -x scripts/runpod_gpu_pod_sequence.sh
+test -x scripts/inspect_runpod_sequence_result.py
 test -x scripts/inspect_vanitysearch_benchmark.py
 bash -n scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
 bash -n scripts/runpod_gpu_pod_sequence.sh
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_runpod_sequence_result.py
 
 echo "== json"
 python3 - <<'PY'
@@ -128,6 +130,26 @@ python3 scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10 
 python3 scripts/inspect_runpod_result.py examples/runpod_validate_success_sample.json --mode validate_vectors >/tmp/runpod_validate_inspect.json
 python3 scripts/inspect_runpod_result.py examples/runpod_benchmark_success_sample.json --mode benchmark >/tmp/runpod_benchmark_inspect.json
 python3 scripts/inspect_vanitysearch_benchmark.py examples/vanitysearch_bounded_benchmark_sample.txt >/tmp/vanitysearch_benchmark_inspect.json
+sequence_dir="/tmp/tron_gpu_sequence_inspect_sample_$$"
+mkdir -p "$sequence_dir"
+cleanup_sequence_dir() {
+    rm -f \
+        "$sequence_dir/vector_gate.stdout.txt" \
+        "$sequence_dir/smoke.stdout.txt" \
+        "$sequence_dir/benchmark_3s.stdout.txt" \
+        "$sequence_dir/benchmark_3s.inspect.json"
+    rmdir "$sequence_dir" 2>/dev/null || true
+}
+trap cleanup_sequence_dir EXIT
+printf '%s\n' \
+    "tron_gpu_address_layer_passed" \
+    "tron_gpu_address_layer_script_passed" \
+    "tron_gpu_vector_fields_verified" \
+    >"$sequence_dir/vector_gate.stdout.txt"
+printf '%s\n' "tron_gpu_pattern_smoke_passed" >"$sequence_dir/smoke.stdout.txt"
+printf '%s\n' "tron_gpu_pattern_benchmark_passed" >"$sequence_dir/benchmark_3s.stdout.txt"
+printf '%s\n' '{"passed": true, "failures": [], "summary": {"candidate_attempts_per_second_estimate": 800000000, "expected_mean_seconds": 47.5, "p90_seconds": 109.5, "single_worker_meets_goal": false, "required_workers": {"mean_10s": 5, "p90_15s": 8}}}' >"$sequence_dir/benchmark_3s.inspect.json"
+python3 scripts/inspect_runpod_sequence_result.py "$sequence_dir" >/tmp/runpod_sequence_inspect.json
 
 echo "== vanitysearch patch gate"
 python3 - <<'PY'
