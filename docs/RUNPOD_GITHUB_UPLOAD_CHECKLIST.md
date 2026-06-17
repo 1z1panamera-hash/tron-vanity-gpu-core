@@ -18,7 +18,7 @@ That means the prepared local repository is not yet visible to RunPod.
 Latest required commit at the time this checklist was written:
 
 ```text
-ed7397be9f65c4657858d81fd0c97c3f88e4d04a
+3a78c517b6e3621f687b9dea8a538ce6cc7f52e1
 ```
 
 ## Recommended GitHub Repository
