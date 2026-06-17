@@ -10,6 +10,7 @@ It checks only the GPU-side TRON address construction layer:
 - TRON payload prefix `0x41`
 - double-SHA256 checksum
 - Base58Check encoding
+- product matching rule: fixed `T` + `prefix_after_t` 1 char + suffix 5 chars
 - four public TEST_ONLY public-key vectors
 
 It is not a search benchmark and cannot be used as an address generation speed result.
@@ -19,19 +20,19 @@ It is not a search benchmark and cannot be used as an address generation speed r
 Tracked patch in this repository:
 
 ```text
-patches/vanitysearch_tron_gpu_address_layer_20260617.patch
+patches/vanitysearch_tron_gpu_address_layer_20260618.patch
 ```
 
 SHA-256:
 
 ```text
-9b70fda59b3edec26e4ee11cfb28267ca1c2432df17f0f44e12ff1a9722d40f8
+a988726c561760768ba20d3b7354b497a27fa59e437c08046f73d1136e0825fc
 ```
 
 Candidate branch head:
 
 ```text
-4c93837 Add TRON GPU address layer vector check
+98a05c7 Add TRON GPU product rule vector checks
 ```
 
 ## RunPod Command
