@@ -93,6 +93,8 @@ Current GPU address-layer note: the hot path uses direct x/y coordinate Keccak a
 
 Current prefix-gate note: the hot reject path uses precomputed 3-word possible prefix bounds before checksum. Trust benchmark output only after the RunPod vector check still reports `prefix_possible_passed=true` and `wrong_prefix_possible_rejected=true` for every public TEST_ONLY vector.
 
+Current RunPod gate note: `scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh` parses the vector JSON and must print `tron_gpu_vector_fields_verified` before any smoke or bounded benchmark output is considered usable.
+
 ## Safety
 
 These scripts:

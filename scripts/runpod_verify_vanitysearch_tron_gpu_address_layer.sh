@@ -44,7 +44,67 @@ echo "== apply TRON GPU address layer patch"
 git apply "$PATCH_PATH"
 
 echo "== run GPU TRON address layer vector check"
-CUDA_ARCH="$CUDA_ARCH" scripts/runpod_verify_tron_gpu_address_layer.sh
+VECTOR_STDOUT="$WORKDIR/tron_gpu_address_layer_stdout.txt"
+CUDA_ARCH="$CUDA_ARCH" scripts/runpod_verify_tron_gpu_address_layer.sh | tee "$VECTOR_STDOUT"
+
+echo "== verify GPU TRON vector fields"
+python3 - "$VECTOR_STDOUT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="ignore")
+decoder = json.JSONDecoder()
+data = None
+for index, char in enumerate(text):
+    if char != "{":
+        continue
+    try:
+        candidate, _ = decoder.raw_decode(text[index:])
+    except json.JSONDecodeError:
+        continue
+    if isinstance(candidate, dict) and candidate.get("mode") == "tron_gpu_address_layer_vectors":
+        data = candidate
+        break
+
+if data is None:
+    raise SystemExit("missing tron_gpu_address_layer_vectors JSON")
+
+required_fields = [
+    "passed",
+    "match_rule_passed",
+    "wrong_rule_rejected",
+    "prefix_possible_passed",
+    "wrong_prefix_possible_rejected",
+    "prefix_prefilter_passed",
+    "wrong_prefix_prefilter_rejected",
+    "suffix_prefilter_passed",
+    "wrong_suffix_prefilter_rejected",
+    "xy_payload_passed",
+]
+
+results = data.get("results")
+if not isinstance(results, list) or len(results) < 4:
+    raise SystemExit("expected at least 4 public TEST_ONLY vector results")
+
+failures = []
+for item in results:
+    if not isinstance(item, dict):
+        failures.append("non-object result")
+        continue
+    index = item.get("index")
+    for field in required_fields:
+        if item.get(field) is not True:
+            failures.append(f"vector {index}: {field} is not true")
+
+if data.get("passed") != len(results) or data.get("failed") != 0:
+    failures.append("summary passed/failed counts do not match all vectors")
+
+if failures:
+    raise SystemExit("; ".join(failures))
+
+print("tron_gpu_vector_fields_verified")
+PY
 
 if [ "${RUN_TRON_PATTERN_SMOKE:-0}" = "1" ]; then
   echo "== run optional TRON GPU pattern search smoke"

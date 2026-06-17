@@ -59,6 +59,7 @@ Expected success marker:
 
 ```text
 tron_gpu_address_layer_script_passed
+tron_gpu_vector_fields_verified
 ```
 
 Optional wildcard search startup smoke:
@@ -90,7 +91,8 @@ tron_gpu_pattern_benchmark_passed
 - The script refuses to run unless `ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK=1` is set.
 - The script verifies the patch SHA-256 before applying it.
 - The script refuses to overwrite an existing work directory.
-- The GPU vector check must report `xy_payload_passed=true` for every public TEST_ONLY vector before any benchmark result is trusted.
+- The GPU vector check must report all per-vector boolean gates as `true` before any benchmark result is trusted: `xy_payload_passed`, `prefix_possible_passed`, `wrong_prefix_possible_rejected`, `prefix_prefilter_passed`, `wrong_prefix_prefilter_rejected`, `suffix_prefilter_passed`, and `wrong_suffix_prefilter_rejected`.
+- The wrapper parses the vector JSON and prints `tron_gpu_vector_fields_verified` only after those fields are confirmed.
 - The optional wildcard smoke uses the strict product-rule pattern and suppresses key material if an accidental hit occurs.
 - The optional wildcard smoke defaults to 5 seconds and may print a best-effort `tron_gpu_pattern_smoke_rate` line; this is only a startup signal.
 - The optional bounded benchmark defaults to 10 seconds, refuses durations outside 3-30 seconds, and emits JSON for review.
