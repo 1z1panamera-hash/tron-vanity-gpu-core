@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_payload21_prefix_bounds_20260618.patch"
+PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_payload21_word_bounds_20260618.patch"
 
 if [ "${ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK:-0}" != "1" ]; then
   echo "refusing_to_run_without_ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK=1" >&2
@@ -15,7 +15,7 @@ if [ ! -f "$PATCH_PATH" ]; then
   exit 1
 fi
 
-EXPECTED_SHA="3dd7ebdbf72cec611afa0d5b829942b9842f3e1b90c35c00d68d5e0bbadbc61a"
+EXPECTED_SHA="b307d8a10f78135befd763cc470a59aa958d6bb6e117c8f9340646ac88fde81c"
 ACTUAL_SHA="$(sha256sum "$PATCH_PATH" | awk '{print $1}')"
 if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
   echo "patch sha256 mismatch" >&2

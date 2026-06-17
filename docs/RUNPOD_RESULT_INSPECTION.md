@@ -91,7 +91,7 @@ Current VanitySearch patch note: TRON bounded benchmark counters are corrected t
 
 Current GPU address-layer note: the hot path uses direct x/y coordinate Keccak absorption. Trust bounded benchmark output only after the RunPod vector check reports `xy_payload_passed=true` for every public TEST_ONLY vector.
 
-Current prefix-gate note: the hot reject path uses precomputed 21-byte possible prefix bounds before checksum. Trust benchmark output only after the RunPod vector check still reports `prefix_possible_passed=true` and `wrong_prefix_possible_rejected=true` for every public TEST_ONLY vector.
+Current prefix-gate note: the hot reject path uses precomputed 3-word possible prefix bounds before checksum. Trust benchmark output only after the RunPod vector check still reports `prefix_possible_passed=true` and `wrong_prefix_possible_rejected=true` for every public TEST_ONLY vector.
 
 ## Safety
 
