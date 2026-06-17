@@ -136,6 +136,7 @@ Status on 2026-06-17:
 
 - Local candidate branch `tron-cpu-address-prototype` was created under `工作记录/candidate-cores/VanitySearch`.
 - Local commit `221922d` adds CPU-side Keccak-256, `Secp256K1::GetTronAddress`, and a `-ct` command that prints only a TRON address.
+- Local commit `55470e4` adds `scripts/runpod_verify_tron_cpu_vectors.sh` for x86 Linux compile and public vector verification.
 - Mac ARM local compile is blocked by upstream Makefile x86 `-mssse3`; this needs a short RunPod x86 Linux compile/correctness check.
 - Detailed record: `docs/VANITYSEARCH_PROTOTYPE_STATUS_20260617.md`.
 

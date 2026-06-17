@@ -6,7 +6,9 @@ This work is in the separate candidate source checkout, not in the main `tron-va
 
 - Candidate path: `工作记录/candidate-cores/VanitySearch`
 - Branch: `tron-cpu-address-prototype`
-- Local commit: `221922d Add local TRON CPU address prototype`
+- Local commits:
+  - `221922d Add local TRON CPU address prototype`
+  - `55470e4 Add RunPod TRON CPU vector check`
 - Upstream base: `c8d48ce5f03f5357c0e87cbdb3e1e93cd50af88b`
 - Pushed to GitHub: no
 
@@ -23,6 +25,11 @@ Reason: VanitySearch is GPLv3. Keep derivative source separate until the license
   - computes and prints only the TRON address.
   - does not print WIF, HEX private key, mnemonic, token, or secret.
 - Added TRON address output to existing public-key/address inspection paths for local diagnosis.
+- Added RunPod/x86 Linux correctness script:
+  - `scripts/runpod_verify_tron_cpu_vectors.sh`
+  - builds CPU VanitySearch,
+  - runs 4 public TEST_ONLY TRON vectors,
+  - fails if output contains `Priv`, `WIF`, `HEX`, `private_key`, `mnemonic`, `seed`, `token`, or `secret`.
 
 ## Intended Test
 
@@ -41,6 +48,12 @@ Addr (TRON): TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC
 ```
 
 Do not use real customer private keys in this prototype.
+
+Preferred RunPod check:
+
+```sh
+scripts/runpod_verify_tron_cpu_vectors.sh
+```
 
 ## Local Compile Result
 
@@ -66,7 +79,7 @@ Recommended next pod:
 - Do not start a long benchmark.
 - Run only:
   - compile candidate branch,
-  - `-ct` against Phase 0 public vectors,
+  - `scripts/runpod_verify_tron_cpu_vectors.sh`,
   - optional 5-second upstream or TRON prototype smoke test after correctness passes.
 
 ## Not Yet Done
