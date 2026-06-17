@@ -28,7 +28,7 @@ patches/vanitysearch_tron_gpu_payload21_word_bounds_20260618.patch
 SHA-256:
 
 ```text
-1f905f375a7c2cf61213d54a4d3ffa43297b619cc9d8fcefe2d16deeaba892cc
+c2b5055f39d1c84cc3d286d4d861dac821ec00c668fc89521483c9f8c49e22f3
 ```
 
 Candidate branch head:

@@ -1156,7 +1156,7 @@ index 0000000..280523d
 +  return 1;
 +}
 diff --git a/Makefile b/Makefile
-index 70b98bd..edf9e3e 100644
+index 70b98bd..83feb91 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -6,7 +6,7 @@
@@ -1186,6 +1186,19 @@ index 70b98bd..edf9e3e 100644
          hash/ripemd160_sse.o hash/sha256_sse.o Bech32.o Wildcard.o)
  
  endif
+@@ -59,10 +59,10 @@ endif
+ ifdef gpu
+ ifdef debug
+ $(OBJDIR)/GPU/GPUEngine.o: GPU/GPUEngine.cu
+-	$(NVCC) -G -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -g -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
++	$(NVCC) -G -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -g -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -gencode=arch=compute_$(ccap),code=compute_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
+ else
+ $(OBJDIR)/GPU/GPUEngine.o: GPU/GPUEngine.cu
+-	$(NVCC) -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -O2 -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
++	$(NVCC) -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -O2 -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -gencode=arch=compute_$(ccap),code=compute_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
+ endif
+ endif
+ 
 @@ -91,4 +91,3 @@ clean:
  	@rm -f obj/*.o
  	@rm -f obj/GPU/*.o
@@ -1779,10 +1792,10 @@ index f404066..55c41f4 100644
        a++;
 diff --git a/scripts/runpod_tron_gpu_pattern_benchmark.sh b/scripts/runpod_tron_gpu_pattern_benchmark.sh
 new file mode 100644
-index 0000000..67ab22e
+index 0000000..5ef6325
 --- /dev/null
 +++ b/scripts/runpod_tron_gpu_pattern_benchmark.sh
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,102 @@
 +#!/usr/bin/env bash
 +set -euo pipefail
 +
@@ -1814,10 +1827,17 @@ index 0000000..67ab22e
 +make gpu=1 CCAP="$CUDA_ARCH" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" all
 +
 +echo "== run bounded TRON GPU pattern benchmark"
++cmd=(env TRON_SUPPRESS_SECRET_OUTPUT=1 timeout "$BENCHMARK_SECONDS"s ./VanitySearch -gpu -t 0 -g "$GPU_GRID" "$BENCHMARK_PATTERN")
 +set +e
-+TRON_SUPPRESS_SECRET_OUTPUT=1 timeout "$BENCHMARK_SECONDS"s ./VanitySearch -gpu -t 0 -g "$GPU_GRID" "$BENCHMARK_PATTERN" \
-+  > /tmp/tron_gpu_pattern_benchmark_stdout.txt \
-+  2> /tmp/tron_gpu_pattern_benchmark_stderr.txt
++if command -v script >/dev/null 2>&1; then
++  printf -v shell_cmd "%q " "${cmd[@]}"
++  script -q -e -c "$shell_cmd" /tmp/tron_gpu_pattern_benchmark_stdout.txt \
++    >/dev/null 2> /tmp/tron_gpu_pattern_benchmark_stderr.txt
++else
++  "${cmd[@]}" \
++    > /tmp/tron_gpu_pattern_benchmark_stdout.txt \
++    2> /tmp/tron_gpu_pattern_benchmark_stderr.txt
++fi
 +rc=$?
 +set -e
 +
@@ -1880,10 +1900,10 @@ index 0000000..67ab22e
 +echo "tron_gpu_pattern_benchmark_passed"
 diff --git a/scripts/runpod_tron_gpu_pattern_search_smoke.sh b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
 new file mode 100755
-index 0000000..2ec8b95
+index 0000000..c9de0cc
 --- /dev/null
 +++ b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,60 @@
 +#!/usr/bin/env bash
 +set -euo pipefail
 +
@@ -1903,10 +1923,17 @@ index 0000000..2ec8b95
 +make gpu=1 CCAP="$CUDA_ARCH" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" all
 +
 +echo "== run bounded TRON GPU pattern smoke"
++cmd=(env TRON_SUPPRESS_SECRET_OUTPUT=1 timeout "$SMOKE_SECONDS"s ./VanitySearch -gpu -t 0 -g 8,128 "$SMOKE_PATTERN")
 +set +e
-+TRON_SUPPRESS_SECRET_OUTPUT=1 timeout "$SMOKE_SECONDS"s ./VanitySearch -gpu -t 0 -g 8,128 "$SMOKE_PATTERN" \
-+  > /tmp/tron_gpu_pattern_smoke_stdout.txt \
-+  2> /tmp/tron_gpu_pattern_smoke_stderr.txt
++if command -v script >/dev/null 2>&1; then
++  printf -v shell_cmd "%q " "${cmd[@]}"
++  script -q -e -c "$shell_cmd" /tmp/tron_gpu_pattern_smoke_stdout.txt \
++    >/dev/null 2> /tmp/tron_gpu_pattern_smoke_stderr.txt
++else
++  "${cmd[@]}" \
++    > /tmp/tron_gpu_pattern_smoke_stdout.txt \
++    2> /tmp/tron_gpu_pattern_smoke_stderr.txt
++fi
 +rc=$?
 +set -e
 +

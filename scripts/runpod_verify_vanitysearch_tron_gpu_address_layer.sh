@@ -15,7 +15,7 @@ if [ ! -f "$PATCH_PATH" ]; then
   exit 1
 fi
 
-EXPECTED_SHA="1f905f375a7c2cf61213d54a4d3ffa43297b619cc9d8fcefe2d16deeaba892cc"
+EXPECTED_SHA="c2b5055f39d1c84cc3d286d4d861dac821ec00c668fc89521483c9f8c49e22f3"
 ACTUAL_SHA="$(sha256sum "$PATCH_PATH" | awk '{print $1}')"
 if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
   echo "patch sha256 mismatch" >&2
