@@ -275,7 +275,7 @@ from hashlib import sha256
 from pathlib import Path
 
 patch = Path("patches/vanitysearch_tron_gpu_suffix_only_20260618.patch")
-expected = "c2d9132500cd11f003990cfdfe0ea9f9821df95e1d3a84af40d3175977c36177"
+expected = "7454fb533658019bbbe1acefdef5f4e432d4dfc5c6acf5167b2d22a8bf3a46d6"
 actual = sha256(patch.read_bytes()).hexdigest()
 assert actual == expected, actual
 print("vanitysearch_patch_sha_ok")

@@ -317,10 +317,10 @@ index 6d00aab..f008147 100644
  
 diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
 new file mode 100644
-index 0000000..5fc27cb
+index 0000000..9724e60
 --- /dev/null
 +++ b/GPU/GPUTron.h
-@@ -0,0 +1,432 @@
+@@ -0,0 +1,430 @@
 +/*
 + * TRON address helpers for the VanitySearch GPU adaptation prototype.
 + *
@@ -609,7 +609,6 @@ index 0000000..5fc27cb
 +
 +__device__ __noinline__ uint32_t tron_checksum4_be32(const uint8_t payload21[21]) {
 +  uint32_t s[8];
-+  uint32_t first[8];
 +  uint32_t w[16];
 +
 +  w[0] = tron_read_be32(payload21);
@@ -631,9 +630,8 @@ index 0000000..5fc27cb
 +
 +  SHA256Initialize(s);
 +  SHA256Transform(s, w);
-+  for (int i = 0; i < 8; ++i) first[i] = s[i];
 +
-+  for (int i = 0; i < 8; ++i) w[i] = first[i];
++  for (int i = 0; i < 8; ++i) w[i] = s[i];
 +  w[8] = 0x80000000U;
 +  w[9] = 0;
 +  w[10] = 0;
