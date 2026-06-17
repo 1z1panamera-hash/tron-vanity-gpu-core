@@ -85,6 +85,7 @@ The last 5 Base58Check characters depend on checksum, so matching cannot be deci
 - `scripts/inspect_runpod_result.py`: local JSON inspector for RunPod validate/benchmark responses.
 - `scripts/capacity_math.py`: local worker-count/probability calculator for measured complete TRON address speed.
 - `scripts/runpod_gpu_pod_suffix_speed_sweep.sh`: gated normal RunPod GPU Pod speed sweep/profiler helper for suffix-only optimization.
+- `scripts/inspect_suffix_speed_sweep.py`: local inspector for speed sweep result directories, including `200M/300M` decisions and GPU utilization checks.
 - `examples/`: local sample RunPod responses for the result inspector.
 - `docs/GITHUB_READY_MANIFEST.md`: exact GitHub repository readiness and first RunPod request checklist.
 - `docs/RUNPOD_CONSOLE_CHECKLIST.md`: shortest RunPod console validation checklist.

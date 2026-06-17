@@ -59,6 +59,7 @@ REQUIRED_PATHS = [
     "docs/RUNPOD_GPU_POD_RESULT_TEMPLATE.md",
     "docs/RUNPOD_SUFFIX_ONLY_GPU_POD_NEXT.md",
     "docs/RUNPOD_VANITYSEARCH_GPU_ADDRESS_LAYER_CHECK.md",
+    "scripts/inspect_suffix_speed_sweep.py",
     "scripts/inspect_runpod_sequence_result.py",
     "patches/vanitysearch_tron_gpu_suffix_only_20260618.patch",
     "scripts/inspect_vanitysearch_benchmark.py",

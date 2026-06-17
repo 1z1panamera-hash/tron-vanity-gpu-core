@@ -98,6 +98,19 @@ runpod_results/suffix_speed_sweep_<utc-run-id>/nvidia_smi_initial.txt
 runpod_results/suffix_speed_sweep_<utc-run-id>/gpu_utilization.csv
 ```
 
+Inspect the saved sweep result:
+
+```bash
+scripts/inspect_suffix_speed_sweep.py runpod_results/suffix_speed_sweep_<utc-run-id>
+```
+
+Important decisions:
+
+- `increase_batch_or_fix_gpu_utilization`: GPU utilization is low; adjust `STEP_SIZE`, grid, or occupancy before deeper algorithm work.
+- `optimize_secp256k1_or_address_hot_path`: GPU is working, but speed is still below `200M`.
+- `engineering_min_passed_continue_toward_300m`: minimum speed passed; continue toward preferred `300M+`.
+- `preferred_speed_passed_profile_before_serverless`: speed is good enough to profile stability before Serverless work resumes.
+
 Speed targets:
 
 - Minimum engineering pass: `200M attempts/s`

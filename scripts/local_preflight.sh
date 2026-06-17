@@ -12,6 +12,7 @@ test -x scripts/prepare_github_push.sh
 test -x scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
 test -x scripts/runpod_gpu_pod_sequence.sh
 test -x scripts/runpod_gpu_pod_suffix_speed_sweep.sh
+test -x scripts/inspect_suffix_speed_sweep.py
 test -x scripts/inspect_runpod_sequence_result.py
 test -x scripts/print_runpod_suffix_only_commands.sh
 test -x scripts/inspect_vanitysearch_benchmark.py
@@ -20,6 +21,7 @@ bash -n scripts/runpod_gpu_pod_sequence.sh
 bash -n scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 bash -n scripts/print_runpod_suffix_only_commands.sh
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_runpod_sequence_result.py
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_suffix_speed_sweep.py
 
 echo "== json"
 python3 - <<'PY'
@@ -123,6 +125,85 @@ python3 scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10 
 python3 scripts/inspect_runpod_result.py examples/runpod_validate_success_sample.json --mode validate_vectors >/tmp/runpod_validate_inspect.json
 python3 scripts/inspect_runpod_result.py examples/runpod_benchmark_success_sample.json --mode benchmark >/tmp/runpod_benchmark_inspect.json
 python3 scripts/inspect_vanitysearch_benchmark.py examples/vanitysearch_bounded_benchmark_sample.txt >/tmp/vanitysearch_benchmark_inspect.json
+speed_sweep_dir="/tmp/tron_gpu_suffix_speed_sweep_inspect_sample_$$"
+mkdir -p "$speed_sweep_dir"
+cleanup_speed_sweep_dir() {
+    rm -f \
+        "$speed_sweep_dir/speed_sweep_summary.json" \
+        "$speed_sweep_dir/gpu_utilization.csv"
+    rmdir "$speed_sweep_dir" 2>/dev/null || true
+}
+trap cleanup_speed_sweep_dir EXIT
+cat >"$speed_sweep_dir/speed_sweep_summary.json" <<'JSON'
+{
+  "mode": "suffix_speed_sweep_summary",
+  "passed": true,
+  "best_step_size": 1024,
+  "best_grid": "8,128",
+  "best_candidate_attempts_per_second_estimate": 85000000,
+  "grids": [
+    {"step_size": 1024, "gpu_grid": "8,128", "candidate_attempts_per_second_estimate": 85000000}
+  ]
+}
+JSON
+cat >"$speed_sweep_dir/gpu_utilization.csv" <<'CSV'
+timestamp, index, name, driver_version, utilization.gpu [%], utilization.memory [%], power.draw [W], memory.used [MiB], memory.total [MiB]
+2026/06/18 00:00:00.000, 0, TEST_GPU, 555.0, 42 %, 5 %, 120 W, 1000 MiB, 80000 MiB
+CSV
+python3 scripts/inspect_suffix_speed_sweep.py "$speed_sweep_dir" >/tmp/suffix_speed_sweep_low_inspect.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+data = json.loads(Path("/tmp/suffix_speed_sweep_low_inspect.json").read_text())
+assert data["decision"] == "increase_batch_or_fix_gpu_utilization", data["decision"]
+assert data["meets_engineering_minimum"] is False
+assert data["gpu_utilization"]["max_gpu_utilization_percent"] == 42.0
+PY
+cat >"$speed_sweep_dir/speed_sweep_summary.json" <<'JSON'
+{
+  "mode": "suffix_speed_sweep_summary",
+  "passed": true,
+  "best_step_size": 4096,
+  "best_grid": "64,128",
+  "best_candidate_attempts_per_second_estimate": 250000000,
+  "grids": [
+    {"step_size": 4096, "gpu_grid": "64,128", "candidate_attempts_per_second_estimate": 250000000}
+  ]
+}
+JSON
+cat >"$speed_sweep_dir/gpu_utilization.csv" <<'CSV'
+timestamp, index, name, driver_version, utilization.gpu [%], utilization.memory [%], power.draw [W], memory.used [MiB], memory.total [MiB]
+2026/06/18 00:00:00.000, 0, TEST_GPU, 555.0, 91 %, 30 %, 300 W, 1000 MiB, 80000 MiB
+CSV
+python3 scripts/inspect_suffix_speed_sweep.py "$speed_sweep_dir" >/tmp/suffix_speed_sweep_min_inspect.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+data = json.loads(Path("/tmp/suffix_speed_sweep_min_inspect.json").read_text())
+assert data["decision"] == "engineering_min_passed_continue_toward_300m", data["decision"]
+assert data["meets_engineering_minimum"] is True
+assert data["meets_engineering_preferred"] is False
+PY
+cat >"$speed_sweep_dir/speed_sweep_summary.json" <<'JSON'
+{
+  "mode": "suffix_speed_sweep_summary",
+  "passed": true,
+  "best_step_size": 4096,
+  "best_grid": "128,128",
+  "best_candidate_attempts_per_second_estimate": 350000000,
+  "grids": [
+    {"step_size": 4096, "gpu_grid": "128,128", "candidate_attempts_per_second_estimate": 350000000}
+  ]
+}
+JSON
+python3 scripts/inspect_suffix_speed_sweep.py "$speed_sweep_dir" >/tmp/suffix_speed_sweep_preferred_inspect.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+data = json.loads(Path("/tmp/suffix_speed_sweep_preferred_inspect.json").read_text())
+assert data["decision"] == "preferred_speed_passed_profile_before_serverless", data["decision"]
+assert data["meets_engineering_preferred"] is True
+PY
 sequence_dir="/tmp/tron_gpu_sequence_inspect_sample_$$"
 mkdir -p "$sequence_dir"
 cleanup_sequence_dir() {
@@ -135,7 +216,11 @@ cleanup_sequence_dir() {
         "$sequence_dir/benchmark_10s.inspect.json"
     rmdir "$sequence_dir" 2>/dev/null || true
 }
-trap cleanup_sequence_dir EXIT
+cleanup_result_inspector_dirs() {
+    cleanup_speed_sweep_dir
+    cleanup_sequence_dir
+}
+trap cleanup_result_inspector_dirs EXIT
 printf '%s\n' \
     "tron_gpu_address_layer_passed" \
     "tron_gpu_address_layer_script_passed" \
