@@ -16,6 +16,34 @@ git rev-parse HEAD
 
 Expected: the printed commit must match GitHub `main` at the time of the RunPod test. Record it with the benchmark result.
 
+## Recommended Sequence Script
+
+Default vector gate only:
+
+```bash
+CUDA_ARCH=sm_80 scripts/runpod_gpu_pod_sequence.sh
+```
+
+Vector gate plus startup smoke:
+
+```bash
+RUN_SMOKE=1 CUDA_ARCH=sm_80 scripts/runpod_gpu_pod_sequence.sh
+```
+
+Vector gate, smoke, and 3 second benchmark:
+
+```bash
+RUN_SMOKE=1 RUN_BENCHMARK_3=1 CUDA_ARCH=sm_80 scripts/runpod_gpu_pod_sequence.sh
+```
+
+Vector gate, smoke, 3 second benchmark, and 10 second benchmark:
+
+```bash
+RUN_SMOKE=1 RUN_BENCHMARK_3=1 RUN_BENCHMARK_10=1 CUDA_ARCH=sm_80 \
+  scripts/runpod_gpu_pod_sequence.sh
+```
+
+The script writes stdout and inspector files under `runpod_results/<utc-run-id>/`. That directory is ignored by git.
 
 ## 2. Vector Gate Only
 

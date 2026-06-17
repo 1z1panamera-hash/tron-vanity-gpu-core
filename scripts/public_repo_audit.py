@@ -60,6 +60,7 @@ REQUIRED_PATHS = [
     "docs/RUNPOD_VANITYSEARCH_GPU_ADDRESS_LAYER_CHECK.md",
     "patches/vanitysearch_tron_gpu_payload21_word_bounds_20260618.patch",
     "scripts/inspect_vanitysearch_benchmark.py",
+    "scripts/runpod_gpu_pod_sequence.sh",
     "scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh",
     "tests/verify_find_response_contract.py",
 ]

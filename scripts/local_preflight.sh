@@ -10,8 +10,10 @@ PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3
 test -x scripts/public_repo_audit.py
 test -x scripts/prepare_github_push.sh
 test -x scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
+test -x scripts/runpod_gpu_pod_sequence.sh
 test -x scripts/inspect_vanitysearch_benchmark.py
 bash -n scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
+bash -n scripts/runpod_gpu_pod_sequence.sh
 
 echo "== json"
 python3 - <<'PY'
