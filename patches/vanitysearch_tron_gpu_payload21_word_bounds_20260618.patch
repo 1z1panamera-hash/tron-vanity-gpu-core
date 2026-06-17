@@ -1,19 +1,1160 @@
-From 221922d62bde31625d8abd2ec9f5054db76f635a Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Wed, 17 Jun 2026 21:37:26 +0800
-Subject: [PATCH 01/15] Add local TRON CPU address prototype
-
----
- Makefile           |  7 ++--
- SECP256K1.cpp      | 20 ++++++++++
- SECP256k1.h        |  1 +
- hash/keccak256.cpp | 94 ++++++++++++++++++++++++++++++++++++++++++++++
- hash/keccak256.h   |  8 ++++
- main.cpp           | 10 +++++
- 6 files changed, 136 insertions(+), 4 deletions(-)
- create mode 100644 hash/keccak256.cpp
- create mode 100644 hash/keccak256.h
-
+diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
+index 6c43e94..c78d571 100644
+--- a/GPU/GPUCompute.h
++++ b/GPU/GPUCompute.h
+@@ -251,6 +251,162 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
+ 
+ // -----------------------------------------------------------------------------------------
+ 
++__device__ __noinline__ void CheckTronPoint(
++    uint64_t *px,
++    uint64_t *py,
++    int32_t incr,
++    int32_t endo,
++    char prefixAfterT,
++    TronPrefixRange prefixRange,
++    uint64_t suffix5Value,
++    uint32_t maxFound,
++    uint32_t *out) {
++
++  uint8_t payload21[21];
++  uint8_t payload25[25];
++  char address[48];
++  uint32_t tid = (blockIdx.x*blockDim.x) + threadIdx.x;
++
++  tron_payload21_from_xy(px, py, payload21);
++  if (!tron_payload21_can_match_prefix_range(payload21, prefixRange)) {
++    return;
++  }
++
++  tron_payload25_from_payload21(payload21, payload25);
++  if (!tron_payload25_matches_prefix_range(payload25, prefixRange)) {
++    return;
++  }
++  if (!tron_payload25_matches_suffix5(payload25, suffix5Value)) {
++    return;
++  }
++
++  int address_len = tron_base58_payload25(payload25, address);
++  if (address_len < 2 || address[0] != 'T' || address[1] != prefixAfterT) {
++    return;
++  }
++
++  uint32_t pos = atomicAdd(out, 1);
++  if (pos < maxFound) {
++    out[pos*ITEM_SIZE32 + 1] = tid;
++    out[pos*ITEM_SIZE32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(0 << 15) | (uint32_t)(endo);
++    memcpy(out + pos*ITEM_SIZE32 + 3, payload25 + 1, 20);
++  }
++}
++
++#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, prefixAfterT, prefixRange, suffix5Value, maxFound, out)
++
++__device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char prefixAfterT,
++                                       TronPrefixRange prefixRange, uint64_t suffix5Value,
++                                       uint32_t maxFound, uint32_t *out) {
++
++  uint64_t dx[GRP_SIZE/2+1][4];
++  uint64_t px[4];
++  uint64_t py[4];
++  uint64_t pyn[4];
++  uint64_t sx[4];
++  uint64_t sy[4];
++  uint64_t dy[4];
++  uint64_t _s[4];
++  uint64_t _p2[4];
++
++  __syncthreads();
++  Load256A(sx, startx);
++  Load256A(sy, starty);
++  Load256(px, sx);
++  Load256(py, sy);
++
++  for (uint32_t j = 0; j < STEP_SIZE / GRP_SIZE; j++) {
++
++    uint32_t i;
++    for (i = 0; i < HSIZE; i++)
++      ModSub256(dx[i], Gx[i], sx);
++    ModSub256(dx[i] , Gx[i], sx);
++    ModSub256(dx[i+1],_2Gnx, sx);
++
++    _ModInvGrouped(dx);
++
++    CHECK_TRON_PATTERN(GRP_SIZE / 2);
++
++    ModNeg256(pyn,py);
++
++    for(i = 0; i < HSIZE; i++) {
++
++      Load256(px, sx);
++      Load256(py, sy);
++      ModSub256(dy, Gy[i], py);
++
++      _ModMult(_s, dy, dx[i]);
++      _ModSqr(_p2, _s);
++
++      ModSub256(px, _p2,px);
++      ModSub256(px, Gx[i]);
++
++      ModSub256(py, Gx[i], px);
++      _ModMult(py, _s);
++      ModSub256(py, Gy[i]);
++
++      CHECK_TRON_PATTERN(GRP_SIZE / 2 + (i + 1));
++
++      Load256(px, sx);
++      ModSub256(dy,pyn,Gy[i]);
++
++      _ModMult(_s, dy, dx[i]);
++      _ModSqr(_p2, _s);
++
++      ModSub256(px, _p2, px);
++      ModSub256(px, Gx[i]);
++
++      ModSub256(py, px, Gx[i]);
++      _ModMult(py, _s);
++      ModSub256(py, Gy[i], py);
++
++      CHECK_TRON_PATTERN(GRP_SIZE / 2 - (i + 1));
++
++    }
++
++    Load256(px, sx);
++    Load256(py, sy);
++    ModNeg256(dy, Gy[i]);
++    ModSub256(dy, py);
++
++    _ModMult(_s, dy, dx[i]);
++    _ModSqr(_p2,_s);
++
++    ModSub256(px, _p2, px);
++    ModSub256(px, Gx[i]);
++
++    ModSub256(py, px, Gx[i]);
++    _ModMult(py, _s);
++    ModSub256(py, Gy[i], py);
++
++    CHECK_TRON_PATTERN(0);
++
++    i++;
++
++    Load256(px, sx);
++    Load256(py, sy);
++    ModSub256(dy, _2Gny, py);
++
++    _ModMult(_s, dy, dx[i]);
++    _ModSqr(_p2, _s);
++
++    ModSub256(px, _p2, px);
++    ModSub256(px, _2Gnx);
++
++    ModSub256(py, _2Gnx, px);
++    _ModMult(py, _s);
++    ModSub256(py, _2Gny);
++
++  }
++
++  __syncthreads();
++  Store256A(startx, px);
++  Store256A(starty, py);
++
++}
++
++// -----------------------------------------------------------------------------------------
++
+ __device__ void ComputeKeys(uint32_t mode, uint64_t *startx, uint64_t *starty,
+                             prefix_t *sPrefix, uint32_t *lookup32, uint32_t maxFound, uint32_t *out) {
+ 
+diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
+index ccb113c..05c1e56 100644
+--- a/GPU/GPUEngine.cu
++++ b/GPU/GPUEngine.cu
+@@ -33,11 +33,102 @@
+ #include "GPUMath.h"
+ #include "GPUHash.h"
+ #include "GPUBase58.h"
++#include "GPUTron.h"
+ #include "GPUWildcard.h"
+ #include "GPUCompute.h"
+ 
+ // ---------------------------------------------------------------------------------------
+ 
++static int host_tron_base58_value(char c) {
++  const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
++  for (int i = 0; i < 58; ++i) {
++    if (alphabet[i] == c) return i;
++  }
++  return -1;
++}
++
++static bool host_tron_suffix5_value(const char *suffix5, uint64_t *value) {
++  uint64_t out = 0;
++  for (int i = 0; i < 5; ++i) {
++    int digit = host_tron_base58_value(suffix5[i]);
++    if (digit < 0) return false;
++    out = out * 58ULL + (uint64_t)digit;
++  }
++  *value = out;
++  return true;
++}
++
++static bool host_big25_mul_small(uint8_t value[25], uint32_t multiplier) {
++  uint32_t carry = 0;
++  for (int i = 24; i >= 0; --i) {
++    uint32_t product = (uint32_t)value[i] * multiplier + carry;
++    value[i] = (uint8_t)(product & 0xff);
++    carry = product >> 8;
++  }
++  return carry == 0;
++}
++
++static bool host_big25_add_small(uint8_t value[25], uint32_t addend) {
++  uint32_t carry = addend;
++  for (int i = 24; i >= 0 && carry > 0; --i) {
++    uint32_t sum = (uint32_t)value[i] + (carry & 0xff);
++    value[i] = (uint8_t)(sum & 0xff);
++    carry = (carry >> 8) + (sum >> 8);
++  }
++  return carry == 0;
++}
++
++static bool host_big25_sub_one(uint8_t value[25]) {
++  for (int i = 24; i >= 0; --i) {
++    if (value[i] > 0) {
++      --value[i];
++      return true;
++    }
++    value[i] = 0xff;
++  }
++  return false;
++}
++
++static uint64_t host_payload21_word(const uint8_t value[21], int wordIndex) {
++  uint64_t out = 0;
++  int offset = wordIndex * 8;
++  int limit = wordIndex == 2 ? 5 : 8;
++  for (int i = 0; i < limit; ++i) {
++    out |= (uint64_t)value[offset + i] << (56 - 8 * i);
++  }
++  return out;
++}
++
++static bool host_tron_prefix_range(char prefixAfterT, TronPrefixRange *range) {
++  int first = host_tron_base58_value('T');
++  int second = host_tron_base58_value(prefixAfterT);
++  if (first < 0 || second < 0) return false;
++
++  memset(range->low, 0, sizeof(range->low));
++  memset(range->high, 0, sizeof(range->high));
++
++  uint32_t prefixValue = (uint32_t)first * 58U + (uint32_t)second;
++  if (!host_big25_add_small(range->low, prefixValue)) return false;
++  if (!host_big25_add_small(range->high, prefixValue + 1U)) return false;
++
++  for (int i = 0; i < 32; ++i) {
++    if (!host_big25_mul_small(range->low, 58U)) return false;
++    if (!host_big25_mul_small(range->high, 58U)) return false;
++  }
++  if (!host_big25_sub_one(range->high)) return false;
++  uint8_t possibleLow21[21];
++  uint8_t possibleHigh21[21];
++  memcpy(possibleLow21, range->low, sizeof(possibleLow21));
++  memcpy(possibleHigh21, range->high, sizeof(possibleHigh21));
++  for (int i = 0; i < 3; ++i) {
++    range->possibleLowWords[i] = host_payload21_word(possibleLow21, i);
++    range->possibleHighWords[i] = host_payload21_word(possibleHigh21, i);
++  }
++  return true;
++}
++
++// ---------------------------------------------------------------------------------------
++
+ __global__ void comp_keys(uint32_t mode,prefix_t *prefix, uint32_t *lookup32, uint64_t *keys, uint32_t maxFound, uint32_t *found) {
+ 
+   int xPtr = (blockIdx.x*blockDim.x) * 8;
+@@ -78,6 +169,16 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
+ 
+ }
+ 
++__global__ void comp_keys_tron_pattern(char prefixAfterT, TronPrefixRange prefixRange,
++                                       uint64_t suffix5Value, uint64_t *keys, uint32_t maxFound,
++                                       uint32_t *found) {
++
++  int xPtr = (blockIdx.x*blockDim.x) * 8;
++  int yPtr = xPtr + 4 * blockDim.x;
++  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, prefixAfterT, prefixRange, suffix5Value, maxFound, found);
++
++}
++
+ //#define FULLCHECK
+ #ifdef FULLCHECK
+ 
+@@ -284,6 +385,11 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
+   initialised = true;
+   pattern = "";
+   hasPattern = false;
++  hasTronRule = false;
++  tronPrefixAfterT = 0;
++  memset(tronSuffix5, 0, sizeof(tronSuffix5));
++  tronSuffixValue = 0;
++  memset(&tronPrefixRange, 0, sizeof(tronPrefixRange));
+   inputPrefixLookUp = NULL;
+ 
+ }
+@@ -404,6 +510,43 @@ void GPUEngine::SetPattern(const char *pattern) {
+ 
+ }
+ 
++bool GPUEngine::SetTronPattern(const char *pattern) {
++
++  if (!pattern) {
++    printf("GPUEngine: missing TRON pattern\n");
++    return false;
++  }
++  size_t len = strlen(pattern);
++  if (len != 8 || pattern[0] != 'T' || pattern[2] != '*') {
++    printf("GPUEngine: TRON pattern must be T<one-char>*<five-char-suffix>, for example TA*CDEFG\n");
++    return false;
++  }
++  if (host_tron_base58_value(pattern[1]) < 0) {
++    printf("GPUEngine: invalid TRON prefix character after T\n");
++    return false;
++  }
++  uint64_t suffixValue = 0;
++  if (!host_tron_suffix5_value(pattern + 3, &suffixValue)) {
++    printf("GPUEngine: invalid TRON Base58 suffix\n");
++    return false;
++  }
++  TronPrefixRange prefixRange;
++  if (!host_tron_prefix_range(pattern[1], &prefixRange)) {
++    printf("GPUEngine: failed to build TRON prefix range\n");
++    return false;
++  }
++
++  SetPattern(pattern);
++  tronPrefixAfterT = pattern[1];
++  memcpy(tronSuffix5, pattern + 3, 5);
++  tronSuffix5[5] = 0;
++  tronSuffixValue = suffixValue;
++  tronPrefixRange = prefixRange;
++  hasTronRule = true;
++  return true;
++
++}
++
+ void GPUEngine::SetPrefix(std::vector<LPREFIX> prefixes, uint32_t totalPrefix) {
+ 
+   // Allocate memory for the second level of lookup tables
+@@ -459,7 +602,16 @@ bool GPUEngine::callKernel() {
+   cudaMemset(outputPrefix,0,4);
+ 
+   // Call the kernel (Perform STEP_SIZE keys per thread)
+-  if (searchType == P2SH) {
++  if (searchType == TRON_ADDR) {
++
++    if (!hasPattern || !hasTronRule) {
++      printf("GPUEngine: TRON currently requires wildcard pattern mode, for example TA*CDEFG\n");
++      return false;
++    }
++    comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
++      (tronPrefixAfterT, tronPrefixRange, tronSuffixValue, inputKey, maxFound, outputPrefix);
++
++  } else if (searchType == P2SH) {
+ 
+     if (hasPattern) {
+       comp_keys_p2sh_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+@@ -840,5 +992,3 @@ bool GPUEngine::Check(Secp256K1 *secp) {
+   return ok;
+ 
+ }
+-
+-
+diff --git a/GPU/GPUEngine.h b/GPU/GPUEngine.h
+index 6d00aab..48ccd5e 100644
+--- a/GPU/GPUEngine.h
++++ b/GPU/GPUEngine.h
+@@ -20,6 +20,7 @@
+ 
+ #include <vector>
+ #include "../SECP256k1.h"
++#include "GPUTronTypes.h"
+ 
+ #define SEARCH_COMPRESSED 0
+ #define SEARCH_UNCOMPRESSED 1
+@@ -64,6 +65,7 @@ public:
+   void SetSearchMode(int searchMode);
+   void SetSearchType(int searchType);
+   void SetPattern(const char *pattern);
++  bool SetTronPattern(const char *pattern);
+   bool Launch(std::vector<ITEM> &prefixFound,bool spinWait=false);
+   int GetNbThread();
+   int GetGroupSize();
+@@ -101,6 +103,11 @@ private:
+   uint32_t outputSize;
+   std::string pattern;
+   bool hasPattern;
++  bool hasTronRule;
++  char tronPrefixAfterT;
++  char tronSuffix5[6];
++  uint64_t tronSuffixValue;
++  TronPrefixRange tronPrefixRange;
+ 
+ };
+ 
+diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
+new file mode 100644
+index 0000000..6c44b3b
+--- /dev/null
++++ b/GPU/GPUTron.h
+@@ -0,0 +1,369 @@
++/*
++ * TRON address helpers for the VanitySearch GPU adaptation prototype.
++ *
++ * This header is a correctness bridge for public test vectors first. It does
++ * not generate private keys and does not return secret material.
++ */
++
++#ifndef GPU_TRON_H
++#define GPU_TRON_H
++
++#include <stdint.h>
++#include "GPUTronTypes.h"
++
++__device__ __forceinline__ int tron_base58_value(char c) {
++  const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
++  for (int i = 0; i < 58; ++i) {
++    if (alphabet[i] == c) return i;
++  }
++  return -1;
++}
++
++__device__ __noinline__ uint64_t tron_suffix5_value(const char suffix5[6]) {
++  uint64_t value = 0;
++  for (int i = 0; i < 5; ++i) {
++    int digit = tron_base58_value(suffix5[i]);
++    if (digit < 0) return UINT64_MAX;
++    value = value * 58ULL + static_cast<uint64_t>(digit);
++  }
++  return value;
++}
++
++__device__ __noinline__ int tron_payload25_compare(
++    const uint8_t a[25],
++    const uint8_t b[25]) {
++  for (int i = 0; i < 25; ++i) {
++    if (a[i] < b[i]) return -1;
++    if (a[i] > b[i]) return 1;
++  }
++  return 0;
++}
++
++__device__ __forceinline__ int tron_payload21_words_compare(
++    const uint64_t a[3],
++    const uint64_t b[3]) {
++  for (int i = 0; i < 3; ++i) {
++    if (a[i] < b[i]) return -1;
++    if (a[i] > b[i]) return 1;
++  }
++  return 0;
++}
++
++__device__ __forceinline__ uint64_t tron_pack_payload21_word(
++    const uint8_t payload21[21],
++    int wordIndex) {
++  uint64_t value = 0;
++  const int offset = wordIndex * 8;
++  const int limit = wordIndex == 2 ? 5 : 8;
++  for (int i = 0; i < limit; ++i) {
++    value |= static_cast<uint64_t>(payload21[offset + i]) << (56 - 8 * i);
++  }
++  return value;
++}
++
++__device__ __noinline__ bool tron_payload25_matches_prefix_range(
++    const uint8_t payload25[25],
++    const TronPrefixRange prefixRange) {
++  return tron_payload25_compare(payload25, prefixRange.low) >= 0 &&
++         tron_payload25_compare(payload25, prefixRange.high) <= 0;
++}
++
++__device__ __forceinline__ bool tron_payload21_can_match_prefix_range(
++    const uint8_t payload21[21],
++    const TronPrefixRange prefixRange) {
++  uint64_t words[3];
++  words[0] = tron_pack_payload21_word(payload21, 0);
++  words[1] = tron_pack_payload21_word(payload21, 1);
++  words[2] = tron_pack_payload21_word(payload21, 2);
++  return tron_payload21_words_compare(words, prefixRange.possibleLowWords) >= 0 &&
++         tron_payload21_words_compare(words, prefixRange.possibleHighWords) <= 0;
++}
++
++__device__ __noinline__ uint64_t tron_payload25_mod_base58_power(
++    const uint8_t payload25[25],
++    uint64_t modulus) {
++  uint64_t value = 0;
++  for (int i = 0; i < 25; ++i) {
++    value = ((value * 256ULL) + static_cast<uint64_t>(payload25[i])) % modulus;
++  }
++  return value;
++}
++
++__device__ __noinline__ bool tron_payload25_matches_suffix5(
++    const uint8_t payload25[25],
++    uint64_t suffix5_value) {
++  const uint64_t base58_power_5 = 656356768ULL;
++  return tron_payload25_mod_base58_power(payload25, base58_power_5) == suffix5_value;
++}
++
++__device__ __forceinline__ uint64_t tron_rotl64(uint64_t value, int shift) {
++  shift &= 63;
++  return (value << shift) | (value >> ((64 - shift) & 63));
++}
++
++__device__ __noinline__ void tron_keccak_f1600(uint64_t state[25]) {
++  const int rho[25] = {
++     0, 36,  3, 41, 18,
++     1, 44, 10, 45,  2,
++    62,  6, 43, 15, 61,
++    28, 55, 25, 21, 56,
++    27, 20, 39,  8, 14,
++  };
++  const uint64_t rc[24] = {
++    0x0000000000000001ULL, 0x0000000000008082ULL,
++    0x800000000000808aULL, 0x8000000080008000ULL,
++    0x000000000000808bULL, 0x0000000080000001ULL,
++    0x8000000080008081ULL, 0x8000000000008009ULL,
++    0x000000000000008aULL, 0x0000000000000088ULL,
++    0x0000000080008009ULL, 0x000000008000000aULL,
++    0x000000008000808bULL, 0x800000000000008bULL,
++    0x8000000000008089ULL, 0x8000000000008003ULL,
++    0x8000000000008002ULL, 0x8000000000000080ULL,
++    0x000000000000800aULL, 0x800000008000000aULL,
++    0x8000000080008081ULL, 0x8000000000008080ULL,
++    0x0000000080000001ULL, 0x8000000080008008ULL,
++  };
++
++  for (int round = 0; round < 24; ++round) {
++    uint64_t c[5];
++    uint64_t d[5];
++    uint64_t b[25];
++    for (int x = 0; x < 5; ++x) {
++      c[x] = state[x] ^ state[x + 5] ^ state[x + 10] ^ state[x + 15] ^ state[x + 20];
++    }
++    for (int x = 0; x < 5; ++x) {
++      d[x] = c[(x + 4) % 5] ^ tron_rotl64(c[(x + 1) % 5], 1);
++    }
++    for (int x = 0; x < 5; ++x) {
++      for (int y = 0; y < 5; ++y) {
++        state[x + 5 * y] ^= d[x];
++      }
++    }
++    for (int i = 0; i < 25; ++i) {
++      b[i] = 0;
++    }
++    for (int x = 0; x < 5; ++x) {
++      for (int y = 0; y < 5; ++y) {
++        b[y + 5 * ((2 * x + 3 * y) % 5)] =
++            tron_rotl64(state[x + 5 * y], rho[x * 5 + y]);
++      }
++    }
++    for (int x = 0; x < 5; ++x) {
++      for (int y = 0; y < 5; ++y) {
++        state[x + 5 * y] =
++            b[x + 5 * y] ^
++            ((~b[((x + 1) % 5) + 5 * y]) & b[((x + 2) % 5) + 5 * y]);
++      }
++    }
++    state[0] ^= rc[round];
++  }
++}
++
++__device__ __noinline__ void tron_keccak256_64(const uint8_t input64[64], uint8_t digest32[32]) {
++  uint64_t state[25];
++  uint8_t block[136];
++  for (int i = 0; i < 25; ++i) state[i] = 0;
++  for (int i = 0; i < 136; ++i) block[i] = 0;
++  for (int i = 0; i < 64; ++i) block[i] = input64[i];
++  block[64] = 0x01;
++  block[135] |= 0x80;
++
++  for (int lane = 0; lane < 17; ++lane) {
++    uint64_t value = 0;
++    for (int b = 0; b < 8; ++b) {
++      value |= static_cast<uint64_t>(block[lane * 8 + b]) << (8 * b);
++    }
++    state[lane] ^= value;
++  }
++
++  tron_keccak_f1600(state);
++
++  int pos = 0;
++  for (int lane = 0; lane < 17 && pos < 32; ++lane) {
++    for (int b = 0; b < 8 && pos < 32; ++b) {
++      digest32[pos++] = static_cast<uint8_t>((state[lane] >> (8 * b)) & 0xff);
++    }
++  }
++}
++
++__device__ __forceinline__ void tron_keccak_absorb_byte(uint64_t state[25], int pos, uint8_t value) {
++  state[pos >> 3] ^= static_cast<uint64_t>(value) << (8 * (pos & 7));
++}
++
++__device__ __noinline__ void tron_payload21_from_xy(
++    const uint64_t *x,
++    const uint64_t *y,
++    uint8_t payload21[21]) {
++  uint64_t state[25];
++  for (int i = 0; i < 25; ++i) state[i] = 0;
++
++  const uint32_t *x32 = reinterpret_cast<const uint32_t *>(x);
++  const uint32_t *y32 = reinterpret_cast<const uint32_t *>(y);
++  for (int i = 0; i < 8; ++i) {
++    const uint32_t xw = x32[7 - i];
++    const uint32_t yw = y32[7 - i];
++    const int xpos = i * 4;
++    const int ypos = 32 + i * 4;
++    tron_keccak_absorb_byte(state, xpos, static_cast<uint8_t>((xw >> 24) & 0xff));
++    tron_keccak_absorb_byte(state, xpos + 1, static_cast<uint8_t>((xw >> 16) & 0xff));
++    tron_keccak_absorb_byte(state, xpos + 2, static_cast<uint8_t>((xw >> 8) & 0xff));
++    tron_keccak_absorb_byte(state, xpos + 3, static_cast<uint8_t>(xw & 0xff));
++    tron_keccak_absorb_byte(state, ypos, static_cast<uint8_t>((yw >> 24) & 0xff));
++    tron_keccak_absorb_byte(state, ypos + 1, static_cast<uint8_t>((yw >> 16) & 0xff));
++    tron_keccak_absorb_byte(state, ypos + 2, static_cast<uint8_t>((yw >> 8) & 0xff));
++    tron_keccak_absorb_byte(state, ypos + 3, static_cast<uint8_t>(yw & 0xff));
++  }
++
++  tron_keccak_absorb_byte(state, 64, 0x01);
++  tron_keccak_absorb_byte(state, 135, 0x80);
++  tron_keccak_f1600(state);
++
++  payload21[0] = 0x41;
++  for (int i = 0; i < 20; ++i) {
++    const int pos = 12 + i;
++    payload21[i + 1] = static_cast<uint8_t>((state[pos >> 3] >> (8 * (pos & 7))) & 0xff);
++  }
++}
++
++__device__ __noinline__ void tron_sha256_single_block(
++    const uint8_t *input,
++    int length,
++    uint8_t digest32[32]) {
++  uint32_t s[8];
++  uint32_t w[16];
++  uint8_t block[64];
++
++  for (int i = 0; i < 64; ++i) block[i] = 0;
++  for (int i = 0; i < length && i < 56; ++i) block[i] = input[i];
++  block[length] = 0x80;
++  uint64_t bit_len = static_cast<uint64_t>(length) * 8ULL;
++  for (int i = 0; i < 8; ++i) {
++    block[63 - i] = static_cast<uint8_t>((bit_len >> (8 * i)) & 0xff);
++  }
++
++  for (int i = 0; i < 16; ++i) {
++    w[i] =
++        (static_cast<uint32_t>(block[i * 4]) << 24) |
++        (static_cast<uint32_t>(block[i * 4 + 1]) << 16) |
++        (static_cast<uint32_t>(block[i * 4 + 2]) << 8) |
++        static_cast<uint32_t>(block[i * 4 + 3]);
++  }
++
++  SHA256Initialize(s);
++  SHA256Transform(s, w);
++
++  for (int i = 0; i < 8; ++i) {
++    digest32[i * 4] = static_cast<uint8_t>((s[i] >> 24) & 0xff);
++    digest32[i * 4 + 1] = static_cast<uint8_t>((s[i] >> 16) & 0xff);
++    digest32[i * 4 + 2] = static_cast<uint8_t>((s[i] >> 8) & 0xff);
++    digest32[i * 4 + 3] = static_cast<uint8_t>(s[i] & 0xff);
++  }
++}
++
++__device__ __noinline__ void tron_checksum4(const uint8_t payload21[21], uint8_t checksum4[4]) {
++  uint8_t first[32];
++  uint8_t second[32];
++  tron_sha256_single_block(payload21, 21, first);
++  tron_sha256_single_block(first, 32, second);
++  for (int i = 0; i < 4; ++i) checksum4[i] = second[i];
++}
++
++__device__ __noinline__ int tron_base58_payload25(const uint8_t payload25[25], char out[48]) {
++  const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
++  uint8_t digits[64];
++  int ret_pos = 0;
++  int first = 0;
++  while (first < 25 && payload25[first] == 0) {
++    out[ret_pos++] = '1';
++    ++first;
++  }
++  int digits_len = 1;
++  digits[0] = 0;
++  for (int i = first; i < 25; ++i) {
++    uint32_t carry = payload25[i];
++    for (int j = 0; j < digits_len; ++j) {
++      carry += static_cast<uint32_t>(digits[j]) << 8;
++      digits[j] = static_cast<uint8_t>(carry % 58);
++      carry /= 58;
++    }
++    while (carry > 0) {
++      digits[digits_len++] = static_cast<uint8_t>(carry % 58);
++      carry /= 58;
++    }
++  }
++  for (int i = 0; i < digits_len; ++i) {
++    out[ret_pos++] = alphabet[digits[digits_len - 1 - i]];
++  }
++  out[ret_pos] = 0;
++  return ret_pos;
++}
++
++__device__ __noinline__ void tron_payload21_from_public_key64(
++    const uint8_t public_key64[64],
++    uint8_t payload21[21]) {
++  uint8_t digest[32];
++  tron_keccak256_64(public_key64, digest);
++  payload21[0] = 0x41;
++  for (int i = 0; i < 20; ++i) payload21[i + 1] = digest[i + 12];
++}
++
++__device__ __noinline__ void tron_payload25_from_payload21(
++    const uint8_t payload21[21],
++    uint8_t payload25[25]) {
++  uint8_t checksum[4];
++  for (int i = 0; i < 21; ++i) payload25[i] = payload21[i];
++  tron_checksum4(payload21, checksum);
++  for (int i = 0; i < 4; ++i) payload25[21 + i] = checksum[i];
++}
++
++__device__ __noinline__ void tron_payload25_from_public_key64(
++    const uint8_t public_key64[64],
++    uint8_t payload25[25]) {
++  uint8_t payload21[21];
++  tron_payload21_from_public_key64(public_key64, payload21);
++  tron_payload25_from_payload21(payload21, payload25);
++}
++
++__device__ __noinline__ int tron_address_from_public_key64(
++    const uint8_t public_key64[64],
++    char address[48],
++    uint8_t payload25[25]) {
++  tron_payload25_from_public_key64(public_key64, payload25);
++  return tron_base58_payload25(payload25, address);
++}
++
++__device__ __noinline__ void tron_public_key64_from_xy(
++    uint64_t *x,
++    uint64_t *y,
++    uint8_t public_key64[64]) {
++  uint32_t *x32 = (uint32_t *)(x);
++  uint32_t *y32 = (uint32_t *)(y);
++  for (int i = 0; i < 8; ++i) {
++    uint32_t xw = x32[7 - i];
++    uint32_t yw = y32[7 - i];
++    public_key64[i * 4] = static_cast<uint8_t>((xw >> 24) & 0xff);
++    public_key64[i * 4 + 1] = static_cast<uint8_t>((xw >> 16) & 0xff);
++    public_key64[i * 4 + 2] = static_cast<uint8_t>((xw >> 8) & 0xff);
++    public_key64[i * 4 + 3] = static_cast<uint8_t>(xw & 0xff);
++    public_key64[32 + i * 4] = static_cast<uint8_t>((yw >> 24) & 0xff);
++    public_key64[32 + i * 4 + 1] = static_cast<uint8_t>((yw >> 16) & 0xff);
++    public_key64[32 + i * 4 + 2] = static_cast<uint8_t>((yw >> 8) & 0xff);
++    public_key64[32 + i * 4 + 3] = static_cast<uint8_t>(yw & 0xff);
++  }
++}
++
++__device__ __noinline__ bool tron_match_prefix_after_t_suffix(
++    const char address[48],
++    int address_len,
++    char prefix_after_t,
++    const char suffix5[6]) {
++  if (address_len < 7) return false;
++  if (address[0] != 'T') return false;
++  if (address[1] != prefix_after_t) return false;
++  for (int i = 0; i < 5; ++i) {
++    if (address[address_len - 5 + i] != suffix5[i]) return false;
++  }
++  return true;
++}
++
++#endif
+diff --git a/GPU/GPUTronTypes.h b/GPU/GPUTronTypes.h
+new file mode 100644
+index 0000000..da947fa
+--- /dev/null
++++ b/GPU/GPUTronTypes.h
+@@ -0,0 +1,13 @@
++#ifndef GPU_TRON_TYPES_H
++#define GPU_TRON_TYPES_H
++
++#include <stdint.h>
++
++typedef struct {
++  uint8_t low[25];
++  uint8_t high[25];
++  uint64_t possibleLowWords[3];
++  uint64_t possibleHighWords[3];
++} TronPrefixRange;
++
++#endif
+diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
+new file mode 100644
+index 0000000..280523d
+--- /dev/null
++++ b/GPU/GPUTronVectorCheck.cu
+@@ -0,0 +1,354 @@
++/*
++ * RunPod-only CUDA correctness check for TRON address construction.
++ *
++ * This uses public TEST_ONLY public-key vectors. It does not generate private
++ * keys, does not search, and does not benchmark.
++ */
++
++#include <cuda_runtime.h>
++
++#include <cstdint>
++#include <cstdio>
++#include <cstring>
++#include <stdexcept>
++#include <string>
++#include <vector>
++
++#include "GPUHash.h"
++#include "GPUTron.h"
++
++struct TronVectorInput {
++  uint8_t public_key64[64];
++  uint64_t x[4];
++  uint64_t y[4];
++  char expected_address[48];
++  char prefix_after_t;
++  char suffix5[6];
++  char wrong_suffix5[6];
++  TronPrefixRange prefix_range;
++  TronPrefixRange wrong_prefix_range;
++};
++
++struct TronVectorResult {
++  int passed;
++  int address_len;
++  int match_rule_passed;
++  int wrong_rule_rejected;
++  int prefix_possible_passed;
++  int wrong_prefix_possible_rejected;
++  int prefix_prefilter_passed;
++  int wrong_prefix_prefilter_rejected;
++  int suffix_prefilter_passed;
++  int wrong_suffix_prefilter_rejected;
++  int xy_payload_passed;
++  char computed_address[48];
++  uint8_t payload25[25];
++};
++
++__global__ void tron_vector_kernel(
++    const TronVectorInput *inputs,
++    TronVectorResult *results,
++    int count) {
++  int idx = blockIdx.x * blockDim.x + threadIdx.x;
++  if (idx >= count) return;
++
++  TronVectorResult result{};
++  result.address_len =
++      tron_address_from_public_key64(inputs[idx].public_key64, result.computed_address, result.payload25);
++  result.match_rule_passed = tron_match_prefix_after_t_suffix(
++      result.computed_address,
++      result.address_len,
++      inputs[idx].prefix_after_t,
++      inputs[idx].suffix5) ? 1 : 0;
++  result.wrong_rule_rejected = !tron_match_prefix_after_t_suffix(
++      result.computed_address,
++      result.address_len,
++      inputs[idx].prefix_after_t,
++      inputs[idx].wrong_suffix5) ? 1 : 0;
++  uint8_t payload21[21];
++  tron_payload21_from_public_key64(inputs[idx].public_key64, payload21);
++  uint8_t xy_payload21[21];
++  tron_payload21_from_xy(inputs[idx].x, inputs[idx].y, xy_payload21);
++  result.xy_payload_passed = 1;
++  for (int i = 0; i < 21; ++i) {
++    if (payload21[i] != xy_payload21[i]) {
++      result.xy_payload_passed = 0;
++      break;
++    }
++  }
++  uint64_t suffix_value = tron_suffix5_value(inputs[idx].suffix5);
++  uint64_t wrong_suffix_value = tron_suffix5_value(inputs[idx].wrong_suffix5);
++  result.prefix_possible_passed =
++      tron_payload21_can_match_prefix_range(payload21, inputs[idx].prefix_range) ? 1 : 0;
++  result.wrong_prefix_possible_rejected =
++      !tron_payload21_can_match_prefix_range(payload21, inputs[idx].wrong_prefix_range) ? 1 : 0;
++  result.prefix_prefilter_passed =
++      tron_payload25_matches_prefix_range(result.payload25, inputs[idx].prefix_range) ? 1 : 0;
++  result.wrong_prefix_prefilter_rejected =
++      !tron_payload25_matches_prefix_range(result.payload25, inputs[idx].wrong_prefix_range) ? 1 : 0;
++  result.suffix_prefilter_passed =
++      tron_payload25_matches_suffix5(result.payload25, suffix_value) ? 1 : 0;
++  result.wrong_suffix_prefilter_rejected =
++      !tron_payload25_matches_suffix5(result.payload25, wrong_suffix_value) ? 1 : 0;
++  result.passed = 1;
++  for (int i = 0; i < 48; ++i) {
++    if (result.computed_address[i] != inputs[idx].expected_address[i]) {
++      result.passed = 0;
++      break;
++    }
++    if (inputs[idx].expected_address[i] == 0) break;
++  }
++  if (!result.match_rule_passed ||
++      !result.wrong_rule_rejected ||
++      !result.prefix_possible_passed ||
++      !result.wrong_prefix_possible_rejected ||
++      !result.prefix_prefilter_passed ||
++      !result.wrong_prefix_prefilter_rejected ||
++      !result.suffix_prefilter_passed ||
++      !result.wrong_suffix_prefilter_rejected ||
++      !result.xy_payload_passed) {
++    result.passed = 0;
++  }
++  results[idx] = result;
++}
++
++static uint8_t hex_value(char c) {
++  if (c >= '0' && c <= '9') return static_cast<uint8_t>(c - '0');
++  if (c >= 'a' && c <= 'f') return static_cast<uint8_t>(c - 'a' + 10);
++  if (c >= 'A' && c <= 'F') return static_cast<uint8_t>(c - 'A' + 10);
++  throw std::runtime_error("invalid hex");
++}
++
++static std::vector<uint8_t> hex_to_bytes(const char *hex) {
++  const size_t len = std::strlen(hex);
++  if (len % 2 != 0) throw std::runtime_error("invalid hex length");
++  std::vector<uint8_t> out(len / 2);
++  for (size_t i = 0; i < out.size(); ++i) {
++    out[i] = static_cast<uint8_t>((hex_value(hex[i * 2]) << 4) | hex_value(hex[i * 2 + 1]));
++  }
++  return out;
++}
++
++static uint32_t read_be32(const uint8_t *bytes) {
++  return (static_cast<uint32_t>(bytes[0]) << 24) |
++         (static_cast<uint32_t>(bytes[1]) << 16) |
++         (static_cast<uint32_t>(bytes[2]) << 8) |
++         static_cast<uint32_t>(bytes[3]);
++}
++
++static int host_base58_value(char c) {
++  const char *alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
++  for (int i = 0; i < 58; ++i) {
++    if (alphabet[i] == c) return i;
++  }
++  return -1;
++}
++
++static bool big25_mul_small(uint8_t value[25], uint32_t multiplier) {
++  uint32_t carry = 0;
++  for (int i = 24; i >= 0; --i) {
++    uint32_t product = static_cast<uint32_t>(value[i]) * multiplier + carry;
++    value[i] = static_cast<uint8_t>(product & 0xff);
++    carry = product >> 8;
++  }
++  return carry == 0;
++}
++
++static bool big25_add_small(uint8_t value[25], uint32_t addend) {
++  uint32_t carry = addend;
++  for (int i = 24; i >= 0 && carry > 0; --i) {
++    uint32_t sum = static_cast<uint32_t>(value[i]) + (carry & 0xff);
++    value[i] = static_cast<uint8_t>(sum & 0xff);
++    carry = (carry >> 8) + (sum >> 8);
++  }
++  return carry == 0;
++}
++
++static bool big25_sub_one(uint8_t value[25]) {
++  for (int i = 24; i >= 0; --i) {
++    if (value[i] > 0) {
++      --value[i];
++      return true;
++    }
++    value[i] = 0xff;
++  }
++  return false;
++}
++
++static uint64_t payload21_word(const uint8_t value[21], int word_index) {
++  uint64_t out = 0;
++  const int offset = word_index * 8;
++  const int limit = word_index == 2 ? 5 : 8;
++  for (int i = 0; i < limit; ++i) {
++    out |= static_cast<uint64_t>(value[offset + i]) << (56 - 8 * i);
++  }
++  return out;
++}
++
++static TronPrefixRange make_prefix_range(char prefix_after_t) {
++  TronPrefixRange range{};
++  const int first = host_base58_value('T');
++  const int second = host_base58_value(prefix_after_t);
++  if (first < 0 || second < 0) throw std::runtime_error("invalid Base58 prefix");
++
++  uint32_t prefix_value = static_cast<uint32_t>(first) * 58U + static_cast<uint32_t>(second);
++  if (!big25_add_small(range.low, prefix_value)) throw std::runtime_error("prefix low overflow");
++  if (!big25_add_small(range.high, prefix_value + 1U)) throw std::runtime_error("prefix high overflow");
++  for (int i = 0; i < 32; ++i) {
++    if (!big25_mul_small(range.low, 58U)) throw std::runtime_error("prefix low scale overflow");
++    if (!big25_mul_small(range.high, 58U)) throw std::runtime_error("prefix high scale overflow");
++  }
++  if (!big25_sub_one(range.high)) throw std::runtime_error("prefix high underflow");
++  uint8_t possible_low21[21];
++  uint8_t possible_high21[21];
++  std::memcpy(possible_low21, range.low, sizeof(possible_low21));
++  std::memcpy(possible_high21, range.high, sizeof(possible_high21));
++  for (int i = 0; i < 3; ++i) {
++    range.possibleLowWords[i] = payload21_word(possible_low21, i);
++    range.possibleHighWords[i] = payload21_word(possible_high21, i);
++  }
++  return range;
++}
++
++static TronVectorInput make_input(const char *public_key_uncompressed_hex, const char *expected_address) {
++  TronVectorInput input{};
++  const char *public_key64_hex = public_key_uncompressed_hex;
++  if (std::strlen(public_key_uncompressed_hex) == 130 &&
++      public_key_uncompressed_hex[0] == '0' &&
++      public_key_uncompressed_hex[1] == '4') {
++    public_key64_hex = public_key_uncompressed_hex + 2;
++  }
++  std::vector<uint8_t> public_key = hex_to_bytes(public_key64_hex);
++  if (public_key.size() != 64) throw std::runtime_error("public key must be 64 bytes");
++  std::memcpy(input.public_key64, public_key.data(), 64);
++  uint32_t *x32 = reinterpret_cast<uint32_t *>(input.x);
++  uint32_t *y32 = reinterpret_cast<uint32_t *>(input.y);
++  for (int i = 0; i < 8; ++i) {
++    x32[7 - i] = read_be32(public_key.data() + i * 4);
++    y32[7 - i] = read_be32(public_key.data() + 32 + i * 4);
++  }
++  if (std::strlen(expected_address) >= sizeof(input.expected_address)) {
++    throw std::runtime_error("expected address too long");
++  }
++  std::strncpy(input.expected_address, expected_address, sizeof(input.expected_address) - 1);
++  const size_t address_len = std::strlen(expected_address);
++  if (address_len < 7 || expected_address[0] != 'T') {
++    throw std::runtime_error("expected address must be a TRON Base58 address");
++  }
++  input.prefix_after_t = expected_address[1];
++  input.prefix_range = make_prefix_range(input.prefix_after_t);
++  input.wrong_prefix_range = make_prefix_range(input.prefix_after_t == '1' ? '2' : '1');
++  std::memcpy(input.suffix5, expected_address + address_len - 5, 5);
++  input.suffix5[5] = 0;
++  std::memcpy(input.wrong_suffix5, input.suffix5, 6);
++  input.wrong_suffix5[0] = input.wrong_suffix5[0] == '1' ? '2' : '1';
++  return input;
++}
++
++static const char *cuda_status(cudaError_t status) {
++  return cudaGetErrorString(status);
++}
++
++int main() {
++  std::vector<TronVectorInput> inputs;
++  inputs.push_back(make_input(
++      "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
++      "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC"));
++  inputs.push_back(make_input(
++      "04c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee51ae168fea63dc339a3c58419466ceaeef7f632653266d0e1236431a950cfe52a",
++      "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K"));
++  inputs.push_back(make_input(
++      "04f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9388f7b0f632de8140fe337e62a37f3566500a99934c2231b6cb9fd7584b8e672",
++      "TKTX96CBxr5kvhjsDHcqoiPWZageGxoTW3"));
++  inputs.push_back(make_input(
++      "0437a4aef1f8423ca076e4b7d99a8cabff40ddb8231f2a9f01081f15d7fa65c1bab96ced90a1b8f9b43a18fc900ff55af2be0e94b90a434fca5b9e226b835024cd",
++      "TUqoWCpNbTPc7EwG2GbLpyPr7TYzEVYjhb"));
++
++  TronVectorInput *d_inputs = nullptr;
++  TronVectorResult *d_results = nullptr;
++  std::vector<TronVectorResult> results(inputs.size());
++
++  cudaError_t status = cudaMalloc(&d_inputs, inputs.size() * sizeof(TronVectorInput));
++  if (status != cudaSuccess) {
++    std::fprintf(stderr, "cudaMalloc inputs failed: %s\n", cuda_status(status));
++    return 1;
++  }
++  status = cudaMalloc(&d_results, inputs.size() * sizeof(TronVectorResult));
++  if (status != cudaSuccess) {
++    std::fprintf(stderr, "cudaMalloc results failed: %s\n", cuda_status(status));
++    cudaFree(d_inputs);
++    return 1;
++  }
++  status = cudaMemcpy(
++      d_inputs,
++      inputs.data(),
++      inputs.size() * sizeof(TronVectorInput),
++      cudaMemcpyHostToDevice);
++  if (status != cudaSuccess) {
++    std::fprintf(stderr, "cudaMemcpy inputs failed: %s\n", cuda_status(status));
++    cudaFree(d_inputs);
++    cudaFree(d_results);
++    return 1;
++  }
++
++  tron_vector_kernel<<<1, 32>>>(d_inputs, d_results, static_cast<int>(inputs.size()));
++  status = cudaDeviceSynchronize();
++  if (status != cudaSuccess) {
++    std::fprintf(stderr, "tron_vector_kernel failed: %s\n", cuda_status(status));
++    cudaFree(d_inputs);
++    cudaFree(d_results);
++    return 1;
++  }
++
++  status = cudaMemcpy(
++      results.data(),
++      d_results,
++      results.size() * sizeof(TronVectorResult),
++      cudaMemcpyDeviceToHost);
++  cudaFree(d_inputs);
++  cudaFree(d_results);
++  if (status != cudaSuccess) {
++    std::fprintf(stderr, "cudaMemcpy results failed: %s\n", cuda_status(status));
++    return 1;
++  }
++
++  int passed = 0;
++  std::printf("{\n");
++  std::printf("  \"mode\": \"tron_gpu_address_layer_vectors\",\n");
++  std::printf("  \"total_vectors\": %zu,\n", results.size());
++  std::printf("  \"results\": [\n");
++  for (size_t i = 0; i < results.size(); ++i) {
++    if (results[i].passed) ++passed;
++    std::printf(
++        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"prefix_possible_passed\": %s, \"wrong_prefix_possible_rejected\": %s, \"prefix_prefilter_passed\": %s, \"wrong_prefix_prefilter_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s, \"xy_payload_passed\": %s}%s\n",
++        i,
++        results[i].passed ? "true" : "false",
++        results[i].computed_address,
++        results[i].match_rule_passed ? "true" : "false",
++        results[i].wrong_rule_rejected ? "true" : "false",
++        results[i].prefix_possible_passed ? "true" : "false",
++        results[i].wrong_prefix_possible_rejected ? "true" : "false",
++        results[i].prefix_prefilter_passed ? "true" : "false",
++        results[i].wrong_prefix_prefilter_rejected ? "true" : "false",
++        results[i].suffix_prefilter_passed ? "true" : "false",
++        results[i].wrong_suffix_prefilter_rejected ? "true" : "false",
++        results[i].xy_payload_passed ? "true" : "false",
++        i + 1 == results.size() ? "" : ",");
++  }
++  std::printf("  ],\n");
++  std::printf("  \"passed\": %d,\n", passed);
++  std::printf("  \"failed\": %zu,\n", results.size() - static_cast<size_t>(passed));
++  std::printf("  \"notes\": [\n");
++  std::printf("    \"GPU TRON address layer vector check only; no search or benchmark is run.\",\n");
++  std::printf("    \"The check compares direct x/y Keccak absorption with the public_key64 reference path.\",\n");
++  std::printf("    \"The product rule checked here is fixed T plus prefix_after_t(1) plus suffix(5).\",\n");
++  std::printf("    \"Inputs are public TEST_ONLY public-key vectors; no scalar material is generated or printed.\"\n");
++  std::printf("  ]\n");
++  std::printf("}\n");
++
++  if (passed == static_cast<int>(results.size())) {
++    std::printf("tron_gpu_address_layer_passed\n");
++    return 0;
++  }
++  return 1;
++}
 diff --git a/Makefile b/Makefile
 index 70b98bd..edf9e3e 100644
 --- a/Makefile
@@ -51,7 +1192,7 @@ index 70b98bd..edf9e3e 100644
  	@rm -f obj/hash/*.o
 -
 diff --git a/SECP256K1.cpp b/SECP256K1.cpp
-index fd36f85..e6d7262 100644
+index fd36f85..285fb42 100644
 --- a/SECP256K1.cpp
 +++ b/SECP256K1.cpp
 @@ -18,6 +18,7 @@
@@ -62,7 +1203,28 @@ index fd36f85..e6d7262 100644
  #include "Base58.h"
  #include "Bech32.h"
  #include <string.h>
-@@ -775,6 +776,25 @@ std::string Secp256K1::GetAddress(int type, bool compressed, Point &pubKey) {
+@@ -727,6 +728,10 @@ std::string Secp256K1::GetAddress(int type, bool compressed,unsigned char *hash1
+       return std::string(output);
+     }
+     break;
++
++    case TRON_ADDR:
++      address[0] = 0x41;
++      break;
+   }
+   memcpy(address + 1, hash160,20);
+   sha256_checksum(address,21,address+21);
+@@ -765,6 +770,9 @@ std::string Secp256K1::GetAddress(int type, bool compressed, Point &pubKey) {
+     }
+     address[0] = 0x05;
+     break;
++
++  case TRON_ADDR:
++    return GetTronAddress(pubKey);
+   }
+ 
+   GetHash160(type,compressed,pubKey, address + 1);
+@@ -775,6 +783,25 @@ std::string Secp256K1::GetAddress(int type, bool compressed, Point &pubKey) {
  
  }
  
@@ -89,10 +1251,18 @@ index fd36f85..e6d7262 100644
  
    std::vector<unsigned char> pubKey;
 diff --git a/SECP256k1.h b/SECP256k1.h
-index 8cf4881..f2fd75e 100644
+index 8cf4881..e91bc08 100644
 --- a/SECP256k1.h
 +++ b/SECP256k1.h
-@@ -48,6 +48,7 @@ public:
+@@ -26,6 +26,7 @@
+ #define P2PKH  0
+ #define P2SH   1
+ #define BECH32 2
++#define TRON_ADDR 3
+ 
+ class Secp256K1 {
+ 
+@@ -48,6 +49,7 @@ public:
    std::string GetAddress(int type, bool compressed, Point &pubKey);
    std::string GetAddress(int type, bool compressed, unsigned char *hash160);
    std::vector<std::string> GetAddress(int type, bool compressed, unsigned char *h1, unsigned char *h2, unsigned char *h3, unsigned char *h4);
@@ -100,6 +1270,364 @@ index 8cf4881..f2fd75e 100644
    std::string GetPrivAddress(bool compressed, Int &privKey );
    std::string GetPublicKeyHex(bool compressed, Point &p);
    Point ParsePublicKeyHex(std::string str, bool &isCompressed);
+diff --git a/Vanity.cpp b/Vanity.cpp
+index e7ad0d7..fb9eead 100644
+--- a/Vanity.cpp
++++ b/Vanity.cpp
+@@ -27,6 +27,7 @@
+ #include <string.h>
+ #include <math.h>
+ #include <algorithm>
++#include <stdlib.h>
+ #ifndef WIN64
+ #include <pthread.h>
+ #endif
+@@ -55,6 +56,9 @@ VanitySearch::VanitySearch(Secp256K1 *secp, vector<std::string> &inputPrefixes,s
+   this->searchType = -1;
+   this->startPubKey = startPubKey;
+   this->hasPattern = false;
++  this->nbPrefix = 0;
++  this->onlyFull = false;
++  this->patternFound = NULL;
+   this->caseSensitive = caseSensitive;
+   this->startPubKeySpecified = !startPubKey.isZero();
+ 
+@@ -245,9 +249,13 @@ VanitySearch::VanitySearch(Secp256K1 *secp, vector<std::string> &inputPrefixes,s
+     case 'B':
+       searchType = BECH32;
+       break;
++    case 'T':
++      searchType = TRON_ADDR;
++      searchMode = SEARCH_UNCOMPRESSED;
++      break;
+ 
+     default:
+-      printf("Invalid start character 1,3 or b, expected");
++      printf("Invalid start character 1,3,b or T, expected");
+       exit(1);
+ 
+     }
+@@ -363,16 +371,19 @@ bool VanitySearch::initPrefix(std::string &prefix,PREFIX_ITEM *it) {
+     if(strncmp(prefix.c_str(), "bc1q", 4) == 0)
+       aType = BECH32;
+     break;
++  case 'T':
++    aType = TRON_ADDR;
++    break;
+   }
+ 
+   if (aType==-1) {
+-    printf("Ignoring prefix \"%s\" (must start with 1 or 3 or bc1q)\n", prefix.c_str());
++    printf("Ignoring prefix \"%s\" (must start with 1, 3, bc1q or T)\n", prefix.c_str());
+     return false;
+   }
+ 
+   if (searchType == -1) searchType = aType;
+   if (aType != searchType) {
+-    printf("Ignoring prefix \"%s\" (P2PKH, P2SH or BECH32 allowed at once)\n", prefix.c_str());
++    printf("Ignoring prefix \"%s\" (P2PKH, P2SH, BECH32 or TRON allowed at once)\n", prefix.c_str());
+     return false;
+   }
+ 
+@@ -429,6 +440,53 @@ bool VanitySearch::initPrefix(std::string &prefix,PREFIX_ITEM *it) {
+ 
+     return true;
+ 
++  } else if (aType == TRON_ADDR) {
++
++    wrong = !DecodeBase58(prefix, result);
++
++    if (wrong) {
++      if (caseSensitive)
++        printf("Ignoring prefix \"%s\" (0, I, O and l not allowed)\n", prefix.c_str());
++      return false;
++    }
++
++    if (result.size() > 21) {
++      it->difficulty = pow(2, 160);
++      it->isFull = true;
++      memcpy(it->hash160, result.data() + 1, 20);
++      it->sPrefix = *(prefix_t *)(it->hash160);
++      it->lPrefix = *(prefixl_t *)(it->hash160);
++      it->prefix = (char *)prefix.c_str();
++      it->prefixLength = (int)prefix.length();
++      return true;
++    }
++
++    if (prefix.length() < 2) {
++      printf("Ignoring prefix \"%s\" (too short)\n", prefix.c_str());
++      return false;
++    }
++
++    while (result.size() < 25) {
++      DecodeBase58(dummy1, result);
++      if (result.size() < 25) {
++        dummy1.append("1");
++        nbDigit++;
++      }
++    }
++
++    if (result.size() != 25 || result.data()[0] != 0x41) {
++      printf("Ignoring prefix \"%s\" (invalid TRON Base58 prefix)\n", prefix.c_str());
++      return false;
++    }
++
++    it->sPrefix = *(prefix_t *)(result.data() + 1);
++    it->difficulty = pow(2, 192) / pow(58, nbDigit);
++    it->isFull = false;
++    it->lPrefix = 0;
++    it->prefix = (char *)prefix.c_str();
++    it->prefixLength = (int)prefix.length();
++    return true;
++
+   } else {
+ 
+     // P2PKH/P2SH
+@@ -692,9 +750,17 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
+ 
+   fprintf(f, "PubAddress: %s\n", addr.c_str());
+ 
++  bool suppressTronSecret =
++      searchType == TRON_ADDR &&
++      getenv("TRON_SUPPRESS_SECRET_OUTPUT") != NULL &&
++      strcmp(getenv("TRON_SUPPRESS_SECRET_OUTPUT"), "1") == 0;
++
+   if (startPubKeySpecified) {
+ 
+-    fprintf(f, "PartialPriv: %s\n", pAddr.c_str());
++    if (suppressTronSecret)
++      fprintf(f, "SensitiveOutput: suppressed\n");
++    else
++      fprintf(f, "PartialPriv: %s\n", pAddr.c_str());
+ 
+   } else {
+ 
+@@ -705,11 +771,20 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
+     case P2SH:
+       fprintf(f, "Priv (WIF): p2wpkh-p2sh:%s\n", pAddr.c_str());
+       break;
+-    case BECH32:
+-      fprintf(f, "Priv (WIF): p2wpkh:%s\n", pAddr.c_str());
+-      break;
+-    }
+-    fprintf(f, "Priv (HEX): 0x%s\n", pAddrHex.c_str());
++  case BECH32:
++    fprintf(f, "Priv (WIF): p2wpkh:%s\n", pAddr.c_str());
++    break;
++  case TRON_ADDR:
++    if (suppressTronSecret)
++      fprintf(f, "SensitiveOutput: suppressed\n");
++    else
++      fprintf(f, "Priv (WIF): tron-staging:%s\n", pAddr.c_str());
++    break;
++  }
++    if (suppressTronSecret)
++      fprintf(f, "SensitiveOutput2: suppressed\n");
++    else
++      fprintf(f, "Priv (HEX): 0x%s\n", pAddrHex.c_str());
+ 
+   }
+ 
+@@ -1468,7 +1543,7 @@ void VanitySearch::FindKeyCPU(TH_PARAM *ph) {
+     }
+ 
+     key.Add((uint64_t)CPU_GRP_SIZE);
+-    counters[thId]+= 6*CPU_GRP_SIZE; // Point + endo #1 + endo #2 + Symetric point + endo #1 + endo #2
++    counters[thId] += (searchType == TRON_ADDR) ? CPU_GRP_SIZE : 6 * CPU_GRP_SIZE;
+ 
+   }
+ 
+@@ -1528,7 +1603,9 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
+     g.SetPrefix(usedPrefixL,nbPrefix);
+   } else {
+     if(hasPattern)
+-      g.SetPattern(inputPrefixes[0].c_str());
++      ok = (searchType == TRON_ADDR)
++        ? g.SetTronPattern(inputPrefixes[0].c_str())
++        : (g.SetPattern(inputPrefixes[0].c_str()), true);
+     else
+       g.SetPrefix(usedPrefix);
+   }
+@@ -1562,7 +1639,8 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
+       for (int i = 0; i < nbThread; i++) {
+         keys[i].Add((uint64_t)STEP_SIZE);
+       }
+-      counters[thId] += 6ULL * STEP_SIZE * nbThread; // Point +  endo1 + endo2 + symetrics
++      uint64_t attemptsPerThread = (searchType == TRON_ADDR) ? STEP_SIZE : 6ULL * STEP_SIZE;
++      counters[thId] += attemptsPerThread * nbThread;
+     }
+ 
+   }
+diff --git a/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md b/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
+new file mode 100644
+index 0000000..05a64a9
+--- /dev/null
++++ b/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
+@@ -0,0 +1,44 @@
++# RunPod TRON GPU Address Layer Check
++
++## Purpose
++
++This is a short CUDA correctness check for the VanitySearch TRON adaptation.
++
++It verifies:
++
++- Keccak-256 over uncompressed secp256k1 public key bytes without the `04` prefix
++- TRON payload construction with leading `0x41`
++- double-SHA256 checksum
++- Base58Check address encoding
++- product matching rule: fixed `T` + `prefix_after_t` 1 char + suffix 5 chars
++- four public TEST_ONLY public-key vectors
++
++It does not:
++
++- generate scalar material
++- search vanity addresses
++- benchmark speed
++- call RunPod APIs
++- touch `47.80.70.211`
++
++## RunPod Command
++
++From the VanitySearch candidate repository on a CUDA-capable RunPod Pod:
++
++```bash
++CUDA_ARCH=sm_80 scripts/runpod_verify_tron_gpu_address_layer.sh
++```
++
++Use the correct `CUDA_ARCH` for the selected GPU if needed.
++
++Expected success marker:
++
++```text
++tron_gpu_address_layer_script_passed
++```
++
++## Next Gate
++
++Only after this check passes should the TRON address layer be wired into the existing VanitySearch GPU point-walking search loop.
++
++Do not treat this check as an address generation speed result.
+diff --git a/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md b/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md
+new file mode 100644
+index 0000000..74bb45e
+--- /dev/null
++++ b/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md
+@@ -0,0 +1,50 @@
++# RunPod TRON GPU Pattern Benchmark
++
++## Purpose
++
++This is a bounded benchmark signal for the patched VanitySearch TRON path on a normal RunPod GPU Pod.
++
++It is not the final Serverless production proof. It is meant to answer whether the patched CUDA path is fast enough to justify deeper benchmark-only worker integration.
++
++## Safety Rules
++
++- Do not run this on `47.80.70.211`.
++- Do not use customer patterns.
++- Do not use customer data.
++- Do not run it without `ALLOW_RUNPOD_TRON_GPU_PATTERN_BENCHMARK=1`.
++- Keep `TRON_SUPPRESS_SECRET_OUTPUT=1`; the script sets it before launching VanitySearch.
++- Treat the output as a bounded GPU Pod signal, not final average/P90 proof.
++
++## Command
++
++From the patched VanitySearch repository on a short-lived CUDA RunPod Pod:
++
++```bash
++ALLOW_RUNPOD_TRON_GPU_PATTERN_BENCHMARK=1 CUDA_ARCH=80 BENCHMARK_SECONDS=10 scripts/runpod_tron_gpu_pattern_benchmark.sh
++```
++
++Optional variables:
++
++```bash
++BENCHMARK_PATTERN=TA*CDEFG
++GPU_GRID=8,128
++BENCHMARK_SECONDS=10
++```
++
++`BENCHMARK_SECONDS` is intentionally limited to 3-30 seconds.
++
++## Output
++
++The script prints JSON with:
++
++- `reported_gpu_mkey_s`
++- `candidate_attempts_per_second_estimate`
++- `samples`
++- `timeout_reached`
++- safety notes
++
++The estimate comes from VanitySearch's reported GPU key rate. It should be treated as a direction signal until a dedicated benchmark-only worker reports complete TRON address attempts per second.
++
++## Next Gate
++
++If this bounded benchmark is promising, add a dedicated no-secret benchmark mode that reports complete TRON candidate attempts per second and then run a longer controlled comparison on the intended GPU classes.
+diff --git a/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
+new file mode 100644
+index 0000000..719e877
+--- /dev/null
++++ b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
+@@ -0,0 +1,58 @@
++# RunPod TRON GPU Pattern Search Smoke
++
++## Purpose
++
++This is the first TRON GPU search smoke for the VanitySearch adaptation.
++
++It verifies that the existing VanitySearch GPU point-walking path can launch a TRON wildcard pattern search such as:
++
++```text
++TA*CDEFG
++```
++
++That pattern means:
++
++- fixed leading `T`
++- `A` as `prefix_after_t`
++- any middle characters
++- `CDEFG` as suffix 5
++
++This is not a performance benchmark.
++
++## Current Implementation
++
++- `TRON_ADDR` is a separate address type.
++- `T...` wildcard patterns select TRON search.
++- TRON pattern parsing is strict: `T<one-char>*<five-char-suffix>`.
++- GPU pattern mode calls `ComputeKeysTronPattern`.
++- GPU returns the 20-byte TRON payload body.
++- CPU reconstructs the TRON Base58Check address and verifies the candidate key.
++
++The current TRON GPU pattern path uses a dedicated fixed-position `prefix_after_t` plus suffix-5 rule with prefix/suffix prefilters. It is intended as a bounded GPU startup and direction check before proper benchmark-only worker integration.
++
++## RunPod Build And Smoke
++
++On a short-lived CUDA-capable RunPod Pod, after applying the candidate patch:
++
++```bash
++ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE=1 CUDA_ARCH=80 scripts/runpod_tron_gpu_pattern_search_smoke.sh
++```
++
++`timeout` exit code `124` is acceptable for this smoke if there is no crash before timeout.
++
++The default smoke pattern is `TA*CDEFG`, which is the strict product-rule format. The script sets `TRON_SUPPRESS_SECRET_OUTPUT=1` before running VanitySearch so an accidental hit does not print WIF/HEX private key material.
++
++The script prints a best-effort `tron_gpu_pattern_smoke_rate` line if VanitySearch reports Mkey/s before timeout. Treat that line only as a rough startup signal. It is not the final product benchmark and does not prove average/P90 generation time.
++
++## Safety
++
++- Do not run this on `47.80.70.211`.
++- Do not treat this as a speed result.
++- Do not use customer patterns or customer data.
++- Do not rely on plaintext output for production.
++- Keep `TRON_SUPPRESS_SECRET_OUTPUT=1` enabled for any bounded smoke.
++- Production return must still be handled by the Python wrapper and age encryption.
++
++## Next Gate
++
++After this smoke compiles and runs on RunPod, add a dedicated benchmark-only mode that reports complete TRON address attempts per second without ever printing private key material.
 diff --git a/hash/keccak256.cpp b/hash/keccak256.cpp
 new file mode 100644
 index 0000000..17dd6cd
@@ -249,2471 +1777,6 @@ index f404066..55c41f4 100644
        exit(0);
      } else if (strcmp(argv[a], "-rp") == 0) {
        a++;
--- 
-2.50.1 (Apple Git-155)
-
-
-From 55470e4c21b5d213323850b6daa3c165abea41f0 Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Wed, 17 Jun 2026 21:49:24 +0800
-Subject: [PATCH 02/15] Add RunPod TRON CPU vector check
-
----
- scripts/runpod_verify_tron_cpu_vectors.sh | 47 +++++++++++++++++++++++
- 1 file changed, 47 insertions(+)
- create mode 100755 scripts/runpod_verify_tron_cpu_vectors.sh
-
-diff --git a/scripts/runpod_verify_tron_cpu_vectors.sh b/scripts/runpod_verify_tron_cpu_vectors.sh
-new file mode 100755
-index 0000000..074dfab
---- /dev/null
-+++ b/scripts/runpod_verify_tron_cpu_vectors.sh
-@@ -0,0 +1,47 @@
-+#!/usr/bin/env bash
-+set -euo pipefail
-+
-+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-+cd "$ROOT"
-+
-+echo "== purpose"
-+echo "Verify VanitySearch TRON CPU address adapter against public TEST_ONLY vectors."
-+echo "This script does not run vanity search, GPU benchmark, or brute force."
-+
-+echo "== build"
-+make clean >/tmp/vanitysearch_tron_cpu_make_clean.log 2>&1 || true
-+make all
-+
-+echo "== public TEST_ONLY vectors"
-+keys=(
-+  "0000000000000000000000000000000000000000000000000000000000000001"
-+  "0000000000000000000000000000000000000000000000000000000000000002"
-+  "0000000000000000000000000000000000000000000000000000000000000003"
-+  "0000000000000000000000000000000000000000000000000000000000001234"
-+)
-+expected=(
-+  "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC"
-+  "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K"
-+  "TKTX96CBxr5kvhjsDHcqoiPWZageGxoTW3"
-+  "TUqoWCpNbTPc7EwG2GbLpyPr7TYzEVYjhb"
-+)
-+
-+for i in "${!keys[@]}"; do
-+  output="$(./VanitySearch -ct "${keys[$i]}")"
-+  echo "$output"
-+
-+  if echo "$output" | grep -E 'Priv|WIF|HEX|private_key|mnemonic|seed|token|secret' >/dev/null; then
-+    echo "forbidden sensitive-looking output in vector $i" >&2
-+    exit 1
-+  fi
-+
-+  actual="$(echo "$output" | awk -F': ' '/Addr \(TRON\):/{print $2}' | tail -1)"
-+  if [[ "$actual" != "${expected[$i]}" ]]; then
-+    echo "vector $i mismatch" >&2
-+    echo "expected=${expected[$i]}" >&2
-+    echo "actual=$actual" >&2
-+    exit 1
-+  fi
-+done
-+
-+echo "tron_cpu_vectors_passed"
--- 
-2.50.1 (Apple Git-155)
-
-
-From 4c938377714b95d74f65296b0828e05245e5402f Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 00:15:10 +0800
-Subject: [PATCH 03/15] Add TRON GPU address layer vector check
-
----
- GPU/GPUTron.h                                 | 190 ++++++++++++++++++
- GPU/GPUTronVectorCheck.cu                     | 183 +++++++++++++++++
- docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md   |  43 ++++
- .../runpod_verify_tron_gpu_address_layer.sh   |  34 ++++
- 4 files changed, 450 insertions(+)
- create mode 100644 GPU/GPUTron.h
- create mode 100644 GPU/GPUTronVectorCheck.cu
- create mode 100644 docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
- create mode 100755 scripts/runpod_verify_tron_gpu_address_layer.sh
-
-diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
-new file mode 100644
-index 0000000..8fae95c
---- /dev/null
-+++ b/GPU/GPUTron.h
-@@ -0,0 +1,190 @@
-+/*
-+ * TRON address helpers for the VanitySearch GPU adaptation prototype.
-+ *
-+ * This header is a correctness bridge for public test vectors first. It does
-+ * not generate private keys and does not return secret material.
-+ */
-+
-+#ifndef GPU_TRON_H
-+#define GPU_TRON_H
-+
-+#include <stdint.h>
-+
-+__device__ __forceinline__ uint64_t tron_rotl64(uint64_t value, int shift) {
-+  shift &= 63;
-+  return (value << shift) | (value >> ((64 - shift) & 63));
-+}
-+
-+__device__ __noinline__ void tron_keccak_f1600(uint64_t state[25]) {
-+  const int rho[25] = {
-+     0, 36,  3, 41, 18,
-+     1, 44, 10, 45,  2,
-+    62,  6, 43, 15, 61,
-+    28, 55, 25, 21, 56,
-+    27, 20, 39,  8, 14,
-+  };
-+  const uint64_t rc[24] = {
-+    0x0000000000000001ULL, 0x0000000000008082ULL,
-+    0x800000000000808aULL, 0x8000000080008000ULL,
-+    0x000000000000808bULL, 0x0000000080000001ULL,
-+    0x8000000080008081ULL, 0x8000000000008009ULL,
-+    0x000000000000008aULL, 0x0000000000000088ULL,
-+    0x0000000080008009ULL, 0x000000008000000aULL,
-+    0x000000008000808bULL, 0x800000000000008bULL,
-+    0x8000000000008089ULL, 0x8000000000008003ULL,
-+    0x8000000000008002ULL, 0x8000000000000080ULL,
-+    0x000000000000800aULL, 0x800000008000000aULL,
-+    0x8000000080008081ULL, 0x8000000000008080ULL,
-+    0x0000000080000001ULL, 0x8000000080008008ULL,
-+  };
-+
-+  for (int round = 0; round < 24; ++round) {
-+    uint64_t c[5];
-+    uint64_t d[5];
-+    uint64_t b[25];
-+    for (int x = 0; x < 5; ++x) {
-+      c[x] = state[x] ^ state[x + 5] ^ state[x + 10] ^ state[x + 15] ^ state[x + 20];
-+    }
-+    for (int x = 0; x < 5; ++x) {
-+      d[x] = c[(x + 4) % 5] ^ tron_rotl64(c[(x + 1) % 5], 1);
-+    }
-+    for (int x = 0; x < 5; ++x) {
-+      for (int y = 0; y < 5; ++y) {
-+        state[x + 5 * y] ^= d[x];
-+      }
-+    }
-+    for (int i = 0; i < 25; ++i) {
-+      b[i] = 0;
-+    }
-+    for (int x = 0; x < 5; ++x) {
-+      for (int y = 0; y < 5; ++y) {
-+        b[y + 5 * ((2 * x + 3 * y) % 5)] =
-+            tron_rotl64(state[x + 5 * y], rho[x * 5 + y]);
-+      }
-+    }
-+    for (int x = 0; x < 5; ++x) {
-+      for (int y = 0; y < 5; ++y) {
-+        state[x + 5 * y] =
-+            b[x + 5 * y] ^
-+            ((~b[((x + 1) % 5) + 5 * y]) & b[((x + 2) % 5) + 5 * y]);
-+      }
-+    }
-+    state[0] ^= rc[round];
-+  }
-+}
-+
-+__device__ __noinline__ void tron_keccak256_64(const uint8_t input64[64], uint8_t digest32[32]) {
-+  uint64_t state[25];
-+  uint8_t block[136];
-+  for (int i = 0; i < 25; ++i) state[i] = 0;
-+  for (int i = 0; i < 136; ++i) block[i] = 0;
-+  for (int i = 0; i < 64; ++i) block[i] = input64[i];
-+  block[64] = 0x01;
-+  block[135] |= 0x80;
-+
-+  for (int lane = 0; lane < 17; ++lane) {
-+    uint64_t value = 0;
-+    for (int b = 0; b < 8; ++b) {
-+      value |= static_cast<uint64_t>(block[lane * 8 + b]) << (8 * b);
-+    }
-+    state[lane] ^= value;
-+  }
-+
-+  tron_keccak_f1600(state);
-+
-+  int pos = 0;
-+  for (int lane = 0; lane < 17 && pos < 32; ++lane) {
-+    for (int b = 0; b < 8 && pos < 32; ++b) {
-+      digest32[pos++] = static_cast<uint8_t>((state[lane] >> (8 * b)) & 0xff);
-+    }
-+  }
-+}
-+
-+__device__ __noinline__ void tron_sha256_single_block(
-+    const uint8_t *input,
-+    int length,
-+    uint8_t digest32[32]) {
-+  uint32_t s[8];
-+  uint32_t w[16];
-+  uint8_t block[64];
-+
-+  for (int i = 0; i < 64; ++i) block[i] = 0;
-+  for (int i = 0; i < length && i < 56; ++i) block[i] = input[i];
-+  block[length] = 0x80;
-+  uint64_t bit_len = static_cast<uint64_t>(length) * 8ULL;
-+  for (int i = 0; i < 8; ++i) {
-+    block[63 - i] = static_cast<uint8_t>((bit_len >> (8 * i)) & 0xff);
-+  }
-+
-+  for (int i = 0; i < 16; ++i) {
-+    w[i] =
-+        (static_cast<uint32_t>(block[i * 4]) << 24) |
-+        (static_cast<uint32_t>(block[i * 4 + 1]) << 16) |
-+        (static_cast<uint32_t>(block[i * 4 + 2]) << 8) |
-+        static_cast<uint32_t>(block[i * 4 + 3]);
-+  }
-+
-+  SHA256Initialize(s);
-+  SHA256Transform(s, w);
-+
-+  for (int i = 0; i < 8; ++i) {
-+    digest32[i * 4] = static_cast<uint8_t>((s[i] >> 24) & 0xff);
-+    digest32[i * 4 + 1] = static_cast<uint8_t>((s[i] >> 16) & 0xff);
-+    digest32[i * 4 + 2] = static_cast<uint8_t>((s[i] >> 8) & 0xff);
-+    digest32[i * 4 + 3] = static_cast<uint8_t>(s[i] & 0xff);
-+  }
-+}
-+
-+__device__ __noinline__ void tron_checksum4(const uint8_t payload21[21], uint8_t checksum4[4]) {
-+  uint8_t first[32];
-+  uint8_t second[32];
-+  tron_sha256_single_block(payload21, 21, first);
-+  tron_sha256_single_block(first, 32, second);
-+  for (int i = 0; i < 4; ++i) checksum4[i] = second[i];
-+}
-+
-+__device__ __noinline__ int tron_base58_payload25(const uint8_t payload25[25], char out[48]) {
-+  const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-+  uint8_t digits[64];
-+  int ret_pos = 0;
-+  int first = 0;
-+  while (first < 25 && payload25[first] == 0) {
-+    out[ret_pos++] = '1';
-+    ++first;
-+  }
-+  int digits_len = 1;
-+  digits[0] = 0;
-+  for (int i = first; i < 25; ++i) {
-+    uint32_t carry = payload25[i];
-+    for (int j = 0; j < digits_len; ++j) {
-+      carry += static_cast<uint32_t>(digits[j]) << 8;
-+      digits[j] = static_cast<uint8_t>(carry % 58);
-+      carry /= 58;
-+    }
-+    while (carry > 0) {
-+      digits[digits_len++] = static_cast<uint8_t>(carry % 58);
-+      carry /= 58;
-+    }
-+  }
-+  for (int i = 0; i < digits_len; ++i) {
-+    out[ret_pos++] = alphabet[digits[digits_len - 1 - i]];
-+  }
-+  out[ret_pos] = 0;
-+  return ret_pos;
-+}
-+
-+__device__ __noinline__ int tron_address_from_public_key64(
-+    const uint8_t public_key64[64],
-+    char address[48],
-+    uint8_t payload25[25]) {
-+  uint8_t digest[32];
-+  uint8_t checksum[4];
-+  tron_keccak256_64(public_key64, digest);
-+  payload25[0] = 0x41;
-+  for (int i = 0; i < 20; ++i) payload25[i + 1] = digest[i + 12];
-+  tron_checksum4(payload25, checksum);
-+  for (int i = 0; i < 4; ++i) payload25[21 + i] = checksum[i];
-+  return tron_base58_payload25(payload25, address);
-+}
-+
-+#endif
-diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
-new file mode 100644
-index 0000000..e6b0c7b
---- /dev/null
-+++ b/GPU/GPUTronVectorCheck.cu
-@@ -0,0 +1,183 @@
-+/*
-+ * RunPod-only CUDA correctness check for TRON address construction.
-+ *
-+ * This uses public TEST_ONLY public-key vectors. It does not generate private
-+ * keys, does not search, and does not benchmark.
-+ */
-+
-+#include <cuda_runtime.h>
-+
-+#include <cstdint>
-+#include <cstdio>
-+#include <cstring>
-+#include <stdexcept>
-+#include <string>
-+#include <vector>
-+
-+#include "GPUHash.h"
-+#include "GPUTron.h"
-+
-+struct TronVectorInput {
-+  uint8_t public_key64[64];
-+  char expected_address[48];
-+};
-+
-+struct TronVectorResult {
-+  int passed;
-+  int address_len;
-+  char computed_address[48];
-+  uint8_t payload25[25];
-+};
-+
-+__global__ void tron_vector_kernel(
-+    const TronVectorInput *inputs,
-+    TronVectorResult *results,
-+    int count) {
-+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-+  if (idx >= count) return;
-+
-+  TronVectorResult result{};
-+  result.address_len =
-+      tron_address_from_public_key64(inputs[idx].public_key64, result.computed_address, result.payload25);
-+  result.passed = 1;
-+  for (int i = 0; i < 48; ++i) {
-+    if (result.computed_address[i] != inputs[idx].expected_address[i]) {
-+      result.passed = 0;
-+      break;
-+    }
-+    if (inputs[idx].expected_address[i] == 0) break;
-+  }
-+  results[idx] = result;
-+}
-+
-+static uint8_t hex_value(char c) {
-+  if (c >= '0' && c <= '9') return static_cast<uint8_t>(c - '0');
-+  if (c >= 'a' && c <= 'f') return static_cast<uint8_t>(c - 'a' + 10);
-+  if (c >= 'A' && c <= 'F') return static_cast<uint8_t>(c - 'A' + 10);
-+  throw std::runtime_error("invalid hex");
-+}
-+
-+static std::vector<uint8_t> hex_to_bytes(const char *hex) {
-+  const size_t len = std::strlen(hex);
-+  if (len % 2 != 0) throw std::runtime_error("invalid hex length");
-+  std::vector<uint8_t> out(len / 2);
-+  for (size_t i = 0; i < out.size(); ++i) {
-+    out[i] = static_cast<uint8_t>((hex_value(hex[i * 2]) << 4) | hex_value(hex[i * 2 + 1]));
-+  }
-+  return out;
-+}
-+
-+static TronVectorInput make_input(const char *public_key_uncompressed_hex, const char *expected_address) {
-+  TronVectorInput input{};
-+  const char *public_key64_hex = public_key_uncompressed_hex;
-+  if (std::strlen(public_key_uncompressed_hex) == 130 &&
-+      public_key_uncompressed_hex[0] == '0' &&
-+      public_key_uncompressed_hex[1] == '4') {
-+    public_key64_hex = public_key_uncompressed_hex + 2;
-+  }
-+  std::vector<uint8_t> public_key = hex_to_bytes(public_key64_hex);
-+  if (public_key.size() != 64) throw std::runtime_error("public key must be 64 bytes");
-+  std::memcpy(input.public_key64, public_key.data(), 64);
-+  if (std::strlen(expected_address) >= sizeof(input.expected_address)) {
-+    throw std::runtime_error("expected address too long");
-+  }
-+  std::strncpy(input.expected_address, expected_address, sizeof(input.expected_address) - 1);
-+  return input;
-+}
-+
-+static const char *cuda_status(cudaError_t status) {
-+  return cudaGetErrorString(status);
-+}
-+
-+int main() {
-+  std::vector<TronVectorInput> inputs;
-+  inputs.push_back(make_input(
-+      "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
-+      "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC"));
-+  inputs.push_back(make_input(
-+      "04c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee51ae168fea63dc339a3c58419466ceaeef7f632653266d0e1236431a950cfe52a",
-+      "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K"));
-+  inputs.push_back(make_input(
-+      "04f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9388f7b0f632de8140fe337e62a37f3566500a99934c2231b6cb9fd7584b8e672",
-+      "TKTX96CBxr5kvhjsDHcqoiPWZageGxoTW3"));
-+  inputs.push_back(make_input(
-+      "0437a4aef1f8423ca076e4b7d99a8cabff40ddb8231f2a9f01081f15d7fa65c1bab96ced90a1b8f9b43a18fc900ff55af2be0e94b90a434fca5b9e226b835024cd",
-+      "TUqoWCpNbTPc7EwG2GbLpyPr7TYzEVYjhb"));
-+
-+  TronVectorInput *d_inputs = nullptr;
-+  TronVectorResult *d_results = nullptr;
-+  std::vector<TronVectorResult> results(inputs.size());
-+
-+  cudaError_t status = cudaMalloc(&d_inputs, inputs.size() * sizeof(TronVectorInput));
-+  if (status != cudaSuccess) {
-+    std::fprintf(stderr, "cudaMalloc inputs failed: %s\n", cuda_status(status));
-+    return 1;
-+  }
-+  status = cudaMalloc(&d_results, inputs.size() * sizeof(TronVectorResult));
-+  if (status != cudaSuccess) {
-+    std::fprintf(stderr, "cudaMalloc results failed: %s\n", cuda_status(status));
-+    cudaFree(d_inputs);
-+    return 1;
-+  }
-+  status = cudaMemcpy(
-+      d_inputs,
-+      inputs.data(),
-+      inputs.size() * sizeof(TronVectorInput),
-+      cudaMemcpyHostToDevice);
-+  if (status != cudaSuccess) {
-+    std::fprintf(stderr, "cudaMemcpy inputs failed: %s\n", cuda_status(status));
-+    cudaFree(d_inputs);
-+    cudaFree(d_results);
-+    return 1;
-+  }
-+
-+  tron_vector_kernel<<<1, 32>>>(d_inputs, d_results, static_cast<int>(inputs.size()));
-+  status = cudaDeviceSynchronize();
-+  if (status != cudaSuccess) {
-+    std::fprintf(stderr, "tron_vector_kernel failed: %s\n", cuda_status(status));
-+    cudaFree(d_inputs);
-+    cudaFree(d_results);
-+    return 1;
-+  }
-+
-+  status = cudaMemcpy(
-+      results.data(),
-+      d_results,
-+      results.size() * sizeof(TronVectorResult),
-+      cudaMemcpyDeviceToHost);
-+  cudaFree(d_inputs);
-+  cudaFree(d_results);
-+  if (status != cudaSuccess) {
-+    std::fprintf(stderr, "cudaMemcpy results failed: %s\n", cuda_status(status));
-+    return 1;
-+  }
-+
-+  int passed = 0;
-+  std::printf("{\n");
-+  std::printf("  \"mode\": \"tron_gpu_address_layer_vectors\",\n");
-+  std::printf("  \"total_vectors\": %zu,\n", results.size());
-+  std::printf("  \"results\": [\n");
-+  for (size_t i = 0; i < results.size(); ++i) {
-+    if (results[i].passed) ++passed;
-+    std::printf(
-+        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\"}%s\n",
-+        i,
-+        results[i].passed ? "true" : "false",
-+        results[i].computed_address,
-+        i + 1 == results.size() ? "" : ",");
-+  }
-+  std::printf("  ],\n");
-+  std::printf("  \"passed\": %d,\n", passed);
-+  std::printf("  \"failed\": %zu,\n", results.size() - static_cast<size_t>(passed));
-+  std::printf("  \"notes\": [\n");
-+  std::printf("    \"GPU TRON address layer vector check only; no search or benchmark is run.\",\n");
-+  std::printf("    \"Inputs are public TEST_ONLY public-key vectors; no scalar material is generated or printed.\"\n");
-+  std::printf("  ]\n");
-+  std::printf("}\n");
-+
-+  if (passed == static_cast<int>(results.size())) {
-+    std::printf("tron_gpu_address_layer_passed\n");
-+    return 0;
-+  }
-+  return 1;
-+}
-diff --git a/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md b/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
-new file mode 100644
-index 0000000..797f6c9
---- /dev/null
-+++ b/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
-@@ -0,0 +1,43 @@
-+# RunPod TRON GPU Address Layer Check
-+
-+## Purpose
-+
-+This is a short CUDA correctness check for the VanitySearch TRON adaptation.
-+
-+It verifies:
-+
-+- Keccak-256 over uncompressed secp256k1 public key bytes without the `04` prefix
-+- TRON payload construction with leading `0x41`
-+- double-SHA256 checksum
-+- Base58Check address encoding
-+- four public TEST_ONLY public-key vectors
-+
-+It does not:
-+
-+- generate scalar material
-+- search vanity addresses
-+- benchmark speed
-+- call RunPod APIs
-+- touch `47.80.70.211`
-+
-+## RunPod Command
-+
-+From the VanitySearch candidate repository on a CUDA-capable RunPod Pod:
-+
-+```bash
-+CUDA_ARCH=sm_80 scripts/runpod_verify_tron_gpu_address_layer.sh
-+```
-+
-+Use the correct `CUDA_ARCH` for the selected GPU if needed.
-+
-+Expected success marker:
-+
-+```text
-+tron_gpu_address_layer_script_passed
-+```
-+
-+## Next Gate
-+
-+Only after this check passes should the TRON address layer be wired into the existing VanitySearch GPU point-walking search loop.
-+
-+Do not treat this check as an address generation speed result.
-diff --git a/scripts/runpod_verify_tron_gpu_address_layer.sh b/scripts/runpod_verify_tron_gpu_address_layer.sh
-new file mode 100755
-index 0000000..a6aeff3
---- /dev/null
-+++ b/scripts/runpod_verify_tron_gpu_address_layer.sh
-@@ -0,0 +1,34 @@
-+#!/usr/bin/env bash
-+set -euo pipefail
-+
-+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-+cd "$ROOT"
-+
-+NVCC_BIN="${NVCC:-nvcc}"
-+CUDA_ARCH="${CUDA_ARCH:-sm_80}"
-+OUT="${OUT:-/tmp/tron_gpu_address_layer_check}"
-+
-+echo "== compile TRON GPU address layer vector check"
-+"$NVCC_BIN" \
-+  -std=c++17 \
-+  -O2 \
-+  -I. \
-+  -I./GPU \
-+  -arch="$CUDA_ARCH" \
-+  GPU/GPUTronVectorCheck.cu \
-+  -o "$OUT"
-+
-+echo "== run TRON GPU address layer vector check"
-+"$OUT" | tee /tmp/tron_gpu_address_layer_check.json
-+
-+if ! grep -q "tron_gpu_address_layer_passed" /tmp/tron_gpu_address_layer_check.json; then
-+  echo "tron_gpu_address_layer_failed" >&2
-+  exit 1
-+fi
-+
-+if grep -Eiq "private_key|mnemonic|seed|token|secret|wif|priv" /tmp/tron_gpu_address_layer_check.json; then
-+  echo "unexpected sensitive marker in GPU address layer output" >&2
-+  exit 1
-+fi
-+
-+echo "tron_gpu_address_layer_script_passed"
--- 
-2.50.1 (Apple Git-155)
-
-
-From 98a05c73c7b0bdd61d105a7984b8a4a1173fa4b7 Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 00:26:41 +0800
-Subject: [PATCH 04/15] Add TRON GPU product rule vector checks
-
----
- GPU/GPUTron.h                               | 14 +++++++++
- GPU/GPUTronVectorCheck.cu                   | 32 ++++++++++++++++++++-
- docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md |  1 +
- 3 files changed, 46 insertions(+), 1 deletion(-)
-
-diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
-index 8fae95c..e816216 100644
---- a/GPU/GPUTron.h
-+++ b/GPU/GPUTron.h
-@@ -187,4 +187,18 @@ __device__ __noinline__ int tron_address_from_public_key64(
-   return tron_base58_payload25(payload25, address);
- }
- 
-+__device__ __noinline__ bool tron_match_prefix_after_t_suffix(
-+    const char address[48],
-+    int address_len,
-+    char prefix_after_t,
-+    const char suffix5[6]) {
-+  if (address_len < 7) return false;
-+  if (address[0] != 'T') return false;
-+  if (address[1] != prefix_after_t) return false;
-+  for (int i = 0; i < 5; ++i) {
-+    if (address[address_len - 5 + i] != suffix5[i]) return false;
-+  }
-+  return true;
-+}
-+
- #endif
-diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
-index e6b0c7b..64f99f8 100644
---- a/GPU/GPUTronVectorCheck.cu
-+++ b/GPU/GPUTronVectorCheck.cu
-@@ -20,11 +20,16 @@
- struct TronVectorInput {
-   uint8_t public_key64[64];
-   char expected_address[48];
-+  char prefix_after_t;
-+  char suffix5[6];
-+  char wrong_suffix5[6];
- };
- 
- struct TronVectorResult {
-   int passed;
-   int address_len;
-+  int match_rule_passed;
-+  int wrong_rule_rejected;
-   char computed_address[48];
-   uint8_t payload25[25];
- };
-@@ -39,6 +44,16 @@ __global__ void tron_vector_kernel(
-   TronVectorResult result{};
-   result.address_len =
-       tron_address_from_public_key64(inputs[idx].public_key64, result.computed_address, result.payload25);
-+  result.match_rule_passed = tron_match_prefix_after_t_suffix(
-+      result.computed_address,
-+      result.address_len,
-+      inputs[idx].prefix_after_t,
-+      inputs[idx].suffix5) ? 1 : 0;
-+  result.wrong_rule_rejected = !tron_match_prefix_after_t_suffix(
-+      result.computed_address,
-+      result.address_len,
-+      inputs[idx].prefix_after_t,
-+      inputs[idx].wrong_suffix5) ? 1 : 0;
-   result.passed = 1;
-   for (int i = 0; i < 48; ++i) {
-     if (result.computed_address[i] != inputs[idx].expected_address[i]) {
-@@ -47,6 +62,9 @@ __global__ void tron_vector_kernel(
-     }
-     if (inputs[idx].expected_address[i] == 0) break;
-   }
-+  if (!result.match_rule_passed || !result.wrong_rule_rejected) {
-+    result.passed = 0;
-+  }
-   results[idx] = result;
- }
- 
-@@ -82,6 +100,15 @@ static TronVectorInput make_input(const char *public_key_uncompressed_hex, const
-     throw std::runtime_error("expected address too long");
-   }
-   std::strncpy(input.expected_address, expected_address, sizeof(input.expected_address) - 1);
-+  const size_t address_len = std::strlen(expected_address);
-+  if (address_len < 7 || expected_address[0] != 'T') {
-+    throw std::runtime_error("expected address must be a TRON Base58 address");
-+  }
-+  input.prefix_after_t = expected_address[1];
-+  std::memcpy(input.suffix5, expected_address + address_len - 5, 5);
-+  input.suffix5[5] = 0;
-+  std::memcpy(input.wrong_suffix5, input.suffix5, 6);
-+  input.wrong_suffix5[0] = input.wrong_suffix5[0] == '1' ? '2' : '1';
-   return input;
- }
- 
-@@ -160,10 +187,12 @@ int main() {
-   for (size_t i = 0; i < results.size(); ++i) {
-     if (results[i].passed) ++passed;
-     std::printf(
--        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\"}%s\n",
-+        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s}%s\n",
-         i,
-         results[i].passed ? "true" : "false",
-         results[i].computed_address,
-+        results[i].match_rule_passed ? "true" : "false",
-+        results[i].wrong_rule_rejected ? "true" : "false",
-         i + 1 == results.size() ? "" : ",");
-   }
-   std::printf("  ],\n");
-@@ -171,6 +200,7 @@ int main() {
-   std::printf("  \"failed\": %zu,\n", results.size() - static_cast<size_t>(passed));
-   std::printf("  \"notes\": [\n");
-   std::printf("    \"GPU TRON address layer vector check only; no search or benchmark is run.\",\n");
-+  std::printf("    \"The product rule checked here is fixed T plus prefix_after_t(1) plus suffix(5).\",\n");
-   std::printf("    \"Inputs are public TEST_ONLY public-key vectors; no scalar material is generated or printed.\"\n");
-   std::printf("  ]\n");
-   std::printf("}\n");
-diff --git a/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md b/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
-index 797f6c9..05a64a9 100644
---- a/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
-+++ b/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
-@@ -10,6 +10,7 @@ It verifies:
- - TRON payload construction with leading `0x41`
- - double-SHA256 checksum
- - Base58Check address encoding
-+- product matching rule: fixed `T` + `prefix_after_t` 1 char + suffix 5 chars
- - four public TEST_ONLY public-key vectors
- 
- It does not:
--- 
-2.50.1 (Apple Git-155)
-
-
-From 6224f8980c57e95ec149c15c01b6f95cd9b1abb7 Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 00:35:56 +0800
-Subject: [PATCH 05/15] Add TRON GPU wildcard search path
-
----
- GPU/GPUCompute.h                              | 143 ++++++++++++++++++
- GPU/GPUEngine.cu                              |  21 ++-
- GPU/GPUTron.h                                 |  20 +++
- SECP256K1.cpp                                 |   7 +
- SECP256k1.h                                   |   1 +
- Vanity.cpp                                    |  71 ++++++++-
- docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md  |  54 +++++++
- .../runpod_tron_gpu_pattern_search_smoke.sh   |  40 +++++
- 8 files changed, 348 insertions(+), 9 deletions(-)
- create mode 100644 docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
- create mode 100755 scripts/runpod_tron_gpu_pattern_search_smoke.sh
-
-diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index 6c43e94..d7747e2 100644
---- a/GPU/GPUCompute.h
-+++ b/GPU/GPUCompute.h
-@@ -251,6 +251,149 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
- 
- // -----------------------------------------------------------------------------------------
- 
-+__device__ __noinline__ void CheckTronPoint(
-+    uint64_t *px,
-+    uint64_t *py,
-+    int32_t incr,
-+    int32_t endo,
-+    char *pattern,
-+    uint32_t maxFound,
-+    uint32_t *out) {
-+
-+  uint8_t public_key64[64];
-+  uint8_t payload25[25];
-+  char address[48];
-+  uint32_t tid = (blockIdx.x*blockDim.x) + threadIdx.x;
-+
-+  tron_public_key64_from_xy(px, py, public_key64);
-+  int address_len = tron_address_from_public_key64(public_key64, address, payload25);
-+  if (address_len <= 0 || !_Match(address, pattern)) {
-+    return;
-+  }
-+
-+  uint32_t pos = atomicAdd(out, 1);
-+  if (pos < maxFound) {
-+    out[pos*ITEM_SIZE32 + 1] = tid;
-+    out[pos*ITEM_SIZE32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(0 << 15) | (uint32_t)(endo);
-+    memcpy(out + pos*ITEM_SIZE32 + 3, payload25 + 1, 20);
-+  }
-+}
-+
-+#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, localPattern, maxFound, out)
-+
-+__device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char *pattern,
-+                                       uint32_t maxFound, uint32_t *out) {
-+
-+  uint64_t dx[GRP_SIZE/2+1][4];
-+  uint64_t px[4];
-+  uint64_t py[4];
-+  uint64_t pyn[4];
-+  uint64_t sx[4];
-+  uint64_t sy[4];
-+  uint64_t dy[4];
-+  uint64_t _s[4];
-+  uint64_t _p2[4];
-+  char localPattern[48];
-+
-+  __syncthreads();
-+  Load256A(sx, startx);
-+  Load256A(sy, starty);
-+  Load256(px, sx);
-+  Load256(py, sy);
-+  memcpy(localPattern, pattern, 48);
-+
-+  for (uint32_t j = 0; j < STEP_SIZE / GRP_SIZE; j++) {
-+
-+    uint32_t i;
-+    for (i = 0; i < HSIZE; i++)
-+      ModSub256(dx[i], Gx[i], sx);
-+    ModSub256(dx[i] , Gx[i], sx);
-+    ModSub256(dx[i+1],_2Gnx, sx);
-+
-+    _ModInvGrouped(dx);
-+
-+    CHECK_TRON_PATTERN(GRP_SIZE / 2);
-+
-+    ModNeg256(pyn,py);
-+
-+    for(i = 0; i < HSIZE; i++) {
-+
-+      Load256(px, sx);
-+      Load256(py, sy);
-+      ModSub256(dy, Gy[i], py);
-+
-+      _ModMult(_s, dy, dx[i]);
-+      _ModSqr(_p2, _s);
-+
-+      ModSub256(px, _p2,px);
-+      ModSub256(px, Gx[i]);
-+
-+      ModSub256(py, Gx[i], px);
-+      _ModMult(py, _s);
-+      ModSub256(py, Gy[i]);
-+
-+      CHECK_TRON_PATTERN(GRP_SIZE / 2 + (i + 1));
-+
-+      Load256(px, sx);
-+      ModSub256(dy,pyn,Gy[i]);
-+
-+      _ModMult(_s, dy, dx[i]);
-+      _ModSqr(_p2, _s);
-+
-+      ModSub256(px, _p2, px);
-+      ModSub256(px, Gx[i]);
-+
-+      ModSub256(py, px, Gx[i]);
-+      _ModMult(py, _s);
-+      ModSub256(py, Gy[i], py);
-+
-+      CHECK_TRON_PATTERN(GRP_SIZE / 2 - (i + 1));
-+
-+    }
-+
-+    Load256(px, sx);
-+    Load256(py, sy);
-+    ModNeg256(dy, Gy[i]);
-+    ModSub256(dy, py);
-+
-+    _ModMult(_s, dy, dx[i]);
-+    _ModSqr(_p2,_s);
-+
-+    ModSub256(px, _p2, px);
-+    ModSub256(px, Gx[i]);
-+
-+    ModSub256(py, px, Gx[i]);
-+    _ModMult(py, _s);
-+    ModSub256(py, Gy[i], py);
-+
-+    CHECK_TRON_PATTERN(0);
-+
-+    i++;
-+
-+    Load256(px, sx);
-+    Load256(py, sy);
-+    ModSub256(dy, _2Gny, py);
-+
-+    _ModMult(_s, dy, dx[i]);
-+    _ModSqr(_p2, _s);
-+
-+    ModSub256(px, _p2, px);
-+    ModSub256(px, _2Gnx);
-+
-+    ModSub256(py, _2Gnx, px);
-+    _ModMult(py, _s);
-+    ModSub256(py, _2Gny);
-+
-+  }
-+
-+  __syncthreads();
-+  Store256A(startx, px);
-+  Store256A(starty, py);
-+
-+}
-+
-+// -----------------------------------------------------------------------------------------
-+
- __device__ void ComputeKeys(uint32_t mode, uint64_t *startx, uint64_t *starty,
-                             prefix_t *sPrefix, uint32_t *lookup32, uint32_t maxFound, uint32_t *out) {
- 
-diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
-index ccb113c..e337878 100644
---- a/GPU/GPUEngine.cu
-+++ b/GPU/GPUEngine.cu
-@@ -33,6 +33,7 @@
- #include "GPUMath.h"
- #include "GPUHash.h"
- #include "GPUBase58.h"
-+#include "GPUTron.h"
- #include "GPUWildcard.h"
- #include "GPUCompute.h"
- 
-@@ -78,6 +79,14 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
- 
- }
- 
-+__global__ void comp_keys_tron_pattern(prefix_t *pattern, uint64_t *keys, uint32_t maxFound, uint32_t *found) {
-+
-+  int xPtr = (blockIdx.x*blockDim.x) * 8;
-+  int yPtr = xPtr + 4 * blockDim.x;
-+  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, (char *)pattern, maxFound, found);
-+
-+}
-+
- //#define FULLCHECK
- #ifdef FULLCHECK
- 
-@@ -459,7 +468,16 @@ bool GPUEngine::callKernel() {
-   cudaMemset(outputPrefix,0,4);
- 
-   // Call the kernel (Perform STEP_SIZE keys per thread)
--  if (searchType == P2SH) {
-+  if (searchType == TRON_ADDR) {
-+
-+    if (!hasPattern) {
-+      printf("GPUEngine: TRON currently requires wildcard pattern mode, for example TA*CDEFG\n");
-+      return false;
-+    }
-+    comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
-+      (inputPrefix, inputKey, maxFound, outputPrefix);
-+
-+  } else if (searchType == P2SH) {
- 
-     if (hasPattern) {
-       comp_keys_p2sh_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
-@@ -841,4 +859,3 @@ bool GPUEngine::Check(Secp256K1 *secp) {
- 
- }
- 
--
-diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
-index e816216..631cadb 100644
---- a/GPU/GPUTron.h
-+++ b/GPU/GPUTron.h
-@@ -187,6 +187,26 @@ __device__ __noinline__ int tron_address_from_public_key64(
-   return tron_base58_payload25(payload25, address);
- }
- 
-+__device__ __noinline__ void tron_public_key64_from_xy(
-+    uint64_t *x,
-+    uint64_t *y,
-+    uint8_t public_key64[64]) {
-+  uint32_t *x32 = (uint32_t *)(x);
-+  uint32_t *y32 = (uint32_t *)(y);
-+  for (int i = 0; i < 8; ++i) {
-+    uint32_t xw = x32[7 - i];
-+    uint32_t yw = y32[7 - i];
-+    public_key64[i * 4] = static_cast<uint8_t>((xw >> 24) & 0xff);
-+    public_key64[i * 4 + 1] = static_cast<uint8_t>((xw >> 16) & 0xff);
-+    public_key64[i * 4 + 2] = static_cast<uint8_t>((xw >> 8) & 0xff);
-+    public_key64[i * 4 + 3] = static_cast<uint8_t>(xw & 0xff);
-+    public_key64[32 + i * 4] = static_cast<uint8_t>((yw >> 24) & 0xff);
-+    public_key64[32 + i * 4 + 1] = static_cast<uint8_t>((yw >> 16) & 0xff);
-+    public_key64[32 + i * 4 + 2] = static_cast<uint8_t>((yw >> 8) & 0xff);
-+    public_key64[32 + i * 4 + 3] = static_cast<uint8_t>(yw & 0xff);
-+  }
-+}
-+
- __device__ __noinline__ bool tron_match_prefix_after_t_suffix(
-     const char address[48],
-     int address_len,
-diff --git a/SECP256K1.cpp b/SECP256K1.cpp
-index e6d7262..285fb42 100644
---- a/SECP256K1.cpp
-+++ b/SECP256K1.cpp
-@@ -728,6 +728,10 @@ std::string Secp256K1::GetAddress(int type, bool compressed,unsigned char *hash1
-       return std::string(output);
-     }
-     break;
-+
-+    case TRON_ADDR:
-+      address[0] = 0x41;
-+      break;
-   }
-   memcpy(address + 1, hash160,20);
-   sha256_checksum(address,21,address+21);
-@@ -766,6 +770,9 @@ std::string Secp256K1::GetAddress(int type, bool compressed, Point &pubKey) {
-     }
-     address[0] = 0x05;
-     break;
-+
-+  case TRON_ADDR:
-+    return GetTronAddress(pubKey);
-   }
- 
-   GetHash160(type,compressed,pubKey, address + 1);
-diff --git a/SECP256k1.h b/SECP256k1.h
-index f2fd75e..e91bc08 100644
---- a/SECP256k1.h
-+++ b/SECP256k1.h
-@@ -26,6 +26,7 @@
- #define P2PKH  0
- #define P2SH   1
- #define BECH32 2
-+#define TRON_ADDR 3
- 
- class Secp256K1 {
- 
-diff --git a/Vanity.cpp b/Vanity.cpp
-index e7ad0d7..ae2b9d3 100644
---- a/Vanity.cpp
-+++ b/Vanity.cpp
-@@ -245,9 +245,13 @@ VanitySearch::VanitySearch(Secp256K1 *secp, vector<std::string> &inputPrefixes,s
-     case 'B':
-       searchType = BECH32;
-       break;
-+    case 'T':
-+      searchType = TRON_ADDR;
-+      searchMode = SEARCH_UNCOMPRESSED;
-+      break;
- 
-     default:
--      printf("Invalid start character 1,3 or b, expected");
-+      printf("Invalid start character 1,3,b or T, expected");
-       exit(1);
- 
-     }
-@@ -363,16 +367,19 @@ bool VanitySearch::initPrefix(std::string &prefix,PREFIX_ITEM *it) {
-     if(strncmp(prefix.c_str(), "bc1q", 4) == 0)
-       aType = BECH32;
-     break;
-+  case 'T':
-+    aType = TRON_ADDR;
-+    break;
-   }
- 
-   if (aType==-1) {
--    printf("Ignoring prefix \"%s\" (must start with 1 or 3 or bc1q)\n", prefix.c_str());
-+    printf("Ignoring prefix \"%s\" (must start with 1, 3, bc1q or T)\n", prefix.c_str());
-     return false;
-   }
- 
-   if (searchType == -1) searchType = aType;
-   if (aType != searchType) {
--    printf("Ignoring prefix \"%s\" (P2PKH, P2SH or BECH32 allowed at once)\n", prefix.c_str());
-+    printf("Ignoring prefix \"%s\" (P2PKH, P2SH, BECH32 or TRON allowed at once)\n", prefix.c_str());
-     return false;
-   }
- 
-@@ -429,6 +436,53 @@ bool VanitySearch::initPrefix(std::string &prefix,PREFIX_ITEM *it) {
- 
-     return true;
- 
-+  } else if (aType == TRON_ADDR) {
-+
-+    wrong = !DecodeBase58(prefix, result);
-+
-+    if (wrong) {
-+      if (caseSensitive)
-+        printf("Ignoring prefix \"%s\" (0, I, O and l not allowed)\n", prefix.c_str());
-+      return false;
-+    }
-+
-+    if (result.size() > 21) {
-+      it->difficulty = pow(2, 160);
-+      it->isFull = true;
-+      memcpy(it->hash160, result.data() + 1, 20);
-+      it->sPrefix = *(prefix_t *)(it->hash160);
-+      it->lPrefix = *(prefixl_t *)(it->hash160);
-+      it->prefix = (char *)prefix.c_str();
-+      it->prefixLength = (int)prefix.length();
-+      return true;
-+    }
-+
-+    if (prefix.length() < 2) {
-+      printf("Ignoring prefix \"%s\" (too short)\n", prefix.c_str());
-+      return false;
-+    }
-+
-+    while (result.size() < 25) {
-+      DecodeBase58(dummy1, result);
-+      if (result.size() < 25) {
-+        dummy1.append("1");
-+        nbDigit++;
-+      }
-+    }
-+
-+    if (result.size() != 25 || result.data()[0] != 0x41) {
-+      printf("Ignoring prefix \"%s\" (invalid TRON Base58 prefix)\n", prefix.c_str());
-+      return false;
-+    }
-+
-+    it->sPrefix = *(prefix_t *)(result.data() + 1);
-+    it->difficulty = pow(2, 192) / pow(58, nbDigit);
-+    it->isFull = false;
-+    it->lPrefix = 0;
-+    it->prefix = (char *)prefix.c_str();
-+    it->prefixLength = (int)prefix.length();
-+    return true;
-+
-   } else {
- 
-     // P2PKH/P2SH
-@@ -705,10 +759,13 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
-     case P2SH:
-       fprintf(f, "Priv (WIF): p2wpkh-p2sh:%s\n", pAddr.c_str());
-       break;
--    case BECH32:
--      fprintf(f, "Priv (WIF): p2wpkh:%s\n", pAddr.c_str());
--      break;
--    }
-+  case BECH32:
-+    fprintf(f, "Priv (WIF): p2wpkh:%s\n", pAddr.c_str());
-+    break;
-+  case TRON_ADDR:
-+    fprintf(f, "Priv (WIF): tron-staging:%s\n", pAddr.c_str());
-+    break;
-+  }
-     fprintf(f, "Priv (HEX): 0x%s\n", pAddrHex.c_str());
- 
-   }
-diff --git a/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
-new file mode 100644
-index 0000000..86e366d
---- /dev/null
-+++ b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
-@@ -0,0 +1,54 @@
-+# RunPod TRON GPU Pattern Search Smoke
-+
-+## Purpose
-+
-+This is the first TRON GPU search smoke for the VanitySearch adaptation.
-+
-+It verifies that the existing VanitySearch GPU point-walking path can launch a TRON wildcard pattern search such as:
-+
-+```text
-+TA*CDEFG
-+```
-+
-+That pattern means:
-+
-+- fixed leading `T`
-+- `A` as `prefix_after_t`
-+- any middle characters
-+- `CDEFG` as suffix 5
-+
-+This is not a performance benchmark.
-+
-+## Current Implementation
-+
-+- `TRON_ADDR` is a separate address type.
-+- `T...` wildcard patterns select TRON search.
-+- GPU pattern mode calls `ComputeKeysTronPattern`.
-+- GPU returns the 20-byte TRON payload body.
-+- CPU reconstructs the TRON Base58Check address and verifies the candidate key.
-+
-+The current TRON GPU pattern path uses full address construction for pattern matching. It is intended as a functional bridge before adding faster prefix/suffix filters.
-+
-+## RunPod Build And Smoke
-+
-+On a short-lived CUDA-capable RunPod Pod, after applying the candidate patch:
-+
-+```bash
-+ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE=1 CUDA_ARCH=80 scripts/runpod_tron_gpu_pattern_search_smoke.sh
-+```
-+
-+`timeout` exit code `124` is acceptable for this smoke if there is no crash before timeout.
-+
-+The default smoke pattern is intentionally longer than the product's 5-character suffix so an accidental hit is very unlikely during a short compile/run check. Product-rule matching is covered by `scripts/runpod_verify_tron_gpu_address_layer.sh`.
-+
-+## Safety
-+
-+- Do not run this on `47.80.70.211`.
-+- Do not treat this as a speed result.
-+- Do not use customer patterns or customer data.
-+- Do not rely on plaintext output for production.
-+- Production return must still be handled by the Python wrapper and age encryption.
-+
-+## Next Gate
-+
-+After this smoke compiles and runs on RunPod, add optimized GPU prefix-after-T and suffix filters so the hot path does not Base58-encode every candidate unless needed.
-diff --git a/scripts/runpod_tron_gpu_pattern_search_smoke.sh b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
-new file mode 100755
-index 0000000..c7e9640
---- /dev/null
-+++ b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
-@@ -0,0 +1,40 @@
-+#!/usr/bin/env bash
-+set -euo pipefail
-+
-+if [ "${ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE:-0}" != "1" ]; then
-+  echo "refusing_to_run_without_ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE=1" >&2
-+  echo "This smoke is intended for a short-lived CUDA RunPod Pod only." >&2
-+  exit 2
-+fi
-+
-+CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
-+CUDA_ARCH="${CUDA_ARCH:-80}"
-+CXXCUDA="${CXXCUDA:-/usr/bin/g++}"
-+SMOKE_PATTERN="${SMOKE_PATTERN:-TA*123456789ABCDEFGH}"
-+SMOKE_SECONDS="${SMOKE_SECONDS:-10}"
-+
-+echo "== build VanitySearch with GPU support"
-+make gpu=1 CCAP="$CUDA_ARCH" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" all
-+
-+echo "== run bounded TRON GPU pattern smoke"
-+set +e
-+timeout "$SMOKE_SECONDS"s ./VanitySearch -gpu -t 0 -g 8,128 "$SMOKE_PATTERN" \
-+  > /tmp/tron_gpu_pattern_smoke_stdout.txt \
-+  2> /tmp/tron_gpu_pattern_smoke_stderr.txt
-+rc=$?
-+set -e
-+
-+if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then
-+  echo "tron_gpu_pattern_smoke_failed rc=$rc" >&2
-+  tail -80 /tmp/tron_gpu_pattern_smoke_stdout.txt >&2 || true
-+  tail -80 /tmp/tron_gpu_pattern_smoke_stderr.txt >&2 || true
-+  exit 1
-+fi
-+
-+if grep -Eiq "Priv|WIF|HEX|private_key|mnemonic|seed|token|secret" \
-+  /tmp/tron_gpu_pattern_smoke_stdout.txt /tmp/tron_gpu_pattern_smoke_stderr.txt; then
-+  echo "unexpected sensitive marker or hit output in TRON GPU pattern smoke" >&2
-+  exit 1
-+fi
-+
-+echo "tron_gpu_pattern_smoke_passed"
--- 
-2.50.1 (Apple Git-155)
-
-
-From 2403869713f9b64c07556beaf7aec7475e0bddf7 Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 00:46:37 +0800
-Subject: [PATCH 06/15] Use dedicated TRON prefix suffix GPU rule
-
----
- GPU/GPUCompute.h                              | 14 ++++----
- GPU/GPUEngine.cu                              | 34 ++++++++++++++++---
- GPU/GPUEngine.h                               |  4 +++
- Vanity.cpp                                    |  4 ++-
- docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md  |  5 +--
- .../runpod_tron_gpu_pattern_search_smoke.sh   |  2 +-
- 6 files changed, 47 insertions(+), 16 deletions(-)
-
-diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index d7747e2..740e512 100644
---- a/GPU/GPUCompute.h
-+++ b/GPU/GPUCompute.h
-@@ -256,7 +256,8 @@ __device__ __noinline__ void CheckTronPoint(
-     uint64_t *py,
-     int32_t incr,
-     int32_t endo,
--    char *pattern,
-+    char prefixAfterT,
-+    const char suffix5[6],
-     uint32_t maxFound,
-     uint32_t *out) {
- 
-@@ -267,7 +268,8 @@ __device__ __noinline__ void CheckTronPoint(
- 
-   tron_public_key64_from_xy(px, py, public_key64);
-   int address_len = tron_address_from_public_key64(public_key64, address, payload25);
--  if (address_len <= 0 || !_Match(address, pattern)) {
-+  if (address_len <= 0 ||
-+      !tron_match_prefix_after_t_suffix(address, address_len, prefixAfterT, suffix5)) {
-     return;
-   }
- 
-@@ -279,10 +281,10 @@ __device__ __noinline__ void CheckTronPoint(
-   }
- }
- 
--#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, localPattern, maxFound, out)
-+#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, prefixAfterT, suffix5, maxFound, out)
- 
--__device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char *pattern,
--                                       uint32_t maxFound, uint32_t *out) {
-+__device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char prefixAfterT,
-+                                       const char suffix5[6], uint32_t maxFound, uint32_t *out) {
- 
-   uint64_t dx[GRP_SIZE/2+1][4];
-   uint64_t px[4];
-@@ -293,14 +295,12 @@ __device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char
-   uint64_t dy[4];
-   uint64_t _s[4];
-   uint64_t _p2[4];
--  char localPattern[48];
- 
-   __syncthreads();
-   Load256A(sx, startx);
-   Load256A(sy, starty);
-   Load256(px, sx);
-   Load256(py, sy);
--  memcpy(localPattern, pattern, 48);
- 
-   for (uint32_t j = 0; j < STEP_SIZE / GRP_SIZE; j++) {
- 
-diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
-index e337878..a18db4a 100644
---- a/GPU/GPUEngine.cu
-+++ b/GPU/GPUEngine.cu
-@@ -79,11 +79,12 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
- 
- }
- 
--__global__ void comp_keys_tron_pattern(prefix_t *pattern, uint64_t *keys, uint32_t maxFound, uint32_t *found) {
-+__global__ void comp_keys_tron_pattern(char prefixAfterT, const char *suffix5, uint64_t *keys,
-+                                       uint32_t maxFound, uint32_t *found) {
- 
-   int xPtr = (blockIdx.x*blockDim.x) * 8;
-   int yPtr = xPtr + 4 * blockDim.x;
--  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, (char *)pattern, maxFound, found);
-+  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, prefixAfterT, suffix5, maxFound, found);
- 
- }
- 
-@@ -293,6 +294,9 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
-   initialised = true;
-   pattern = "";
-   hasPattern = false;
-+  hasTronRule = false;
-+  tronPrefixAfterT = 0;
-+  memset(tronSuffix5, 0, sizeof(tronSuffix5));
-   inputPrefixLookUp = NULL;
- 
- }
-@@ -413,6 +417,27 @@ void GPUEngine::SetPattern(const char *pattern) {
- 
- }
- 
-+bool GPUEngine::SetTronPattern(const char *pattern) {
-+
-+  if (!pattern) {
-+    printf("GPUEngine: missing TRON pattern\n");
-+    return false;
-+  }
-+  size_t len = strlen(pattern);
-+  if (len != 8 || pattern[0] != 'T' || pattern[2] != '*') {
-+    printf("GPUEngine: TRON pattern must be T<one-char>*<five-char-suffix>, for example TA*CDEFG\n");
-+    return false;
-+  }
-+
-+  SetPattern(pattern);
-+  tronPrefixAfterT = pattern[1];
-+  memcpy(tronSuffix5, pattern + 3, 5);
-+  tronSuffix5[5] = 0;
-+  hasTronRule = true;
-+  return true;
-+
-+}
-+
- void GPUEngine::SetPrefix(std::vector<LPREFIX> prefixes, uint32_t totalPrefix) {
- 
-   // Allocate memory for the second level of lookup tables
-@@ -470,12 +495,12 @@ bool GPUEngine::callKernel() {
-   // Call the kernel (Perform STEP_SIZE keys per thread)
-   if (searchType == TRON_ADDR) {
- 
--    if (!hasPattern) {
-+    if (!hasPattern || !hasTronRule) {
-       printf("GPUEngine: TRON currently requires wildcard pattern mode, for example TA*CDEFG\n");
-       return false;
-     }
-     comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
--      (inputPrefix, inputKey, maxFound, outputPrefix);
-+      (tronPrefixAfterT, tronSuffix5, inputKey, maxFound, outputPrefix);
- 
-   } else if (searchType == P2SH) {
- 
-@@ -858,4 +883,3 @@ bool GPUEngine::Check(Secp256K1 *secp) {
-   return ok;
- 
- }
--
-diff --git a/GPU/GPUEngine.h b/GPU/GPUEngine.h
-index 6d00aab..25eea11 100644
---- a/GPU/GPUEngine.h
-+++ b/GPU/GPUEngine.h
-@@ -64,6 +64,7 @@ public:
-   void SetSearchMode(int searchMode);
-   void SetSearchType(int searchType);
-   void SetPattern(const char *pattern);
-+  bool SetTronPattern(const char *pattern);
-   bool Launch(std::vector<ITEM> &prefixFound,bool spinWait=false);
-   int GetNbThread();
-   int GetGroupSize();
-@@ -101,6 +102,9 @@ private:
-   uint32_t outputSize;
-   std::string pattern;
-   bool hasPattern;
-+  bool hasTronRule;
-+  char tronPrefixAfterT;
-+  char tronSuffix5[6];
- 
- };
- 
-diff --git a/Vanity.cpp b/Vanity.cpp
-index ae2b9d3..b15f443 100644
---- a/Vanity.cpp
-+++ b/Vanity.cpp
-@@ -1585,7 +1585,9 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
-     g.SetPrefix(usedPrefixL,nbPrefix);
-   } else {
-     if(hasPattern)
--      g.SetPattern(inputPrefixes[0].c_str());
-+      ok = (searchType == TRON_ADDR)
-+        ? g.SetTronPattern(inputPrefixes[0].c_str())
-+        : (g.SetPattern(inputPrefixes[0].c_str()), true);
-     else
-       g.SetPrefix(usedPrefix);
-   }
-diff --git a/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
-index 86e366d..87ae6f3 100644
---- a/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
-+++ b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
-@@ -23,11 +23,12 @@ This is not a performance benchmark.
- 
- - `TRON_ADDR` is a separate address type.
- - `T...` wildcard patterns select TRON search.
-+- TRON pattern parsing is strict: `T<one-char>*<five-char-suffix>`.
- - GPU pattern mode calls `ComputeKeysTronPattern`.
- - GPU returns the 20-byte TRON payload body.
- - CPU reconstructs the TRON Base58Check address and verifies the candidate key.
- 
--The current TRON GPU pattern path uses full address construction for pattern matching. It is intended as a functional bridge before adding faster prefix/suffix filters.
-+The current TRON GPU pattern path uses full address construction, then a dedicated fixed-position `prefix_after_t` plus suffix-5 comparison. It is intended as a functional bridge before adding faster Base58 prefix/suffix prefilters.
- 
- ## RunPod Build And Smoke
- 
-@@ -39,7 +40,7 @@ ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE=1 CUDA_ARCH=80 scripts/runpod_tron_gpu_patte
- 
- `timeout` exit code `124` is acceptable for this smoke if there is no crash before timeout.
- 
--The default smoke pattern is intentionally longer than the product's 5-character suffix so an accidental hit is very unlikely during a short compile/run check. Product-rule matching is covered by `scripts/runpod_verify_tron_gpu_address_layer.sh`.
-+The default smoke pattern is `TA*CDEFG`, which is the strict product-rule format. The smoke treats any hit output as a failure because production delivery must go through the Python/age wrapper.
- 
- ## Safety
- 
-diff --git a/scripts/runpod_tron_gpu_pattern_search_smoke.sh b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
-index c7e9640..1eadcce 100755
---- a/scripts/runpod_tron_gpu_pattern_search_smoke.sh
-+++ b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
-@@ -10,7 +10,7 @@ fi
- CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
- CUDA_ARCH="${CUDA_ARCH:-80}"
- CXXCUDA="${CXXCUDA:-/usr/bin/g++}"
--SMOKE_PATTERN="${SMOKE_PATTERN:-TA*123456789ABCDEFGH}"
-+SMOKE_PATTERN="${SMOKE_PATTERN:-TA*CDEFG}"
- SMOKE_SECONDS="${SMOKE_SECONDS:-10}"
- 
- echo "== build VanitySearch with GPU support"
--- 
-2.50.1 (Apple Git-155)
-
-
-From ff433253cd0ece485062f0cbc944f3e74e7d43d8 Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 01:22:44 +0800
-Subject: [PATCH 07/15] Add TRON suffix modulo GPU prefilter
-
----
- GPU/GPUCompute.h          | 16 ++++++++------
- GPU/GPUEngine.cu          | 38 ++++++++++++++++++++++++++++++---
- GPU/GPUEngine.h           |  1 +
- GPU/GPUTron.h             | 45 +++++++++++++++++++++++++++++++++++++--
- GPU/GPUTronVectorCheck.cu | 17 +++++++++++++--
- 5 files changed, 104 insertions(+), 13 deletions(-)
-
-diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index 740e512..e623de3 100644
---- a/GPU/GPUCompute.h
-+++ b/GPU/GPUCompute.h
-@@ -257,7 +257,7 @@ __device__ __noinline__ void CheckTronPoint(
-     int32_t incr,
-     int32_t endo,
-     char prefixAfterT,
--    const char suffix5[6],
-+    uint64_t suffix5Value,
-     uint32_t maxFound,
-     uint32_t *out) {
- 
-@@ -267,9 +267,13 @@ __device__ __noinline__ void CheckTronPoint(
-   uint32_t tid = (blockIdx.x*blockDim.x) + threadIdx.x;
- 
-   tron_public_key64_from_xy(px, py, public_key64);
--  int address_len = tron_address_from_public_key64(public_key64, address, payload25);
--  if (address_len <= 0 ||
--      !tron_match_prefix_after_t_suffix(address, address_len, prefixAfterT, suffix5)) {
-+  tron_payload25_from_public_key64(public_key64, payload25);
-+  if (!tron_payload25_matches_suffix5(payload25, suffix5Value)) {
-+    return;
-+  }
-+
-+  int address_len = tron_base58_payload25(payload25, address);
-+  if (address_len < 2 || address[0] != 'T' || address[1] != prefixAfterT) {
-     return;
-   }
- 
-@@ -281,10 +285,10 @@ __device__ __noinline__ void CheckTronPoint(
-   }
- }
- 
--#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, prefixAfterT, suffix5, maxFound, out)
-+#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, prefixAfterT, suffix5Value, maxFound, out)
- 
- __device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char prefixAfterT,
--                                       const char suffix5[6], uint32_t maxFound, uint32_t *out) {
-+                                       uint64_t suffix5Value, uint32_t maxFound, uint32_t *out) {
- 
-   uint64_t dx[GRP_SIZE/2+1][4];
-   uint64_t px[4];
-diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
-index a18db4a..9899e2f 100644
---- a/GPU/GPUEngine.cu
-+++ b/GPU/GPUEngine.cu
-@@ -39,6 +39,27 @@
- 
- // ---------------------------------------------------------------------------------------
- 
-+static int host_tron_base58_value(char c) {
-+  const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-+  for (int i = 0; i < 58; ++i) {
-+    if (alphabet[i] == c) return i;
-+  }
-+  return -1;
-+}
-+
-+static bool host_tron_suffix5_value(const char *suffix5, uint64_t *value) {
-+  uint64_t out = 0;
-+  for (int i = 0; i < 5; ++i) {
-+    int digit = host_tron_base58_value(suffix5[i]);
-+    if (digit < 0) return false;
-+    out = out * 58ULL + (uint64_t)digit;
-+  }
-+  *value = out;
-+  return true;
-+}
-+
-+// ---------------------------------------------------------------------------------------
-+
- __global__ void comp_keys(uint32_t mode,prefix_t *prefix, uint32_t *lookup32, uint64_t *keys, uint32_t maxFound, uint32_t *found) {
- 
-   int xPtr = (blockIdx.x*blockDim.x) * 8;
-@@ -79,12 +100,12 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
- 
- }
- 
--__global__ void comp_keys_tron_pattern(char prefixAfterT, const char *suffix5, uint64_t *keys,
-+__global__ void comp_keys_tron_pattern(char prefixAfterT, uint64_t suffix5Value, uint64_t *keys,
-                                        uint32_t maxFound, uint32_t *found) {
- 
-   int xPtr = (blockIdx.x*blockDim.x) * 8;
-   int yPtr = xPtr + 4 * blockDim.x;
--  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, prefixAfterT, suffix5, maxFound, found);
-+  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, prefixAfterT, suffix5Value, maxFound, found);
- 
- }
- 
-@@ -297,6 +318,7 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
-   hasTronRule = false;
-   tronPrefixAfterT = 0;
-   memset(tronSuffix5, 0, sizeof(tronSuffix5));
-+  tronSuffixValue = 0;
-   inputPrefixLookUp = NULL;
- 
- }
-@@ -428,11 +450,21 @@ bool GPUEngine::SetTronPattern(const char *pattern) {
-     printf("GPUEngine: TRON pattern must be T<one-char>*<five-char-suffix>, for example TA*CDEFG\n");
-     return false;
-   }
-+  if (host_tron_base58_value(pattern[1]) < 0) {
-+    printf("GPUEngine: invalid TRON prefix character after T\n");
-+    return false;
-+  }
-+  uint64_t suffixValue = 0;
-+  if (!host_tron_suffix5_value(pattern + 3, &suffixValue)) {
-+    printf("GPUEngine: invalid TRON Base58 suffix\n");
-+    return false;
-+  }
- 
-   SetPattern(pattern);
-   tronPrefixAfterT = pattern[1];
-   memcpy(tronSuffix5, pattern + 3, 5);
-   tronSuffix5[5] = 0;
-+  tronSuffixValue = suffixValue;
-   hasTronRule = true;
-   return true;
- 
-@@ -500,7 +532,7 @@ bool GPUEngine::callKernel() {
-       return false;
-     }
-     comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
--      (tronPrefixAfterT, tronSuffix5, inputKey, maxFound, outputPrefix);
-+      (tronPrefixAfterT, tronSuffixValue, inputKey, maxFound, outputPrefix);
- 
-   } else if (searchType == P2SH) {
- 
-diff --git a/GPU/GPUEngine.h b/GPU/GPUEngine.h
-index 25eea11..0b069f5 100644
---- a/GPU/GPUEngine.h
-+++ b/GPU/GPUEngine.h
-@@ -105,6 +105,7 @@ private:
-   bool hasTronRule;
-   char tronPrefixAfterT;
-   char tronSuffix5[6];
-+  uint64_t tronSuffixValue;
- 
- };
- 
-diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
-index 631cadb..b756f0d 100644
---- a/GPU/GPUTron.h
-+++ b/GPU/GPUTron.h
-@@ -10,6 +10,41 @@
- 
- #include <stdint.h>
- 
-+__device__ __forceinline__ int tron_base58_value(char c) {
-+  const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-+  for (int i = 0; i < 58; ++i) {
-+    if (alphabet[i] == c) return i;
-+  }
-+  return -1;
-+}
-+
-+__device__ __noinline__ uint64_t tron_suffix5_value(const char suffix5[6]) {
-+  uint64_t value = 0;
-+  for (int i = 0; i < 5; ++i) {
-+    int digit = tron_base58_value(suffix5[i]);
-+    if (digit < 0) return UINT64_MAX;
-+    value = value * 58ULL + static_cast<uint64_t>(digit);
-+  }
-+  return value;
-+}
-+
-+__device__ __noinline__ uint64_t tron_payload25_mod_base58_power(
-+    const uint8_t payload25[25],
-+    uint64_t modulus) {
-+  uint64_t value = 0;
-+  for (int i = 0; i < 25; ++i) {
-+    value = ((value * 256ULL) + static_cast<uint64_t>(payload25[i])) % modulus;
-+  }
-+  return value;
-+}
-+
-+__device__ __noinline__ bool tron_payload25_matches_suffix5(
-+    const uint8_t payload25[25],
-+    uint64_t suffix5_value) {
-+  const uint64_t base58_power_5 = 656356768ULL;
-+  return tron_payload25_mod_base58_power(payload25, base58_power_5) == suffix5_value;
-+}
-+
- __device__ __forceinline__ uint64_t tron_rotl64(uint64_t value, int shift) {
-   shift &= 63;
-   return (value << shift) | (value >> ((64 - shift) & 63));
-@@ -173,9 +208,8 @@ __device__ __noinline__ int tron_base58_payload25(const uint8_t payload25[25], c
-   return ret_pos;
- }
- 
--__device__ __noinline__ int tron_address_from_public_key64(
-+__device__ __noinline__ void tron_payload25_from_public_key64(
-     const uint8_t public_key64[64],
--    char address[48],
-     uint8_t payload25[25]) {
-   uint8_t digest[32];
-   uint8_t checksum[4];
-@@ -184,6 +218,13 @@ __device__ __noinline__ int tron_address_from_public_key64(
-   for (int i = 0; i < 20; ++i) payload25[i + 1] = digest[i + 12];
-   tron_checksum4(payload25, checksum);
-   for (int i = 0; i < 4; ++i) payload25[21 + i] = checksum[i];
-+}
-+
-+__device__ __noinline__ int tron_address_from_public_key64(
-+    const uint8_t public_key64[64],
-+    char address[48],
-+    uint8_t payload25[25]) {
-+  tron_payload25_from_public_key64(public_key64, payload25);
-   return tron_base58_payload25(payload25, address);
- }
- 
-diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
-index 64f99f8..d56bb43 100644
---- a/GPU/GPUTronVectorCheck.cu
-+++ b/GPU/GPUTronVectorCheck.cu
-@@ -30,6 +30,8 @@ struct TronVectorResult {
-   int address_len;
-   int match_rule_passed;
-   int wrong_rule_rejected;
-+  int suffix_prefilter_passed;
-+  int wrong_suffix_prefilter_rejected;
-   char computed_address[48];
-   uint8_t payload25[25];
- };
-@@ -54,6 +56,12 @@ __global__ void tron_vector_kernel(
-       result.address_len,
-       inputs[idx].prefix_after_t,
-       inputs[idx].wrong_suffix5) ? 1 : 0;
-+  uint64_t suffix_value = tron_suffix5_value(inputs[idx].suffix5);
-+  uint64_t wrong_suffix_value = tron_suffix5_value(inputs[idx].wrong_suffix5);
-+  result.suffix_prefilter_passed =
-+      tron_payload25_matches_suffix5(result.payload25, suffix_value) ? 1 : 0;
-+  result.wrong_suffix_prefilter_rejected =
-+      !tron_payload25_matches_suffix5(result.payload25, wrong_suffix_value) ? 1 : 0;
-   result.passed = 1;
-   for (int i = 0; i < 48; ++i) {
-     if (result.computed_address[i] != inputs[idx].expected_address[i]) {
-@@ -62,7 +70,10 @@ __global__ void tron_vector_kernel(
-     }
-     if (inputs[idx].expected_address[i] == 0) break;
-   }
--  if (!result.match_rule_passed || !result.wrong_rule_rejected) {
-+  if (!result.match_rule_passed ||
-+      !result.wrong_rule_rejected ||
-+      !result.suffix_prefilter_passed ||
-+      !result.wrong_suffix_prefilter_rejected) {
-     result.passed = 0;
-   }
-   results[idx] = result;
-@@ -187,12 +198,14 @@ int main() {
-   for (size_t i = 0; i < results.size(); ++i) {
-     if (results[i].passed) ++passed;
-     std::printf(
--        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s}%s\n",
-+        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s}%s\n",
-         i,
-         results[i].passed ? "true" : "false",
-         results[i].computed_address,
-         results[i].match_rule_passed ? "true" : "false",
-         results[i].wrong_rule_rejected ? "true" : "false",
-+        results[i].suffix_prefilter_passed ? "true" : "false",
-+        results[i].wrong_suffix_prefilter_rejected ? "true" : "false",
-         i + 1 == results.size() ? "" : ",");
-   }
-   std::printf("  ],\n");
--- 
-2.50.1 (Apple Git-155)
-
-
-From 25fcd54ad53a68dfe99fb1330bbb062f3f8c1be9 Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 03:15:53 +0800
-Subject: [PATCH 08/15] Add TRON prefix range GPU prefilter
-
----
- GPU/GPUCompute.h          |  9 +++--
- GPU/GPUEngine.cu          | 66 ++++++++++++++++++++++++++++++++---
- GPU/GPUEngine.h           |  2 ++
- GPU/GPUTron.h             | 18 ++++++++++
- GPU/GPUTronTypes.h        | 11 ++++++
- GPU/GPUTronVectorCheck.cu | 72 ++++++++++++++++++++++++++++++++++++++-
- 6 files changed, 171 insertions(+), 7 deletions(-)
- create mode 100644 GPU/GPUTronTypes.h
-
-diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index e623de3..aa1c565 100644
---- a/GPU/GPUCompute.h
-+++ b/GPU/GPUCompute.h
-@@ -257,6 +257,7 @@ __device__ __noinline__ void CheckTronPoint(
-     int32_t incr,
-     int32_t endo,
-     char prefixAfterT,
-+    TronPrefixRange prefixRange,
-     uint64_t suffix5Value,
-     uint32_t maxFound,
-     uint32_t *out) {
-@@ -268,6 +269,9 @@ __device__ __noinline__ void CheckTronPoint(
- 
-   tron_public_key64_from_xy(px, py, public_key64);
-   tron_payload25_from_public_key64(public_key64, payload25);
-+  if (!tron_payload25_matches_prefix_range(payload25, prefixRange)) {
-+    return;
-+  }
-   if (!tron_payload25_matches_suffix5(payload25, suffix5Value)) {
-     return;
-   }
-@@ -285,10 +289,11 @@ __device__ __noinline__ void CheckTronPoint(
-   }
- }
- 
--#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, prefixAfterT, suffix5Value, maxFound, out)
-+#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, prefixAfterT, prefixRange, suffix5Value, maxFound, out)
- 
- __device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char prefixAfterT,
--                                       uint64_t suffix5Value, uint32_t maxFound, uint32_t *out) {
-+                                       TronPrefixRange prefixRange, uint64_t suffix5Value,
-+                                       uint32_t maxFound, uint32_t *out) {
- 
-   uint64_t dx[GRP_SIZE/2+1][4];
-   uint64_t px[4];
-diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
-index 9899e2f..7ecce69 100644
---- a/GPU/GPUEngine.cu
-+++ b/GPU/GPUEngine.cu
-@@ -58,6 +58,56 @@ static bool host_tron_suffix5_value(const char *suffix5, uint64_t *value) {
-   return true;
- }
- 
-+static bool host_big25_mul_small(uint8_t value[25], uint32_t multiplier) {
-+  uint32_t carry = 0;
-+  for (int i = 24; i >= 0; --i) {
-+    uint32_t product = (uint32_t)value[i] * multiplier + carry;
-+    value[i] = (uint8_t)(product & 0xff);
-+    carry = product >> 8;
-+  }
-+  return carry == 0;
-+}
-+
-+static bool host_big25_add_small(uint8_t value[25], uint32_t addend) {
-+  uint32_t carry = addend;
-+  for (int i = 24; i >= 0 && carry > 0; --i) {
-+    uint32_t sum = (uint32_t)value[i] + (carry & 0xff);
-+    value[i] = (uint8_t)(sum & 0xff);
-+    carry = (carry >> 8) + (sum >> 8);
-+  }
-+  return carry == 0;
-+}
-+
-+static bool host_big25_sub_one(uint8_t value[25]) {
-+  for (int i = 24; i >= 0; --i) {
-+    if (value[i] > 0) {
-+      --value[i];
-+      return true;
-+    }
-+    value[i] = 0xff;
-+  }
-+  return false;
-+}
-+
-+static bool host_tron_prefix_range(char prefixAfterT, TronPrefixRange *range) {
-+  int first = host_tron_base58_value('T');
-+  int second = host_tron_base58_value(prefixAfterT);
-+  if (first < 0 || second < 0) return false;
-+
-+  memset(range->low, 0, sizeof(range->low));
-+  memset(range->high, 0, sizeof(range->high));
-+
-+  uint32_t prefixValue = (uint32_t)first * 58U + (uint32_t)second;
-+  if (!host_big25_add_small(range->low, prefixValue)) return false;
-+  if (!host_big25_add_small(range->high, prefixValue + 1U)) return false;
-+
-+  for (int i = 0; i < 32; ++i) {
-+    if (!host_big25_mul_small(range->low, 58U)) return false;
-+    if (!host_big25_mul_small(range->high, 58U)) return false;
-+  }
-+  return host_big25_sub_one(range->high);
-+}
-+
- // ---------------------------------------------------------------------------------------
- 
- __global__ void comp_keys(uint32_t mode,prefix_t *prefix, uint32_t *lookup32, uint64_t *keys, uint32_t maxFound, uint32_t *found) {
-@@ -100,12 +150,13 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
- 
- }
- 
--__global__ void comp_keys_tron_pattern(char prefixAfterT, uint64_t suffix5Value, uint64_t *keys,
--                                       uint32_t maxFound, uint32_t *found) {
-+__global__ void comp_keys_tron_pattern(char prefixAfterT, TronPrefixRange prefixRange,
-+                                       uint64_t suffix5Value, uint64_t *keys, uint32_t maxFound,
-+                                       uint32_t *found) {
- 
-   int xPtr = (blockIdx.x*blockDim.x) * 8;
-   int yPtr = xPtr + 4 * blockDim.x;
--  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, prefixAfterT, suffix5Value, maxFound, found);
-+  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, prefixAfterT, prefixRange, suffix5Value, maxFound, found);
- 
- }
- 
-@@ -319,6 +370,7 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
-   tronPrefixAfterT = 0;
-   memset(tronSuffix5, 0, sizeof(tronSuffix5));
-   tronSuffixValue = 0;
-+  memset(&tronPrefixRange, 0, sizeof(tronPrefixRange));
-   inputPrefixLookUp = NULL;
- 
- }
-@@ -459,12 +511,18 @@ bool GPUEngine::SetTronPattern(const char *pattern) {
-     printf("GPUEngine: invalid TRON Base58 suffix\n");
-     return false;
-   }
-+  TronPrefixRange prefixRange;
-+  if (!host_tron_prefix_range(pattern[1], &prefixRange)) {
-+    printf("GPUEngine: failed to build TRON prefix range\n");
-+    return false;
-+  }
- 
-   SetPattern(pattern);
-   tronPrefixAfterT = pattern[1];
-   memcpy(tronSuffix5, pattern + 3, 5);
-   tronSuffix5[5] = 0;
-   tronSuffixValue = suffixValue;
-+  tronPrefixRange = prefixRange;
-   hasTronRule = true;
-   return true;
- 
-@@ -532,7 +590,7 @@ bool GPUEngine::callKernel() {
-       return false;
-     }
-     comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
--      (tronPrefixAfterT, tronSuffixValue, inputKey, maxFound, outputPrefix);
-+      (tronPrefixAfterT, tronPrefixRange, tronSuffixValue, inputKey, maxFound, outputPrefix);
- 
-   } else if (searchType == P2SH) {
- 
-diff --git a/GPU/GPUEngine.h b/GPU/GPUEngine.h
-index 0b069f5..48ccd5e 100644
---- a/GPU/GPUEngine.h
-+++ b/GPU/GPUEngine.h
-@@ -20,6 +20,7 @@
- 
- #include <vector>
- #include "../SECP256k1.h"
-+#include "GPUTronTypes.h"
- 
- #define SEARCH_COMPRESSED 0
- #define SEARCH_UNCOMPRESSED 1
-@@ -106,6 +107,7 @@ private:
-   char tronPrefixAfterT;
-   char tronSuffix5[6];
-   uint64_t tronSuffixValue;
-+  TronPrefixRange tronPrefixRange;
- 
- };
- 
-diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
-index b756f0d..e94cb14 100644
---- a/GPU/GPUTron.h
-+++ b/GPU/GPUTron.h
-@@ -9,6 +9,7 @@
- #define GPU_TRON_H
- 
- #include <stdint.h>
-+#include "GPUTronTypes.h"
- 
- __device__ __forceinline__ int tron_base58_value(char c) {
-   const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-@@ -28,6 +29,23 @@ __device__ __noinline__ uint64_t tron_suffix5_value(const char suffix5[6]) {
-   return value;
- }
- 
-+__device__ __noinline__ int tron_payload25_compare(
-+    const uint8_t a[25],
-+    const uint8_t b[25]) {
-+  for (int i = 0; i < 25; ++i) {
-+    if (a[i] < b[i]) return -1;
-+    if (a[i] > b[i]) return 1;
-+  }
-+  return 0;
-+}
-+
-+__device__ __noinline__ bool tron_payload25_matches_prefix_range(
-+    const uint8_t payload25[25],
-+    const TronPrefixRange prefixRange) {
-+  return tron_payload25_compare(payload25, prefixRange.low) >= 0 &&
-+         tron_payload25_compare(payload25, prefixRange.high) <= 0;
-+}
-+
- __device__ __noinline__ uint64_t tron_payload25_mod_base58_power(
-     const uint8_t payload25[25],
-     uint64_t modulus) {
-diff --git a/GPU/GPUTronTypes.h b/GPU/GPUTronTypes.h
-new file mode 100644
-index 0000000..dfa1741
---- /dev/null
-+++ b/GPU/GPUTronTypes.h
-@@ -0,0 +1,11 @@
-+#ifndef GPU_TRON_TYPES_H
-+#define GPU_TRON_TYPES_H
-+
-+#include <stdint.h>
-+
-+typedef struct {
-+  uint8_t low[25];
-+  uint8_t high[25];
-+} TronPrefixRange;
-+
-+#endif
-diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
-index d56bb43..72e5f0f 100644
---- a/GPU/GPUTronVectorCheck.cu
-+++ b/GPU/GPUTronVectorCheck.cu
-@@ -23,6 +23,8 @@ struct TronVectorInput {
-   char prefix_after_t;
-   char suffix5[6];
-   char wrong_suffix5[6];
-+  TronPrefixRange prefix_range;
-+  TronPrefixRange wrong_prefix_range;
- };
- 
- struct TronVectorResult {
-@@ -30,6 +32,8 @@ struct TronVectorResult {
-   int address_len;
-   int match_rule_passed;
-   int wrong_rule_rejected;
-+  int prefix_prefilter_passed;
-+  int wrong_prefix_prefilter_rejected;
-   int suffix_prefilter_passed;
-   int wrong_suffix_prefilter_rejected;
-   char computed_address[48];
-@@ -58,6 +62,10 @@ __global__ void tron_vector_kernel(
-       inputs[idx].wrong_suffix5) ? 1 : 0;
-   uint64_t suffix_value = tron_suffix5_value(inputs[idx].suffix5);
-   uint64_t wrong_suffix_value = tron_suffix5_value(inputs[idx].wrong_suffix5);
-+  result.prefix_prefilter_passed =
-+      tron_payload25_matches_prefix_range(result.payload25, inputs[idx].prefix_range) ? 1 : 0;
-+  result.wrong_prefix_prefilter_rejected =
-+      !tron_payload25_matches_prefix_range(result.payload25, inputs[idx].wrong_prefix_range) ? 1 : 0;
-   result.suffix_prefilter_passed =
-       tron_payload25_matches_suffix5(result.payload25, suffix_value) ? 1 : 0;
-   result.wrong_suffix_prefilter_rejected =
-@@ -72,6 +80,8 @@ __global__ void tron_vector_kernel(
-   }
-   if (!result.match_rule_passed ||
-       !result.wrong_rule_rejected ||
-+      !result.prefix_prefilter_passed ||
-+      !result.wrong_prefix_prefilter_rejected ||
-       !result.suffix_prefilter_passed ||
-       !result.wrong_suffix_prefilter_rejected) {
-     result.passed = 0;
-@@ -96,6 +106,62 @@ static std::vector<uint8_t> hex_to_bytes(const char *hex) {
-   return out;
- }
- 
-+static int host_base58_value(char c) {
-+  const char *alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-+  for (int i = 0; i < 58; ++i) {
-+    if (alphabet[i] == c) return i;
-+  }
-+  return -1;
-+}
-+
-+static bool big25_mul_small(uint8_t value[25], uint32_t multiplier) {
-+  uint32_t carry = 0;
-+  for (int i = 24; i >= 0; --i) {
-+    uint32_t product = static_cast<uint32_t>(value[i]) * multiplier + carry;
-+    value[i] = static_cast<uint8_t>(product & 0xff);
-+    carry = product >> 8;
-+  }
-+  return carry == 0;
-+}
-+
-+static bool big25_add_small(uint8_t value[25], uint32_t addend) {
-+  uint32_t carry = addend;
-+  for (int i = 24; i >= 0 && carry > 0; --i) {
-+    uint32_t sum = static_cast<uint32_t>(value[i]) + (carry & 0xff);
-+    value[i] = static_cast<uint8_t>(sum & 0xff);
-+    carry = (carry >> 8) + (sum >> 8);
-+  }
-+  return carry == 0;
-+}
-+
-+static bool big25_sub_one(uint8_t value[25]) {
-+  for (int i = 24; i >= 0; --i) {
-+    if (value[i] > 0) {
-+      --value[i];
-+      return true;
-+    }
-+    value[i] = 0xff;
-+  }
-+  return false;
-+}
-+
-+static TronPrefixRange make_prefix_range(char prefix_after_t) {
-+  TronPrefixRange range{};
-+  const int first = host_base58_value('T');
-+  const int second = host_base58_value(prefix_after_t);
-+  if (first < 0 || second < 0) throw std::runtime_error("invalid Base58 prefix");
-+
-+  uint32_t prefix_value = static_cast<uint32_t>(first) * 58U + static_cast<uint32_t>(second);
-+  if (!big25_add_small(range.low, prefix_value)) throw std::runtime_error("prefix low overflow");
-+  if (!big25_add_small(range.high, prefix_value + 1U)) throw std::runtime_error("prefix high overflow");
-+  for (int i = 0; i < 32; ++i) {
-+    if (!big25_mul_small(range.low, 58U)) throw std::runtime_error("prefix low scale overflow");
-+    if (!big25_mul_small(range.high, 58U)) throw std::runtime_error("prefix high scale overflow");
-+  }
-+  if (!big25_sub_one(range.high)) throw std::runtime_error("prefix high underflow");
-+  return range;
-+}
-+
- static TronVectorInput make_input(const char *public_key_uncompressed_hex, const char *expected_address) {
-   TronVectorInput input{};
-   const char *public_key64_hex = public_key_uncompressed_hex;
-@@ -116,6 +182,8 @@ static TronVectorInput make_input(const char *public_key_uncompressed_hex, const
-     throw std::runtime_error("expected address must be a TRON Base58 address");
-   }
-   input.prefix_after_t = expected_address[1];
-+  input.prefix_range = make_prefix_range(input.prefix_after_t);
-+  input.wrong_prefix_range = make_prefix_range(input.prefix_after_t == '1' ? '2' : '1');
-   std::memcpy(input.suffix5, expected_address + address_len - 5, 5);
-   input.suffix5[5] = 0;
-   std::memcpy(input.wrong_suffix5, input.suffix5, 6);
-@@ -198,12 +266,14 @@ int main() {
-   for (size_t i = 0; i < results.size(); ++i) {
-     if (results[i].passed) ++passed;
-     std::printf(
--        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s}%s\n",
-+        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"prefix_prefilter_passed\": %s, \"wrong_prefix_prefilter_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s}%s\n",
-         i,
-         results[i].passed ? "true" : "false",
-         results[i].computed_address,
-         results[i].match_rule_passed ? "true" : "false",
-         results[i].wrong_rule_rejected ? "true" : "false",
-+        results[i].prefix_prefilter_passed ? "true" : "false",
-+        results[i].wrong_prefix_prefilter_rejected ? "true" : "false",
-         results[i].suffix_prefilter_passed ? "true" : "false",
-         results[i].wrong_suffix_prefilter_rejected ? "true" : "false",
-         i + 1 == results.size() ? "" : ",");
--- 
-2.50.1 (Apple Git-155)
-
-
-From fef351d2eaddd76ec5de46d993523f23a4de934d Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 03:27:46 +0800
-Subject: [PATCH 09/15] Gate TRON checksum behind prefix range
-
----
- GPU/GPUCompute.h          |  8 ++++++-
- GPU/GPUTron.h             | 48 ++++++++++++++++++++++++++++++++++-----
- GPU/GPUTronVectorCheck.cu | 14 +++++++++++-
- 3 files changed, 62 insertions(+), 8 deletions(-)
-
-diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index aa1c565..941b61d 100644
---- a/GPU/GPUCompute.h
-+++ b/GPU/GPUCompute.h
-@@ -263,12 +263,18 @@ __device__ __noinline__ void CheckTronPoint(
-     uint32_t *out) {
- 
-   uint8_t public_key64[64];
-+  uint8_t payload21[21];
-   uint8_t payload25[25];
-   char address[48];
-   uint32_t tid = (blockIdx.x*blockDim.x) + threadIdx.x;
- 
-   tron_public_key64_from_xy(px, py, public_key64);
--  tron_payload25_from_public_key64(public_key64, payload25);
-+  tron_payload21_from_public_key64(public_key64, payload21);
-+  if (!tron_payload21_can_match_prefix_range(payload21, prefixRange)) {
-+    return;
-+  }
-+
-+  tron_payload25_from_payload21(payload21, payload25);
-   if (!tron_payload25_matches_prefix_range(payload25, prefixRange)) {
-     return;
-   }
-diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
-index e94cb14..b5aecc2 100644
---- a/GPU/GPUTron.h
-+++ b/GPU/GPUTron.h
-@@ -46,6 +46,28 @@ __device__ __noinline__ bool tron_payload25_matches_prefix_range(
-          tron_payload25_compare(payload25, prefixRange.high) <= 0;
- }
- 
-+__device__ __noinline__ int tron_payload21_with_tail_compare(
-+    const uint8_t payload21[21],
-+    const uint8_t value25[25],
-+    uint8_t tailByte) {
-+  for (int i = 0; i < 21; ++i) {
-+    if (payload21[i] < value25[i]) return -1;
-+    if (payload21[i] > value25[i]) return 1;
-+  }
-+  for (int i = 21; i < 25; ++i) {
-+    if (tailByte < value25[i]) return -1;
-+    if (tailByte > value25[i]) return 1;
-+  }
-+  return 0;
-+}
-+
-+__device__ __noinline__ bool tron_payload21_can_match_prefix_range(
-+    const uint8_t payload21[21],
-+    const TronPrefixRange prefixRange) {
-+  return tron_payload21_with_tail_compare(payload21, prefixRange.low, 0xff) >= 0 &&
-+         tron_payload21_with_tail_compare(payload21, prefixRange.high, 0x00) <= 0;
-+}
-+
- __device__ __noinline__ uint64_t tron_payload25_mod_base58_power(
-     const uint8_t payload25[25],
-     uint64_t modulus) {
-@@ -226,18 +248,32 @@ __device__ __noinline__ int tron_base58_payload25(const uint8_t payload25[25], c
-   return ret_pos;
- }
- 
--__device__ __noinline__ void tron_payload25_from_public_key64(
-+__device__ __noinline__ void tron_payload21_from_public_key64(
-     const uint8_t public_key64[64],
--    uint8_t payload25[25]) {
-+    uint8_t payload21[21]) {
-   uint8_t digest[32];
--  uint8_t checksum[4];
-   tron_keccak256_64(public_key64, digest);
--  payload25[0] = 0x41;
--  for (int i = 0; i < 20; ++i) payload25[i + 1] = digest[i + 12];
--  tron_checksum4(payload25, checksum);
-+  payload21[0] = 0x41;
-+  for (int i = 0; i < 20; ++i) payload21[i + 1] = digest[i + 12];
-+}
-+
-+__device__ __noinline__ void tron_payload25_from_payload21(
-+    const uint8_t payload21[21],
-+    uint8_t payload25[25]) {
-+  uint8_t checksum[4];
-+  for (int i = 0; i < 21; ++i) payload25[i] = payload21[i];
-+  tron_checksum4(payload21, checksum);
-   for (int i = 0; i < 4; ++i) payload25[21 + i] = checksum[i];
- }
- 
-+__device__ __noinline__ void tron_payload25_from_public_key64(
-+    const uint8_t public_key64[64],
-+    uint8_t payload25[25]) {
-+  uint8_t payload21[21];
-+  tron_payload21_from_public_key64(public_key64, payload21);
-+  tron_payload25_from_payload21(payload21, payload25);
-+}
-+
- __device__ __noinline__ int tron_address_from_public_key64(
-     const uint8_t public_key64[64],
-     char address[48],
-diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
-index 72e5f0f..1d64dc8 100644
---- a/GPU/GPUTronVectorCheck.cu
-+++ b/GPU/GPUTronVectorCheck.cu
-@@ -32,6 +32,8 @@ struct TronVectorResult {
-   int address_len;
-   int match_rule_passed;
-   int wrong_rule_rejected;
-+  int prefix_possible_passed;
-+  int wrong_prefix_possible_rejected;
-   int prefix_prefilter_passed;
-   int wrong_prefix_prefilter_rejected;
-   int suffix_prefilter_passed;
-@@ -60,8 +62,14 @@ __global__ void tron_vector_kernel(
-       result.address_len,
-       inputs[idx].prefix_after_t,
-       inputs[idx].wrong_suffix5) ? 1 : 0;
-+  uint8_t payload21[21];
-+  tron_payload21_from_public_key64(inputs[idx].public_key64, payload21);
-   uint64_t suffix_value = tron_suffix5_value(inputs[idx].suffix5);
-   uint64_t wrong_suffix_value = tron_suffix5_value(inputs[idx].wrong_suffix5);
-+  result.prefix_possible_passed =
-+      tron_payload21_can_match_prefix_range(payload21, inputs[idx].prefix_range) ? 1 : 0;
-+  result.wrong_prefix_possible_rejected =
-+      !tron_payload21_can_match_prefix_range(payload21, inputs[idx].wrong_prefix_range) ? 1 : 0;
-   result.prefix_prefilter_passed =
-       tron_payload25_matches_prefix_range(result.payload25, inputs[idx].prefix_range) ? 1 : 0;
-   result.wrong_prefix_prefilter_rejected =
-@@ -80,6 +88,8 @@ __global__ void tron_vector_kernel(
-   }
-   if (!result.match_rule_passed ||
-       !result.wrong_rule_rejected ||
-+      !result.prefix_possible_passed ||
-+      !result.wrong_prefix_possible_rejected ||
-       !result.prefix_prefilter_passed ||
-       !result.wrong_prefix_prefilter_rejected ||
-       !result.suffix_prefilter_passed ||
-@@ -266,12 +276,14 @@ int main() {
-   for (size_t i = 0; i < results.size(); ++i) {
-     if (results[i].passed) ++passed;
-     std::printf(
--        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"prefix_prefilter_passed\": %s, \"wrong_prefix_prefilter_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s}%s\n",
-+        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"prefix_possible_passed\": %s, \"wrong_prefix_possible_rejected\": %s, \"prefix_prefilter_passed\": %s, \"wrong_prefix_prefilter_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s}%s\n",
-         i,
-         results[i].passed ? "true" : "false",
-         results[i].computed_address,
-         results[i].match_rule_passed ? "true" : "false",
-         results[i].wrong_rule_rejected ? "true" : "false",
-+        results[i].prefix_possible_passed ? "true" : "false",
-+        results[i].wrong_prefix_possible_rejected ? "true" : "false",
-         results[i].prefix_prefilter_passed ? "true" : "false",
-         results[i].wrong_prefix_prefilter_rejected ? "true" : "false",
-         results[i].suffix_prefilter_passed ? "true" : "false",
--- 
-2.50.1 (Apple Git-155)
-
-
-From d79918f448348063ccd76f4feb0cf8a72ddefef8 Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 03:44:28 +0800
-Subject: [PATCH 10/15] Suppress TRON secrets in bounded GPU smoke
-
----
- Vanity.cpp                                    | 21 ++++++++++++++++---
- docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md  |  9 +++++---
- .../runpod_tron_gpu_pattern_search_smoke.sh   | 17 +++++++++++++--
- 3 files changed, 39 insertions(+), 8 deletions(-)
-
-diff --git a/Vanity.cpp b/Vanity.cpp
-index b15f443..d9b9f57 100644
---- a/Vanity.cpp
-+++ b/Vanity.cpp
-@@ -27,6 +27,7 @@
- #include <string.h>
- #include <math.h>
- #include <algorithm>
-+#include <stdlib.h>
- #ifndef WIN64
- #include <pthread.h>
- #endif
-@@ -746,9 +747,17 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
- 
-   fprintf(f, "PubAddress: %s\n", addr.c_str());
- 
-+  bool suppressTronSecret =
-+      searchType == TRON_ADDR &&
-+      getenv("TRON_SUPPRESS_SECRET_OUTPUT") != NULL &&
-+      strcmp(getenv("TRON_SUPPRESS_SECRET_OUTPUT"), "1") == 0;
-+
-   if (startPubKeySpecified) {
- 
--    fprintf(f, "PartialPriv: %s\n", pAddr.c_str());
-+    if (suppressTronSecret)
-+      fprintf(f, "SensitiveOutput: suppressed\n");
-+    else
-+      fprintf(f, "PartialPriv: %s\n", pAddr.c_str());
- 
-   } else {
- 
-@@ -763,10 +772,16 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
-     fprintf(f, "Priv (WIF): p2wpkh:%s\n", pAddr.c_str());
-     break;
-   case TRON_ADDR:
--    fprintf(f, "Priv (WIF): tron-staging:%s\n", pAddr.c_str());
-+    if (suppressTronSecret)
-+      fprintf(f, "SensitiveOutput: suppressed\n");
-+    else
-+      fprintf(f, "Priv (WIF): tron-staging:%s\n", pAddr.c_str());
-     break;
-   }
--    fprintf(f, "Priv (HEX): 0x%s\n", pAddrHex.c_str());
-+    if (suppressTronSecret)
-+      fprintf(f, "SensitiveOutput2: suppressed\n");
-+    else
-+      fprintf(f, "Priv (HEX): 0x%s\n", pAddrHex.c_str());
- 
-   }
- 
-diff --git a/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
-index 87ae6f3..719e877 100644
---- a/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
-+++ b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
-@@ -28,7 +28,7 @@ This is not a performance benchmark.
- - GPU returns the 20-byte TRON payload body.
- - CPU reconstructs the TRON Base58Check address and verifies the candidate key.
- 
--The current TRON GPU pattern path uses full address construction, then a dedicated fixed-position `prefix_after_t` plus suffix-5 comparison. It is intended as a functional bridge before adding faster Base58 prefix/suffix prefilters.
-+The current TRON GPU pattern path uses a dedicated fixed-position `prefix_after_t` plus suffix-5 rule with prefix/suffix prefilters. It is intended as a bounded GPU startup and direction check before proper benchmark-only worker integration.
- 
- ## RunPod Build And Smoke
- 
-@@ -40,7 +40,9 @@ ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE=1 CUDA_ARCH=80 scripts/runpod_tron_gpu_patte
- 
- `timeout` exit code `124` is acceptable for this smoke if there is no crash before timeout.
- 
--The default smoke pattern is `TA*CDEFG`, which is the strict product-rule format. The smoke treats any hit output as a failure because production delivery must go through the Python/age wrapper.
-+The default smoke pattern is `TA*CDEFG`, which is the strict product-rule format. The script sets `TRON_SUPPRESS_SECRET_OUTPUT=1` before running VanitySearch so an accidental hit does not print WIF/HEX private key material.
-+
-+The script prints a best-effort `tron_gpu_pattern_smoke_rate` line if VanitySearch reports Mkey/s before timeout. Treat that line only as a rough startup signal. It is not the final product benchmark and does not prove average/P90 generation time.
- 
- ## Safety
- 
-@@ -48,8 +50,9 @@ The default smoke pattern is `TA*CDEFG`, which is the strict product-rule format
- - Do not treat this as a speed result.
- - Do not use customer patterns or customer data.
- - Do not rely on plaintext output for production.
-+- Keep `TRON_SUPPRESS_SECRET_OUTPUT=1` enabled for any bounded smoke.
- - Production return must still be handled by the Python wrapper and age encryption.
- 
- ## Next Gate
- 
--After this smoke compiles and runs on RunPod, add optimized GPU prefix-after-T and suffix filters so the hot path does not Base58-encode every candidate unless needed.
-+After this smoke compiles and runs on RunPod, add a dedicated benchmark-only mode that reports complete TRON address attempts per second without ever printing private key material.
-diff --git a/scripts/runpod_tron_gpu_pattern_search_smoke.sh b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
-index 1eadcce..2ec8b95 100755
---- a/scripts/runpod_tron_gpu_pattern_search_smoke.sh
-+++ b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
-@@ -11,14 +11,14 @@ CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
- CUDA_ARCH="${CUDA_ARCH:-80}"
- CXXCUDA="${CXXCUDA:-/usr/bin/g++}"
- SMOKE_PATTERN="${SMOKE_PATTERN:-TA*CDEFG}"
--SMOKE_SECONDS="${SMOKE_SECONDS:-10}"
-+SMOKE_SECONDS="${SMOKE_SECONDS:-5}"
- 
- echo "== build VanitySearch with GPU support"
- make gpu=1 CCAP="$CUDA_ARCH" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" all
- 
- echo "== run bounded TRON GPU pattern smoke"
- set +e
--timeout "$SMOKE_SECONDS"s ./VanitySearch -gpu -t 0 -g 8,128 "$SMOKE_PATTERN" \
-+TRON_SUPPRESS_SECRET_OUTPUT=1 timeout "$SMOKE_SECONDS"s ./VanitySearch -gpu -t 0 -g 8,128 "$SMOKE_PATTERN" \
-   > /tmp/tron_gpu_pattern_smoke_stdout.txt \
-   2> /tmp/tron_gpu_pattern_smoke_stderr.txt
- rc=$?
-@@ -37,4 +37,17 @@ if grep -Eiq "Priv|WIF|HEX|private_key|mnemonic|seed|token|secret" \
-   exit 1
- fi
- 
-+python3 - <<'PY'
-+from pathlib import Path
-+import re
-+
-+text = Path("/tmp/tron_gpu_pattern_smoke_stdout.txt").read_text(errors="ignore")
-+matches = re.findall(r"\[([0-9.]+) Mkey/s\]\[GPU ([0-9.]+) Mkey/s\]", text)
-+if matches:
-+    total, gpu = matches[-1]
-+    print(f"tron_gpu_pattern_smoke_rate total_mkey_s={total} gpu_mkey_s={gpu}")
-+else:
-+    print("tron_gpu_pattern_smoke_rate unavailable")
-+PY
-+
- echo "tron_gpu_pattern_smoke_passed"
--- 
-2.50.1 (Apple Git-155)
-
-
-From 13b202c70a39a73684fc942971d16fc478696503 Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 03:48:16 +0800
-Subject: [PATCH 11/15] Add bounded TRON GPU pattern benchmark script
-
----
- docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md    | 50 +++++++++++
- scripts/runpod_tron_gpu_pattern_benchmark.sh | 95 ++++++++++++++++++++
- 2 files changed, 145 insertions(+)
- create mode 100644 docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md
- create mode 100644 scripts/runpod_tron_gpu_pattern_benchmark.sh
-
-diff --git a/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md b/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md
-new file mode 100644
-index 0000000..74bb45e
---- /dev/null
-+++ b/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md
-@@ -0,0 +1,50 @@
-+# RunPod TRON GPU Pattern Benchmark
-+
-+## Purpose
-+
-+This is a bounded benchmark signal for the patched VanitySearch TRON path on a normal RunPod GPU Pod.
-+
-+It is not the final Serverless production proof. It is meant to answer whether the patched CUDA path is fast enough to justify deeper benchmark-only worker integration.
-+
-+## Safety Rules
-+
-+- Do not run this on `47.80.70.211`.
-+- Do not use customer patterns.
-+- Do not use customer data.
-+- Do not run it without `ALLOW_RUNPOD_TRON_GPU_PATTERN_BENCHMARK=1`.
-+- Keep `TRON_SUPPRESS_SECRET_OUTPUT=1`; the script sets it before launching VanitySearch.
-+- Treat the output as a bounded GPU Pod signal, not final average/P90 proof.
-+
-+## Command
-+
-+From the patched VanitySearch repository on a short-lived CUDA RunPod Pod:
-+
-+```bash
-+ALLOW_RUNPOD_TRON_GPU_PATTERN_BENCHMARK=1 CUDA_ARCH=80 BENCHMARK_SECONDS=10 scripts/runpod_tron_gpu_pattern_benchmark.sh
-+```
-+
-+Optional variables:
-+
-+```bash
-+BENCHMARK_PATTERN=TA*CDEFG
-+GPU_GRID=8,128
-+BENCHMARK_SECONDS=10
-+```
-+
-+`BENCHMARK_SECONDS` is intentionally limited to 3-30 seconds.
-+
-+## Output
-+
-+The script prints JSON with:
-+
-+- `reported_gpu_mkey_s`
-+- `candidate_attempts_per_second_estimate`
-+- `samples`
-+- `timeout_reached`
-+- safety notes
-+
-+The estimate comes from VanitySearch's reported GPU key rate. It should be treated as a direction signal until a dedicated benchmark-only worker reports complete TRON address attempts per second.
-+
-+## Next Gate
-+
-+If this bounded benchmark is promising, add a dedicated no-secret benchmark mode that reports complete TRON candidate attempts per second and then run a longer controlled comparison on the intended GPU classes.
 diff --git a/scripts/runpod_tron_gpu_pattern_benchmark.sh b/scripts/runpod_tron_gpu_pattern_benchmark.sh
 new file mode 100644
 index 0000000..67ab22e
@@ -2815,494 +1878,155 @@ index 0000000..67ab22e
 +PY
 +
 +echo "tron_gpu_pattern_benchmark_passed"
--- 
-2.50.1 (Apple Git-155)
-
-
-From 486494e7c2439eeb6b9418b70feead7c674d4cf4 Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 04:11:57 +0800
-Subject: [PATCH 12/15] Correct TRON VanitySearch attempt counters
-
----
- Vanity.cpp | 5 +++--
- 1 file changed, 3 insertions(+), 2 deletions(-)
-
-diff --git a/Vanity.cpp b/Vanity.cpp
-index d9b9f57..a867c6b 100644
---- a/Vanity.cpp
-+++ b/Vanity.cpp
-@@ -1540,7 +1540,7 @@ void VanitySearch::FindKeyCPU(TH_PARAM *ph) {
-     }
- 
-     key.Add((uint64_t)CPU_GRP_SIZE);
--    counters[thId]+= 6*CPU_GRP_SIZE; // Point + endo #1 + endo #2 + Symetric point + endo #1 + endo #2
-+    counters[thId] += (searchType == TRON_ADDR) ? CPU_GRP_SIZE : 6 * CPU_GRP_SIZE;
- 
-   }
- 
-@@ -1636,7 +1636,8 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
-       for (int i = 0; i < nbThread; i++) {
-         keys[i].Add((uint64_t)STEP_SIZE);
-       }
--      counters[thId] += 6ULL * STEP_SIZE * nbThread; // Point +  endo1 + endo2 + symetrics
-+      uint64_t attemptsPerThread = (searchType == TRON_ADDR) ? STEP_SIZE : 6ULL * STEP_SIZE;
-+      counters[thId] += attemptsPerThread * nbThread;
-     }
- 
-   }
--- 
-2.50.1 (Apple Git-155)
-
-
-From ba65a1ac965a125cec942686781efbd0c00b2361 Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 04:18:26 +0800
-Subject: [PATCH 13/15] Absorb TRON public key coordinates directly
-
----
- GPU/GPUCompute.h          |  4 +---
- GPU/GPUTron.h             | 39 +++++++++++++++++++++++++++++++++++++++
- GPU/GPUTronVectorCheck.cu | 32 ++++++++++++++++++++++++++++++--
- 3 files changed, 70 insertions(+), 5 deletions(-)
-
-diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index 941b61d..c78d571 100644
---- a/GPU/GPUCompute.h
-+++ b/GPU/GPUCompute.h
-@@ -262,14 +262,12 @@ __device__ __noinline__ void CheckTronPoint(
-     uint32_t maxFound,
-     uint32_t *out) {
- 
--  uint8_t public_key64[64];
-   uint8_t payload21[21];
-   uint8_t payload25[25];
-   char address[48];
-   uint32_t tid = (blockIdx.x*blockDim.x) + threadIdx.x;
- 
--  tron_public_key64_from_xy(px, py, public_key64);
--  tron_payload21_from_public_key64(public_key64, payload21);
-+  tron_payload21_from_xy(px, py, payload21);
-   if (!tron_payload21_can_match_prefix_range(payload21, prefixRange)) {
-     return;
-   }
-diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
-index b5aecc2..1399b19 100644
---- a/GPU/GPUTron.h
-+++ b/GPU/GPUTron.h
-@@ -175,6 +175,45 @@ __device__ __noinline__ void tron_keccak256_64(const uint8_t input64[64], uint8_
-   }
- }
- 
-+__device__ __forceinline__ void tron_keccak_absorb_byte(uint64_t state[25], int pos, uint8_t value) {
-+  state[pos >> 3] ^= static_cast<uint64_t>(value) << (8 * (pos & 7));
-+}
+diff --git a/scripts/runpod_tron_gpu_pattern_search_smoke.sh b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
+new file mode 100755
+index 0000000..2ec8b95
+--- /dev/null
++++ b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
+@@ -0,0 +1,53 @@
++#!/usr/bin/env bash
++set -euo pipefail
 +
-+__device__ __noinline__ void tron_payload21_from_xy(
-+    const uint64_t *x,
-+    const uint64_t *y,
-+    uint8_t payload21[21]) {
-+  uint64_t state[25];
-+  for (int i = 0; i < 25; ++i) state[i] = 0;
++if [ "${ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE:-0}" != "1" ]; then
++  echo "refusing_to_run_without_ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE=1" >&2
++  echo "This smoke is intended for a short-lived CUDA RunPod Pod only." >&2
++  exit 2
++fi
 +
-+  const uint32_t *x32 = reinterpret_cast<const uint32_t *>(x);
-+  const uint32_t *y32 = reinterpret_cast<const uint32_t *>(y);
-+  for (int i = 0; i < 8; ++i) {
-+    const uint32_t xw = x32[7 - i];
-+    const uint32_t yw = y32[7 - i];
-+    const int xpos = i * 4;
-+    const int ypos = 32 + i * 4;
-+    tron_keccak_absorb_byte(state, xpos, static_cast<uint8_t>((xw >> 24) & 0xff));
-+    tron_keccak_absorb_byte(state, xpos + 1, static_cast<uint8_t>((xw >> 16) & 0xff));
-+    tron_keccak_absorb_byte(state, xpos + 2, static_cast<uint8_t>((xw >> 8) & 0xff));
-+    tron_keccak_absorb_byte(state, xpos + 3, static_cast<uint8_t>(xw & 0xff));
-+    tron_keccak_absorb_byte(state, ypos, static_cast<uint8_t>((yw >> 24) & 0xff));
-+    tron_keccak_absorb_byte(state, ypos + 1, static_cast<uint8_t>((yw >> 16) & 0xff));
-+    tron_keccak_absorb_byte(state, ypos + 2, static_cast<uint8_t>((yw >> 8) & 0xff));
-+    tron_keccak_absorb_byte(state, ypos + 3, static_cast<uint8_t>(yw & 0xff));
-+  }
++CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
++CUDA_ARCH="${CUDA_ARCH:-80}"
++CXXCUDA="${CXXCUDA:-/usr/bin/g++}"
++SMOKE_PATTERN="${SMOKE_PATTERN:-TA*CDEFG}"
++SMOKE_SECONDS="${SMOKE_SECONDS:-5}"
 +
-+  tron_keccak_absorb_byte(state, 64, 0x01);
-+  tron_keccak_absorb_byte(state, 135, 0x80);
-+  tron_keccak_f1600(state);
++echo "== build VanitySearch with GPU support"
++make gpu=1 CCAP="$CUDA_ARCH" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" all
 +
-+  payload21[0] = 0x41;
-+  for (int i = 0; i < 20; ++i) {
-+    const int pos = 12 + i;
-+    payload21[i + 1] = static_cast<uint8_t>((state[pos >> 3] >> (8 * (pos & 7))) & 0xff);
-+  }
-+}
++echo "== run bounded TRON GPU pattern smoke"
++set +e
++TRON_SUPPRESS_SECRET_OUTPUT=1 timeout "$SMOKE_SECONDS"s ./VanitySearch -gpu -t 0 -g 8,128 "$SMOKE_PATTERN" \
++  > /tmp/tron_gpu_pattern_smoke_stdout.txt \
++  2> /tmp/tron_gpu_pattern_smoke_stderr.txt
++rc=$?
++set -e
 +
- __device__ __noinline__ void tron_sha256_single_block(
-     const uint8_t *input,
-     int length,
-diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
-index 1d64dc8..59475db 100644
---- a/GPU/GPUTronVectorCheck.cu
-+++ b/GPU/GPUTronVectorCheck.cu
-@@ -19,6 +19,8 @@
- 
- struct TronVectorInput {
-   uint8_t public_key64[64];
-+  uint64_t x[4];
-+  uint64_t y[4];
-   char expected_address[48];
-   char prefix_after_t;
-   char suffix5[6];
-@@ -38,6 +40,7 @@ struct TronVectorResult {
-   int wrong_prefix_prefilter_rejected;
-   int suffix_prefilter_passed;
-   int wrong_suffix_prefilter_rejected;
-+  int xy_payload_passed;
-   char computed_address[48];
-   uint8_t payload25[25];
- };
-@@ -64,6 +67,15 @@ __global__ void tron_vector_kernel(
-       inputs[idx].wrong_suffix5) ? 1 : 0;
-   uint8_t payload21[21];
-   tron_payload21_from_public_key64(inputs[idx].public_key64, payload21);
-+  uint8_t xy_payload21[21];
-+  tron_payload21_from_xy(inputs[idx].x, inputs[idx].y, xy_payload21);
-+  result.xy_payload_passed = 1;
-+  for (int i = 0; i < 21; ++i) {
-+    if (payload21[i] != xy_payload21[i]) {
-+      result.xy_payload_passed = 0;
-+      break;
-+    }
-+  }
-   uint64_t suffix_value = tron_suffix5_value(inputs[idx].suffix5);
-   uint64_t wrong_suffix_value = tron_suffix5_value(inputs[idx].wrong_suffix5);
-   result.prefix_possible_passed =
-@@ -93,7 +105,8 @@ __global__ void tron_vector_kernel(
-       !result.prefix_prefilter_passed ||
-       !result.wrong_prefix_prefilter_rejected ||
-       !result.suffix_prefilter_passed ||
--      !result.wrong_suffix_prefilter_rejected) {
-+      !result.wrong_suffix_prefilter_rejected ||
-+      !result.xy_payload_passed) {
-     result.passed = 0;
-   }
-   results[idx] = result;
-@@ -116,6 +129,13 @@ static std::vector<uint8_t> hex_to_bytes(const char *hex) {
-   return out;
- }
- 
-+static uint32_t read_be32(const uint8_t *bytes) {
-+  return (static_cast<uint32_t>(bytes[0]) << 24) |
-+         (static_cast<uint32_t>(bytes[1]) << 16) |
-+         (static_cast<uint32_t>(bytes[2]) << 8) |
-+         static_cast<uint32_t>(bytes[3]);
-+}
++if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then
++  echo "tron_gpu_pattern_smoke_failed rc=$rc" >&2
++  tail -80 /tmp/tron_gpu_pattern_smoke_stdout.txt >&2 || true
++  tail -80 /tmp/tron_gpu_pattern_smoke_stderr.txt >&2 || true
++  exit 1
++fi
 +
- static int host_base58_value(char c) {
-   const char *alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-   for (int i = 0; i < 58; ++i) {
-@@ -183,6 +203,12 @@ static TronVectorInput make_input(const char *public_key_uncompressed_hex, const
-   std::vector<uint8_t> public_key = hex_to_bytes(public_key64_hex);
-   if (public_key.size() != 64) throw std::runtime_error("public key must be 64 bytes");
-   std::memcpy(input.public_key64, public_key.data(), 64);
-+  uint32_t *x32 = reinterpret_cast<uint32_t *>(input.x);
-+  uint32_t *y32 = reinterpret_cast<uint32_t *>(input.y);
-+  for (int i = 0; i < 8; ++i) {
-+    x32[7 - i] = read_be32(public_key.data() + i * 4);
-+    y32[7 - i] = read_be32(public_key.data() + 32 + i * 4);
-+  }
-   if (std::strlen(expected_address) >= sizeof(input.expected_address)) {
-     throw std::runtime_error("expected address too long");
-   }
-@@ -276,7 +302,7 @@ int main() {
-   for (size_t i = 0; i < results.size(); ++i) {
-     if (results[i].passed) ++passed;
-     std::printf(
--        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"prefix_possible_passed\": %s, \"wrong_prefix_possible_rejected\": %s, \"prefix_prefilter_passed\": %s, \"wrong_prefix_prefilter_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s}%s\n",
-+        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"prefix_possible_passed\": %s, \"wrong_prefix_possible_rejected\": %s, \"prefix_prefilter_passed\": %s, \"wrong_prefix_prefilter_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s, \"xy_payload_passed\": %s}%s\n",
-         i,
-         results[i].passed ? "true" : "false",
-         results[i].computed_address,
-@@ -288,6 +314,7 @@ int main() {
-         results[i].wrong_prefix_prefilter_rejected ? "true" : "false",
-         results[i].suffix_prefilter_passed ? "true" : "false",
-         results[i].wrong_suffix_prefilter_rejected ? "true" : "false",
-+        results[i].xy_payload_passed ? "true" : "false",
-         i + 1 == results.size() ? "" : ",");
-   }
-   std::printf("  ],\n");
-@@ -295,6 +322,7 @@ int main() {
-   std::printf("  \"failed\": %zu,\n", results.size() - static_cast<size_t>(passed));
-   std::printf("  \"notes\": [\n");
-   std::printf("    \"GPU TRON address layer vector check only; no search or benchmark is run.\",\n");
-+  std::printf("    \"The check compares direct x/y Keccak absorption with the public_key64 reference path.\",\n");
-   std::printf("    \"The product rule checked here is fixed T plus prefix_after_t(1) plus suffix(5).\",\n");
-   std::printf("    \"Inputs are public TEST_ONLY public-key vectors; no scalar material is generated or printed.\"\n");
-   std::printf("  ]\n");
--- 
-2.50.1 (Apple Git-155)
-
-
-From 60e9495fa72e8595ea7f66d273cfa811840bfc8e Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 04:27:05 +0800
-Subject: [PATCH 14/15] Precompute TRON payload21 prefix bounds
-
----
- GPU/GPUEngine.cu          |  5 ++++-
- GPU/GPUTron.h             | 31 +++++++++++++------------------
- GPU/GPUTronTypes.h        |  2 ++
- GPU/GPUTronVectorCheck.cu |  2 ++
- 4 files changed, 21 insertions(+), 19 deletions(-)
-
-diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
-index 7ecce69..f347022 100644
---- a/GPU/GPUEngine.cu
-+++ b/GPU/GPUEngine.cu
-@@ -105,7 +105,10 @@ static bool host_tron_prefix_range(char prefixAfterT, TronPrefixRange *range) {
-     if (!host_big25_mul_small(range->low, 58U)) return false;
-     if (!host_big25_mul_small(range->high, 58U)) return false;
-   }
--  return host_big25_sub_one(range->high);
-+  if (!host_big25_sub_one(range->high)) return false;
-+  memcpy(range->possibleLow21, range->low, sizeof(range->possibleLow21));
-+  memcpy(range->possibleHigh21, range->high, sizeof(range->possibleHigh21));
-+  return true;
- }
- 
- // ---------------------------------------------------------------------------------------
-diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
-index 1399b19..6ae45bb 100644
---- a/GPU/GPUTron.h
-+++ b/GPU/GPUTron.h
-@@ -39,6 +39,16 @@ __device__ __noinline__ int tron_payload25_compare(
-   return 0;
- }
- 
-+__device__ __forceinline__ int tron_payload21_compare(
-+    const uint8_t a[21],
-+    const uint8_t b[21]) {
-+  for (int i = 0; i < 21; ++i) {
-+    if (a[i] < b[i]) return -1;
-+    if (a[i] > b[i]) return 1;
-+  }
-+  return 0;
-+}
++if grep -Eiq "Priv|WIF|HEX|private_key|mnemonic|seed|token|secret" \
++  /tmp/tron_gpu_pattern_smoke_stdout.txt /tmp/tron_gpu_pattern_smoke_stderr.txt; then
++  echo "unexpected sensitive marker or hit output in TRON GPU pattern smoke" >&2
++  exit 1
++fi
 +
- __device__ __noinline__ bool tron_payload25_matches_prefix_range(
-     const uint8_t payload25[25],
-     const TronPrefixRange prefixRange) {
-@@ -46,26 +56,11 @@ __device__ __noinline__ bool tron_payload25_matches_prefix_range(
-          tron_payload25_compare(payload25, prefixRange.high) <= 0;
- }
- 
--__device__ __noinline__ int tron_payload21_with_tail_compare(
--    const uint8_t payload21[21],
--    const uint8_t value25[25],
--    uint8_t tailByte) {
--  for (int i = 0; i < 21; ++i) {
--    if (payload21[i] < value25[i]) return -1;
--    if (payload21[i] > value25[i]) return 1;
--  }
--  for (int i = 21; i < 25; ++i) {
--    if (tailByte < value25[i]) return -1;
--    if (tailByte > value25[i]) return 1;
--  }
--  return 0;
--}
--
--__device__ __noinline__ bool tron_payload21_can_match_prefix_range(
-+__device__ __forceinline__ bool tron_payload21_can_match_prefix_range(
-     const uint8_t payload21[21],
-     const TronPrefixRange prefixRange) {
--  return tron_payload21_with_tail_compare(payload21, prefixRange.low, 0xff) >= 0 &&
--         tron_payload21_with_tail_compare(payload21, prefixRange.high, 0x00) <= 0;
-+  return tron_payload21_compare(payload21, prefixRange.possibleLow21) >= 0 &&
-+         tron_payload21_compare(payload21, prefixRange.possibleHigh21) <= 0;
- }
- 
- __device__ __noinline__ uint64_t tron_payload25_mod_base58_power(
-diff --git a/GPU/GPUTronTypes.h b/GPU/GPUTronTypes.h
-index dfa1741..29fa286 100644
---- a/GPU/GPUTronTypes.h
-+++ b/GPU/GPUTronTypes.h
-@@ -6,6 +6,8 @@
- typedef struct {
-   uint8_t low[25];
-   uint8_t high[25];
-+  uint8_t possibleLow21[21];
-+  uint8_t possibleHigh21[21];
- } TronPrefixRange;
- 
- #endif
-diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
-index 59475db..0e676ad 100644
---- a/GPU/GPUTronVectorCheck.cu
-+++ b/GPU/GPUTronVectorCheck.cu
-@@ -189,6 +189,8 @@ static TronPrefixRange make_prefix_range(char prefix_after_t) {
-     if (!big25_mul_small(range.high, 58U)) throw std::runtime_error("prefix high scale overflow");
-   }
-   if (!big25_sub_one(range.high)) throw std::runtime_error("prefix high underflow");
-+  std::memcpy(range.possibleLow21, range.low, sizeof(range.possibleLow21));
-+  std::memcpy(range.possibleHigh21, range.high, sizeof(range.possibleHigh21));
-   return range;
- }
- 
--- 
-2.50.1 (Apple Git-155)
-
-
-From 4cd2de77df1475687fb0822001a71967b6060e76 Mon Sep 17 00:00:00 2001
-From: 1z1 <1z1@1z1deMacBook-Air.local>
-Date: Thu, 18 Jun 2026 04:31:59 +0800
-Subject: [PATCH 15/15] Use word bounds for TRON payload21 prefix gate
-
----
- GPU/GPUEngine.cu          | 20 ++++++++++++++++++--
- GPU/GPUTron.h             | 28 ++++++++++++++++++++++------
- GPU/GPUTronTypes.h        |  4 ++--
- GPU/GPUTronVectorCheck.cu | 20 ++++++++++++++++++--
- 4 files changed, 60 insertions(+), 12 deletions(-)
-
-diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
-index f347022..05c1e56 100644
---- a/GPU/GPUEngine.cu
-+++ b/GPU/GPUEngine.cu
-@@ -89,6 +89,16 @@ static bool host_big25_sub_one(uint8_t value[25]) {
-   return false;
- }
- 
-+static uint64_t host_payload21_word(const uint8_t value[21], int wordIndex) {
-+  uint64_t out = 0;
-+  int offset = wordIndex * 8;
-+  int limit = wordIndex == 2 ? 5 : 8;
-+  for (int i = 0; i < limit; ++i) {
-+    out |= (uint64_t)value[offset + i] << (56 - 8 * i);
-+  }
-+  return out;
-+}
++python3 - <<'PY'
++from pathlib import Path
++import re
 +
- static bool host_tron_prefix_range(char prefixAfterT, TronPrefixRange *range) {
-   int first = host_tron_base58_value('T');
-   int second = host_tron_base58_value(prefixAfterT);
-@@ -106,8 +116,14 @@ static bool host_tron_prefix_range(char prefixAfterT, TronPrefixRange *range) {
-     if (!host_big25_mul_small(range->high, 58U)) return false;
-   }
-   if (!host_big25_sub_one(range->high)) return false;
--  memcpy(range->possibleLow21, range->low, sizeof(range->possibleLow21));
--  memcpy(range->possibleHigh21, range->high, sizeof(range->possibleHigh21));
-+  uint8_t possibleLow21[21];
-+  uint8_t possibleHigh21[21];
-+  memcpy(possibleLow21, range->low, sizeof(possibleLow21));
-+  memcpy(possibleHigh21, range->high, sizeof(possibleHigh21));
-+  for (int i = 0; i < 3; ++i) {
-+    range->possibleLowWords[i] = host_payload21_word(possibleLow21, i);
-+    range->possibleHighWords[i] = host_payload21_word(possibleHigh21, i);
-+  }
-   return true;
- }
- 
-diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
-index 6ae45bb..6c44b3b 100644
---- a/GPU/GPUTron.h
-+++ b/GPU/GPUTron.h
-@@ -39,16 +39,28 @@ __device__ __noinline__ int tron_payload25_compare(
-   return 0;
- }
- 
--__device__ __forceinline__ int tron_payload21_compare(
--    const uint8_t a[21],
--    const uint8_t b[21]) {
--  for (int i = 0; i < 21; ++i) {
-+__device__ __forceinline__ int tron_payload21_words_compare(
-+    const uint64_t a[3],
-+    const uint64_t b[3]) {
-+  for (int i = 0; i < 3; ++i) {
-     if (a[i] < b[i]) return -1;
-     if (a[i] > b[i]) return 1;
-   }
-   return 0;
- }
- 
-+__device__ __forceinline__ uint64_t tron_pack_payload21_word(
-+    const uint8_t payload21[21],
-+    int wordIndex) {
-+  uint64_t value = 0;
-+  const int offset = wordIndex * 8;
-+  const int limit = wordIndex == 2 ? 5 : 8;
-+  for (int i = 0; i < limit; ++i) {
-+    value |= static_cast<uint64_t>(payload21[offset + i]) << (56 - 8 * i);
-+  }
-+  return value;
-+}
++text = Path("/tmp/tron_gpu_pattern_smoke_stdout.txt").read_text(errors="ignore")
++matches = re.findall(r"\[([0-9.]+) Mkey/s\]\[GPU ([0-9.]+) Mkey/s\]", text)
++if matches:
++    total, gpu = matches[-1]
++    print(f"tron_gpu_pattern_smoke_rate total_mkey_s={total} gpu_mkey_s={gpu}")
++else:
++    print("tron_gpu_pattern_smoke_rate unavailable")
++PY
 +
- __device__ __noinline__ bool tron_payload25_matches_prefix_range(
-     const uint8_t payload25[25],
-     const TronPrefixRange prefixRange) {
-@@ -59,8 +71,12 @@ __device__ __noinline__ bool tron_payload25_matches_prefix_range(
- __device__ __forceinline__ bool tron_payload21_can_match_prefix_range(
-     const uint8_t payload21[21],
-     const TronPrefixRange prefixRange) {
--  return tron_payload21_compare(payload21, prefixRange.possibleLow21) >= 0 &&
--         tron_payload21_compare(payload21, prefixRange.possibleHigh21) <= 0;
-+  uint64_t words[3];
-+  words[0] = tron_pack_payload21_word(payload21, 0);
-+  words[1] = tron_pack_payload21_word(payload21, 1);
-+  words[2] = tron_pack_payload21_word(payload21, 2);
-+  return tron_payload21_words_compare(words, prefixRange.possibleLowWords) >= 0 &&
-+         tron_payload21_words_compare(words, prefixRange.possibleHighWords) <= 0;
- }
- 
- __device__ __noinline__ uint64_t tron_payload25_mod_base58_power(
-diff --git a/GPU/GPUTronTypes.h b/GPU/GPUTronTypes.h
-index 29fa286..da947fa 100644
---- a/GPU/GPUTronTypes.h
-+++ b/GPU/GPUTronTypes.h
-@@ -6,8 +6,8 @@
- typedef struct {
-   uint8_t low[25];
-   uint8_t high[25];
--  uint8_t possibleLow21[21];
--  uint8_t possibleHigh21[21];
-+  uint64_t possibleLowWords[3];
-+  uint64_t possibleHighWords[3];
- } TronPrefixRange;
- 
- #endif
-diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
-index 0e676ad..280523d 100644
---- a/GPU/GPUTronVectorCheck.cu
-+++ b/GPU/GPUTronVectorCheck.cu
-@@ -175,6 +175,16 @@ static bool big25_sub_one(uint8_t value[25]) {
-   return false;
- }
- 
-+static uint64_t payload21_word(const uint8_t value[21], int word_index) {
-+  uint64_t out = 0;
-+  const int offset = word_index * 8;
-+  const int limit = word_index == 2 ? 5 : 8;
-+  for (int i = 0; i < limit; ++i) {
-+    out |= static_cast<uint64_t>(value[offset + i]) << (56 - 8 * i);
-+  }
-+  return out;
-+}
++echo "tron_gpu_pattern_smoke_passed"
+diff --git a/scripts/runpod_verify_tron_cpu_vectors.sh b/scripts/runpod_verify_tron_cpu_vectors.sh
+new file mode 100755
+index 0000000..074dfab
+--- /dev/null
++++ b/scripts/runpod_verify_tron_cpu_vectors.sh
+@@ -0,0 +1,47 @@
++#!/usr/bin/env bash
++set -euo pipefail
 +
- static TronPrefixRange make_prefix_range(char prefix_after_t) {
-   TronPrefixRange range{};
-   const int first = host_base58_value('T');
-@@ -189,8 +199,14 @@ static TronPrefixRange make_prefix_range(char prefix_after_t) {
-     if (!big25_mul_small(range.high, 58U)) throw std::runtime_error("prefix high scale overflow");
-   }
-   if (!big25_sub_one(range.high)) throw std::runtime_error("prefix high underflow");
--  std::memcpy(range.possibleLow21, range.low, sizeof(range.possibleLow21));
--  std::memcpy(range.possibleHigh21, range.high, sizeof(range.possibleHigh21));
-+  uint8_t possible_low21[21];
-+  uint8_t possible_high21[21];
-+  std::memcpy(possible_low21, range.low, sizeof(possible_low21));
-+  std::memcpy(possible_high21, range.high, sizeof(possible_high21));
-+  for (int i = 0; i < 3; ++i) {
-+    range.possibleLowWords[i] = payload21_word(possible_low21, i);
-+    range.possibleHighWords[i] = payload21_word(possible_high21, i);
-+  }
-   return range;
- }
- 
--- 
-2.50.1 (Apple Git-155)
-
++ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++cd "$ROOT"
++
++echo "== purpose"
++echo "Verify VanitySearch TRON CPU address adapter against public TEST_ONLY vectors."
++echo "This script does not run vanity search, GPU benchmark, or brute force."
++
++echo "== build"
++make clean >/tmp/vanitysearch_tron_cpu_make_clean.log 2>&1 || true
++make all
++
++echo "== public TEST_ONLY vectors"
++keys=(
++  "0000000000000000000000000000000000000000000000000000000000000001"
++  "0000000000000000000000000000000000000000000000000000000000000002"
++  "0000000000000000000000000000000000000000000000000000000000000003"
++  "0000000000000000000000000000000000000000000000000000000000001234"
++)
++expected=(
++  "TMVQGm1qAQYVdetCeGRRkTWYYrLXuHK2HC"
++  "TDvSsdrNM5eeXNL3czpa6AxLDHZA9nwe9K"
++  "TKTX96CBxr5kvhjsDHcqoiPWZageGxoTW3"
++  "TUqoWCpNbTPc7EwG2GbLpyPr7TYzEVYjhb"
++)
++
++for i in "${!keys[@]}"; do
++  output="$(./VanitySearch -ct "${keys[$i]}")"
++  echo "$output"
++
++  if echo "$output" | grep -E 'Priv|WIF|HEX|private_key|mnemonic|seed|token|secret' >/dev/null; then
++    echo "forbidden sensitive-looking output in vector $i" >&2
++    exit 1
++  fi
++
++  actual="$(echo "$output" | awk -F': ' '/Addr \(TRON\):/{print $2}' | tail -1)"
++  if [[ "$actual" != "${expected[$i]}" ]]; then
++    echo "vector $i mismatch" >&2
++    echo "expected=${expected[$i]}" >&2
++    echo "actual=$actual" >&2
++    exit 1
++  fi
++done
++
++echo "tron_cpu_vectors_passed"
+diff --git a/scripts/runpod_verify_tron_gpu_address_layer.sh b/scripts/runpod_verify_tron_gpu_address_layer.sh
+new file mode 100755
+index 0000000..a6aeff3
+--- /dev/null
++++ b/scripts/runpod_verify_tron_gpu_address_layer.sh
+@@ -0,0 +1,34 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++cd "$ROOT"
++
++NVCC_BIN="${NVCC:-nvcc}"
++CUDA_ARCH="${CUDA_ARCH:-sm_80}"
++OUT="${OUT:-/tmp/tron_gpu_address_layer_check}"
++
++echo "== compile TRON GPU address layer vector check"
++"$NVCC_BIN" \
++  -std=c++17 \
++  -O2 \
++  -I. \
++  -I./GPU \
++  -arch="$CUDA_ARCH" \
++  GPU/GPUTronVectorCheck.cu \
++  -o "$OUT"
++
++echo "== run TRON GPU address layer vector check"
++"$OUT" | tee /tmp/tron_gpu_address_layer_check.json
++
++if ! grep -q "tron_gpu_address_layer_passed" /tmp/tron_gpu_address_layer_check.json; then
++  echo "tron_gpu_address_layer_failed" >&2
++  exit 1
++fi
++
++if grep -Eiq "private_key|mnemonic|seed|token|secret|wif|priv" /tmp/tron_gpu_address_layer_check.json; then
++  echo "unexpected sensitive marker in GPU address layer output" >&2
++  exit 1
++fi
++
++echo "tron_gpu_address_layer_script_passed"
