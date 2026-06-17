@@ -114,6 +114,14 @@ Goal:
 
 Do not run production TRON benchmark in this phase.
 
+Status on 2026-06-17:
+
+- A40 base Ubuntu image lacked `nvcc`, so it was stopped and terminated.
+- A100 CUDA image compiled upstream VanitySearch successfully.
+- Upstream Bitcoin vanity baseline on A100 reached about `4.1` to `4.8` billion keys/s.
+- This validates the architecture class, but does not count as TRON address/s.
+- Detailed record: `docs/RUNPOD_VANITYSEARCH_BASELINE_20260617.md`.
+
 ### Phase B: CPU TRON Mode Skeleton
 
 Add a local TRON address function to candidate branch:

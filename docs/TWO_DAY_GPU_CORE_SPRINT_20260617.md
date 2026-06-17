@@ -31,6 +31,19 @@ This implementation remains useful only as:
 
 Do not continue spending RunPod benchmark time on the current core without replacing the hot path.
 
+## VanitySearch Baseline Result
+
+Unmodified upstream `VanitySearch` was compiled on a RunPod A100 CUDA image and tested only as a Bitcoin vanity baseline.
+
+- GPU: NVIDIA A100-SXM4-80GB
+- Source commit: `c8d48ce5f03f5357c0e87cbdb3e1e93cd50af88b`
+- Compile result: success with CUDA 12.4 and `sm_80`
+- Short observed speed: about `4.1` to `4.8` billion keys/s
+
+This is not TRON address speed. It is evidence that a mature point-walking vanity architecture can reach the required performance class, while the current in-house CUDA core cannot.
+
+Next work should focus on adapting a mature architecture to complete TRON address generation and matching, not further tuning the current slow kernel.
+
 ## Hard Boundaries
 
 - Do not run GPU, brute force, CUDA compile, or high benchmark on `47.80.70.211`.
@@ -122,6 +135,7 @@ Backup route:
   - Base58Check prefix/suffix matcher
   - private-key output removal
 - Prepare low-cost RunPod GPU Pod build checklist.
+- Completed upstream VanitySearch A100 baseline; see `docs/RUNPOD_VANITYSEARCH_BASELINE_20260617.md`.
 
 ### Day 2
 
