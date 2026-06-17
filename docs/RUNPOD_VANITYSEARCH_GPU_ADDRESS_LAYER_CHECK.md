@@ -22,22 +22,22 @@ An optional smoke can also compile patched VanitySearch and run a bounded TRON w
 Tracked patch in this repository:
 
 ```text
-patches/vanitysearch_tron_gpu_suffix_prefilter_20260618.patch
+patches/vanitysearch_tron_gpu_prefix_suffix_prefilter_20260618.patch
 ```
 
 SHA-256:
 
 ```text
-f90f69c0001d16f94a4175d369635814e3247895bb16e7676097f94c8de32fad
+9c6bef3fe3d0a4935d097d2048ebc37989c5ffa45785b75f56d7813fbb086843
 ```
 
 Candidate branch head:
 
 ```text
-ff43325 Add TRON suffix modulo GPU prefilter
+25fcd54 Add TRON prefix range GPU prefilter
 ```
 
-The TRON GPU search path now parses `T<one-char>*<five-char-suffix>` into a dedicated product rule, passes the suffix target into the kernel as a precomputed Base58 value, and uses a suffix-5 modulo prefilter before full Base58 confirmation. This avoids passing a host string pointer into the kernel and reduces full Base58 work for most candidates.
+The TRON GPU search path now parses `T<one-char>*<five-char-suffix>` into a dedicated product rule, precomputes both the `T` + `prefix_after_t` Base58 value range and suffix-5 value, applies the prefix range prefilter first, then applies the suffix modulo prefilter before full Base58 confirmation. This avoids passing host string pointers into the kernel and reduces modulo/Base58 work for most candidates.
 
 ## RunPod Command
 
@@ -71,7 +71,7 @@ tron_gpu_pattern_smoke_passed
 - The script verifies the patch SHA-256 before applying it.
 - The script refuses to overwrite an existing work directory.
 - The optional wildcard smoke uses a long default suffix to avoid accidental hits and plaintext hit output.
-- The suffix prefilter is an optimization gate, not proof of final production speed.
+- The prefix range and suffix modulo prefilters are optimization gates, not proof of final production speed.
 - Do not run this on `47.80.70.211`.
 - Do not run a search benchmark from this check.
 - Do not treat this as proof of production speed.
