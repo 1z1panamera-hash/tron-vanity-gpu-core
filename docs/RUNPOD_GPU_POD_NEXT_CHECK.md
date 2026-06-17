@@ -79,6 +79,12 @@ Save the full stdout locally and inspect it with:
 scripts/inspect_vanitysearch_benchmark.py vanitysearch_benchmark_stdout.txt
 ```
 
+Record the result using:
+
+```text
+docs/RUNPOD_GPU_POD_RESULT_TEMPLATE.md
+```
+
 ## Safety Boundary
 
 - The bounded benchmark uses `TRON_SUPPRESS_SECRET_OUTPUT=1`.

@@ -56,6 +56,7 @@ REQUIRED_PATHS = [
     "docs/RUNPOD_BENCHMARK_GATE.md",
     "docs/RUNPOD_GITHUB_UPLOAD_CHECKLIST.md",
     "docs/RUNPOD_GPU_POD_NEXT_CHECK.md",
+    "docs/RUNPOD_GPU_POD_RESULT_TEMPLATE.md",
     "docs/RUNPOD_VANITYSEARCH_GPU_ADDRESS_LAYER_CHECK.md",
     "patches/vanitysearch_tron_gpu_payload21_word_bounds_20260618.patch",
     "scripts/inspect_vanitysearch_benchmark.py",
