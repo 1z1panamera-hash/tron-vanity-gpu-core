@@ -47,7 +47,7 @@ git rev-parse HEAD
 Expected current minimum commit:
 
 ```text
-30336cf7c1563be05cd48a47ac653f803ae34727
+e12424dd5159d47d7730397b940ef05d8ae4080a
 ```
 
 If the commit is older, stop and update the Pod checkout.
@@ -230,3 +230,18 @@ decision = optimize_cuda_before_serverless
 ```
 
 do not create a Serverless endpoint yet.
+
+## Latest Measured Result
+
+The 2026-06-18 RTX PRO 6000 Blackwell suffix-only speed sweep passed the speed gate:
+
+- Result doc: `docs/RUNPOD_SUFFIX_ONLY_SPEED_SWEEP_RESULT_20260618_RTX_PRO_6000.md`
+- Repo commit: `e12424dd5159d47d7730397b940ef05d8ae4080a`
+- GPU: NVIDIA RTX PRO 6000 Blackwell Server Edition
+- CUDA arch: `sm_120`
+- Best config: `STEP_SIZE=4096`, `grid=128,128`
+- Best speed: about `1.54328B attempts/s`
+- Estimated mean for `58^5`: about `0.43s`
+- Estimated P90 for `58^5`: about `0.98s`
+
+Next work should shift from the speed sprint to Serverless migration preparation: package the high-speed patched VanitySearch path, make the Python handler call that binary, and restore age-encrypted find output.

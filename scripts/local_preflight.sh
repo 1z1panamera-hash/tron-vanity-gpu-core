@@ -14,6 +14,7 @@ test -x scripts/runpod_gpu_pod_sequence.sh
 test -x scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 test -x scripts/runpod_gpu_pod_suffix_speed_test.sh
 test -x scripts/runpod_gpu_pod_suffix_compare_commits.sh
+test -x scripts/build_vanitysearch_tron_worker.sh
 test -x scripts/inspect_suffix_speed_sweep.py
 test -x scripts/inspect_runpod_sequence_result.py
 test -x scripts/print_runpod_suffix_only_commands.sh
@@ -23,6 +24,7 @@ bash -n scripts/runpod_gpu_pod_sequence.sh
 bash -n scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 bash -n scripts/runpod_gpu_pod_suffix_speed_test.sh
 bash -n scripts/runpod_gpu_pod_suffix_compare_commits.sh
+bash -n scripts/build_vanitysearch_tron_worker.sh
 bash -n scripts/print_runpod_suffix_only_commands.sh
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_runpod_sequence_result.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_suffix_speed_sweep.py
@@ -68,12 +70,17 @@ assert rule["target_address"].endswith("86666")
 assert rule["prefix_len"] == 0
 assert rule["suffix_len"] == 5
 assert rule["search_space"] == 58 ** 5
+speed = app.parse_vanitysearch_speed("[1.23 Mkey/s][GPU 456.78 Mkey/s]")
+assert speed["candidate_attempts_per_second_estimate"] == 456_780_000.0
+assert app.contains_forbidden_output_marker("TRON_SUPPRESS_SECRET_OUTPUT=1") is False
+assert app.contains_forbidden_output_marker("Priv (HEX): 0xabc") is True
+assert app.selected_gpu_backend() in {"self", "vanitysearch"}
 print("wrapper_gate_ok")
 PY
 
 echo "== docker context sanity"
 cmp -s Dockerfile Dockerfile.cuda-validate
-for p in requirements.txt app.py src tests/phase0_test_vectors.json; do
+for p in requirements.txt app.py src patches scripts/build_vanitysearch_tron_worker.sh scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh tests/phase0_test_vectors.json; do
     test -e "$p"
     if git check-ignore "$p" >/dev/null 2>&1; then
         echo "docker_source_ignored $p" >&2
@@ -312,6 +319,14 @@ rc=$?
 set -e
 if [ "$rc" -ne 2 ]; then
     echo "expected RunPod suffix compare script to refuse without env gate rc=2, got rc=$rc" >&2
+    exit 1
+fi
+set +e
+scripts/build_vanitysearch_tron_worker.sh >/tmp/build_vanitysearch_tron_worker_gate_stdout.txt 2>/tmp/build_vanitysearch_tron_worker_gate_stderr.txt
+rc=$?
+set -e
+if [ "$rc" -ne 2 ]; then
+    echo "expected VanitySearch build script to refuse without env gate rc=2, got rc=$rc" >&2
     exit 1
 fi
 

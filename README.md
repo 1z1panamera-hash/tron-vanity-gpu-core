@@ -12,10 +12,11 @@ Current status:
 - Host-side batch inversion validation is available in `tests/verify_batch_inversion.cpp`.
 - Host-side batch point-add validation is available in `tests/verify_batch_point_add.cpp`.
 - CPU shard schedule validation is available in `tests/verify_shard_schedule.cpp`.
-- CUDA vector validation source path exists, but has not been compiled on real GPU hardware yet.
-- A gated sharded benchmark smoke path exists. Its default `kernel_mode` is `incremental`, using per-thread public-key walking after base scalar setup and cooperative block-level batch inversion for stride point additions. It must not be used to report GPU speed until RunPod vector validation passes first.
+- CUDA vector validation source path exists for the original self-written scaffold.
+- A gated sharded benchmark smoke path exists for the original self-written scaffold. Its default `kernel_mode` is `incremental`, using per-thread public-key walking after base scalar setup and cooperative block-level batch inversion for stride point additions.
 - Runtime CUDA compile supports explicit `CUDA_ARCH` plus fallback candidates for A100 (`sm_80`) and RTX 5090-class (`sm_120`) testing.
-- Current priority is a speed sprint: pause age/find delivery work until the GPU path is stable above `200M attempts/s`; `300M+ attempts/s` is the preferred buffer before Serverless migration.
+- Current high-speed path is the patched VanitySearch TRON suffix-only worker. On a normal RunPod RTX PRO 6000 Blackwell GPU Pod it reached about `1.543B attempts/s` for suffix-only last-5 matching.
+- Current priority is Serverless migration preparation: build the patched VanitySearch worker into the image, route benchmark mode through it, then add a production JSON hit protocol and restore age-encrypted find delivery.
 
 ## Target
 
@@ -59,7 +60,7 @@ The last 5 Base58Check characters depend on checksum, so matching cannot be deci
 - Do not write RunPod API keys to files.
 - Do not read `.env`, token, password, or secret files.
 - Do not use unreviewed external binary generators.
-- Production hit handling is paused during the speed sprint; do not add delivery logic until the GPU path is stable above the `200M attempts/s` engineering minimum.
+- Production hit handling is not yet wired to the patched VanitySearch worker. Do not enable production find until the worker has a JSON hit protocol and the Python wrapper age-encrypts the private key before returning.
 
 ## Directory Layout
 
@@ -87,6 +88,7 @@ The last 5 Base58Check characters depend on checksum, so matching cannot be deci
 - `scripts/runpod_gpu_pod_suffix_speed_sweep.sh`: gated normal RunPod GPU Pod speed sweep/profiler helper for suffix-only optimization.
 - `scripts/runpod_gpu_pod_suffix_speed_test.sh`: gated one-command GPU Pod speed test that runs the sweep and immediately inspects the result.
 - `scripts/runpod_gpu_pod_suffix_compare_commits.sh`: gated normal GPU Pod helper for baseline-vs-current suffix speed comparison.
+- `scripts/build_vanitysearch_tron_worker.sh`: gated build helper used by the Serverless Dockerfile to compile the patched VanitySearch TRON worker.
 - `scripts/inspect_suffix_speed_sweep.py`: local inspector for speed sweep result directories, including `200M/300M` decisions and GPU utilization checks.
 - `examples/`: local sample RunPod responses for the result inspector.
 - `docs/GITHUB_READY_MANIFEST.md`: exact GitHub repository readiness and first RunPod request checklist.
