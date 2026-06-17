@@ -143,8 +143,8 @@ def inspect_sequence(result_dir: Path) -> Dict[str, Any]:
             "It does not call RunPod, compile CUDA, or run benchmarks.",
             "Suffix-only math requires about 188.91M complete TRON addresses/s for P90 <= 8s, but the engineering pass gate is 200M attempts/s minimum.",
             "300M+ attempts/s is preferred before Serverless migration.",
-            "Age/find delivery work is paused until the speed path is stable above the 200M minimum.",
-            "Passing this speed gate means continue profiler-driven CUDA optimization, not Serverless migration.",
+            "The latest suffix-only speed gate has passed; age/find Serverless flow validation is now unblocked.",
+            "Passing this sequence means continue to a controlled find smoke and Serverless cold/warm end-to-end test.",
         ],
     }
 

@@ -130,6 +130,7 @@ c++ -std=c++17 -O2 tests/verify_batch_point_add.cpp -o /tmp/verify_batch_point_a
 /tmp/verify_batch_point_add
 
 echo "== result inspectors"
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 tests/verify_find_response_contract.py >/tmp/tron_gpu_find_response_contract.json
 python3 scripts/public_repo_audit.py >/tmp/tron_gpu_public_repo_audit.json
 python3 scripts/validate_goal_rule.py >/tmp/tron_gpu_goal_rule.json
 python3 scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10 >/tmp/tron_gpu_capacity_check.json
@@ -284,7 +285,7 @@ from hashlib import sha256
 from pathlib import Path
 
 patch = Path("patches/vanitysearch_tron_gpu_suffix_only_20260618.patch")
-expected = "7454fb533658019bbbe1acefdef5f4e432d4dfc5c6acf5167b2d22a8bf3a46d6"
+expected = "6c7af24b0d4abd909869acb2fdbf537758eee701b239740e5ea9d1b2311390ca"
 actual = sha256(patch.read_bytes()).hexdigest()
 assert actual == expected, actual
 print("vanitysearch_patch_sha_ok")

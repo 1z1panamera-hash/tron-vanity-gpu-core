@@ -31,8 +31,8 @@ Hash-only speed is not valid evidence.
 - Do not use customer suffixes or customer data.
 - Keep `TRON_SUPPRESS_SECRET_OUTPUT=1` for bounded VanitySearch tests.
 - Do not output plaintext key material.
-- Do not continue to Serverless during the speed sprint.
-- Age/find delivery work is paused until the GPU path is stable above the `200M attempts/s` engineering minimum.
+- The speed gate has passed; age/find delivery work is now the active Serverless migration priority.
+- Before Serverless, run only a short GPU Pod find smoke with a test recipient and no customer data.
 
 ## Expected Repository State
 
@@ -215,7 +215,12 @@ Can move toward Serverless only if:
 
 If speed is below target, continue CUDA hot-path optimization before spending on Serverless.
 
-During the current speed sprint, do not add age encryption or production find response logic. That work resumes only after the speed path is stable above the `200M attempts/s` engineering minimum.
+The speed sprint gate has passed. The next stage is production flow validation:
+
+- build the updated patched VanitySearch worker,
+- verify `find` with the internal JSON hit protocol,
+- verify the Python wrapper returns age ciphertext only,
+- then run Serverless cold-start and warm-start end-to-end tests.
 
 The sequence inspector reports this as:
 

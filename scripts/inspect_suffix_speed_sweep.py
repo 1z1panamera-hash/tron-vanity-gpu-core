@@ -188,7 +188,7 @@ def inspect(result_dir: Path) -> Dict[str, Any]:
         "notes": [
             "This inspector reads local files only.",
             "It does not call RunPod, compile CUDA, or run benchmarks.",
-            "Age/find delivery remains paused until the speed path is stable above the 200M minimum.",
+            "The suffix-only speed gate has passed; use this as a regression inspector while Serverless find validation proceeds.",
             "300M+ attempts/s is preferred before Serverless migration.",
         ],
     }

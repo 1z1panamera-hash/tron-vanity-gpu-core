@@ -432,6 +432,107 @@ def run_vanitysearch_benchmark(suffix: str, duration_seconds: int, gpu_grid: str
     return parsed
 
 
+def parse_vanitysearch_find_stdout(stdout: str, suffix: str) -> Dict[str, Any]:
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(stdout):
+        if char != "{":
+            continue
+        try:
+            candidate, _ = decoder.raw_decode(stdout[index:])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(candidate, dict) or candidate.get("mode") != "tron_find":
+            continue
+
+        matched_address = candidate.get("matched_address")
+        private_key_hex = candidate.get("private_key_hex")
+        if candidate.get("matched") is not True:
+            continue
+        if (
+            not isinstance(matched_address, str)
+            or not matched_address.startswith("T")
+            or not matched_address.endswith(suffix)
+            or any(ch not in BASE58_ALPHABET for ch in matched_address)
+        ):
+            raise ValueError("patched VanitySearch returned an invalid matched_address")
+        if not isinstance(private_key_hex, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", private_key_hex):
+            raise ValueError("patched VanitySearch returned an invalid internal key value")
+        return {
+            "matched": True,
+            "matched_address": matched_address,
+            "private_key_hex": private_key_hex.lower(),
+        }
+    return {"matched": False}
+
+
+def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid: str) -> Dict[str, Any]:
+    """Run patched VanitySearch find mode and keep raw stdout internal-only."""
+    if not VANITYSEARCH_BINARY_PATH.exists():
+        return {
+            "ready": False,
+            "returncode": None,
+            "error": "patched VanitySearch TRON worker is not built yet.",
+            "binary": str(VANITYSEARCH_BINARY_PATH),
+            "parsed": {},
+        }
+    if not re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{5}", suffix):
+        raise ValueError("suffix must be exactly 5 Base58 characters")
+    if not re.fullmatch(r"[0-9]+,[0-9]+", gpu_grid):
+        raise ValueError("gpu_grid must use VanitySearch format like 128,128")
+
+    pattern = f"T*{suffix}"
+    env = os.environ.copy()
+    env["TRON_JSON_HIT_OUTPUT"] = "1"
+    command = [
+        str(VANITYSEARCH_BINARY_PATH),
+        "-gpu",
+        "-stop",
+        "-t",
+        "0",
+        "-g",
+        gpu_grid,
+        pattern,
+    ]
+    timeout_bin = shutil.which("timeout")
+    effective_command = [timeout_bin, f"{duration_seconds}s", *command] if timeout_bin else command
+
+    try:
+        result = subprocess.run(
+            effective_command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=duration_seconds + 20,
+            env=env,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "ready": True,
+            "returncode": None,
+            "timeout": True,
+            "binary": str(VANITYSEARCH_BINARY_PATH),
+            "parsed": {"matched": False},
+        }
+
+    if re.search(r"Priv \(|WIF|mnemonic|seed|token|secret", result.stdout + result.stderr, re.IGNORECASE):
+        return {
+            "ready": True,
+            "returncode": result.returncode,
+            "error": "patched VanitySearch emitted an unsafe output marker",
+            "binary": str(VANITYSEARCH_BINARY_PATH),
+            "parsed": {},
+        }
+
+    parsed = parse_vanitysearch_find_stdout(result.stdout, suffix)
+    return {
+        "ready": True,
+        "returncode": result.returncode,
+        "timeout": result.returncode == 124,
+        "binary": str(VANITYSEARCH_BINARY_PATH),
+        "parsed": parsed,
+    }
+
+
 def parse_json_stdout(status: Dict[str, Any]) -> Dict[str, Any]:
     stdout = status.get("stdout")
     if not isinstance(stdout, str) or not stdout.strip():
@@ -573,8 +674,8 @@ def handle_benchmark(payload: Dict[str, Any]) -> Dict[str, Any]:
             "elapsed_seconds": elapsed,
             "benchmark_result": benchmark_result,
             "notes": [
-                "Patched VanitySearch benchmark mode suppresses key output and returns only speed metadata.",
-                "This is for Serverless smoke/performance proof; production find still needs JSON hit protocol plus age encryption.",
+                "Patched VanitySearch benchmark mode suppresses sensitive output and returns only speed metadata.",
+                "This is for Serverless smoke/performance proof; production find uses a separate JSON hit protocol and age-encrypted return path.",
             ],
         }
 
@@ -651,19 +752,6 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
     age_recipient = validate_age_recipient(payload.get("age_recipient"))
     match_rule = normalize_match_rule(payload)
     gpu_backend = selected_gpu_backend()
-    if gpu_backend == "vanitysearch":
-        return {
-            "mode": "find",
-            "allowed": True,
-            "matched": False,
-            "gpu_worker_backend": gpu_backend,
-            "match_rule": match_rule,
-            "error": "patched VanitySearch production find is not enabled until JSON hit output and age encryption are wired end-to-end.",
-            "notes": [
-                "Benchmark speed path is available, but production private-key delivery remains blocked.",
-                "No key material is returned.",
-            ],
-        }
     duration_seconds = int(payload.get("duration_seconds", MAX_FIND_SECONDS))
     duration_seconds = max(1, min(duration_seconds, MAX_FIND_SECONDS))
     max_attempts = int(payload.get("max_attempts", MAX_BENCHMARK_ATTEMPTS))
@@ -675,6 +763,64 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("invalid shard_id/shard_count")
     if start_counter < 0:
         raise ValueError("start_counter must be non-negative")
+
+    if gpu_backend == "vanitysearch":
+        gpu_grid = str(payload.get("gpu_grid", "128,128"))
+        started = time.perf_counter()
+        binary_status = run_vanitysearch_find_internal(match_rule["suffix"], duration_seconds, gpu_grid)
+        elapsed = time.perf_counter() - started
+        gpu_result = binary_status.get("parsed", {})
+
+        if not binary_status.get("ready") or binary_status.get("error"):
+            return {
+                "mode": "find",
+                "allowed": True,
+                "matched": False,
+                "gpu_worker_backend": gpu_backend,
+                "match_rule": match_rule,
+                "elapsed_seconds": elapsed,
+                "gpu_binary": {
+                    "ready": binary_status.get("ready"),
+                    "returncode": binary_status.get("returncode"),
+                    "binary": binary_status.get("binary"),
+                },
+                "error": binary_status.get("error", "patched VanitySearch find failed"),
+                "notes": [
+                    "No sensitive material is returned.",
+                ],
+            }
+
+        if not gpu_result.get("matched"):
+            return {
+                "mode": "find",
+                "allowed": True,
+                "matched": False,
+                "gpu_worker_backend": gpu_backend,
+                "match_rule": match_rule,
+                "elapsed_seconds": elapsed,
+                "gpu_grid": gpu_grid,
+                "notes": [
+                    "No match found within this bounded RunPod invocation.",
+                    "No sensitive material is returned.",
+                ],
+            }
+
+        encrypted_private_key = encrypt_private_key_with_age(gpu_result.get("private_key_hex"), age_recipient)
+        return {
+            "mode": "find",
+            "allowed": True,
+            "matched": True,
+            "gpu_worker_backend": gpu_backend,
+            "matched_address": gpu_result.get("matched_address"),
+            "encrypted_private_key": encrypted_private_key,
+            "match_rule": match_rule,
+            "elapsed_seconds": elapsed,
+            "gpu_grid": gpu_grid,
+            "notes": [
+                "Sensitive material was encrypted with the customer age recipient before returning.",
+                "Response intentionally omits raw key material and credential material.",
+            ],
+        }
 
     compile_status = compile_gpu_binary_if_allowed()
     if not compile_status.get("ready"):
@@ -765,8 +911,8 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
         "attempts": gpu_result.get("attempts"),
         "gpu_name": gpu_result.get("gpu_name"),
         "notes": [
-            "Plaintext private key was encrypted with customer age recipient before returning.",
-            "Response intentionally omits plaintext key material and credential material.",
+            "Sensitive material was encrypted with the customer age recipient before returning.",
+            "Response intentionally omits raw key material and credential material.",
         ],
     }
 

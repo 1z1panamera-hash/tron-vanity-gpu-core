@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_suffix_only_20260618.patch"
-EXPECTED_PATCH_SHA="7454fb533658019bbbe1acefdef5f4e432d4dfc5c6acf5167b2d22a8bf3a46d6"
+EXPECTED_PATCH_SHA="6c7af24b0d4abd909869acb2fdbf537758eee701b239740e5ea9d1b2311390ca"
 
 if [ "${ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP:-0}" != "1" ]; then
   echo "refusing_to_run_without_ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1" >&2
@@ -340,7 +340,7 @@ summary = {
     "grids": grid_results,
     "notes": [
         "This is a normal RunPod GPU Pod speed sweep, not Serverless proof.",
-        "Age/find delivery work is intentionally paused during this speed sprint.",
+        "The latest speed gate has passed; keep this sweep for regression checks before Serverless changes.",
         "Use profiler output to decide whether secp256k1 point walking, checksum/Base58, or launch/grid sizing is the bottleneck.",
     ],
 }

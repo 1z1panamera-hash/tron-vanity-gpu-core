@@ -69,20 +69,20 @@ For the Python wrapper contract, the internal CUDA binary may emit a matched pri
 
 ## Current Status
 
-Partially complete.
+Locally wired, pending RunPod proof.
 
 - Python wrapper now has gated `mode=find`.
 - `ALLOW_GPU_FIND=1` is required before `find` can run.
 - The sample payload is `RUNPOD_FIND_SAMPLE_PAYLOAD.json`.
-- CUDA/C++ `--find` mode now emits an internal hit result for the Python wrapper.
-- The CUDA/C++ `--find` path still needs RunPod-side nvcc compile and GPU validation.
-- The current deterministic candidate generator is a staging implementation, not the final high-performance/randomized production core.
-- Final performance target is average <= 5 seconds and P90 <= 8 seconds; it is still unproven.
-- Local response-contract test `tests/verify_find_response_contract.py` uses fake local GPU/age binaries to verify that a matched API response contains `encrypted_private_key` and omits plaintext key markers.
+- The original self-written CUDA/C++ `--find` mode emits an internal hit result for the Python wrapper, but remains staging.
+- The patched high-speed VanitySearch backend now has `TRON_JSON_HIT_OUTPUT=1` for internal JSON hits.
+- `app.py` can route `find` through the VanitySearch backend, parse the internal JSON hit, and age-encrypt before returning.
+- Final end-to-end performance target is average <= 5 seconds and P90 <= 8 seconds; cold/warm Serverless timings are still unproven.
+- Local response-contract test `tests/verify_find_response_contract.py` uses fake local GPU/VanitySearch/age binaries to verify that matched API responses contain `encrypted_private_key` and omit plaintext key markers.
 
 ## CUDA Binary Output Boundary
 
-`src/tron_gpu_core.cu --find` may include `private_key_hex` in its local stdout when a match is found. That stdout is an internal process boundary only:
+`src/tron_gpu_core.cu --find` and patched VanitySearch JSON hit mode may include an internal key value in local stdout when a match is found. That stdout is an internal process boundary only:
 
 - It must be consumed by `app.py`.
 - It must not be returned directly to RunPod callers.

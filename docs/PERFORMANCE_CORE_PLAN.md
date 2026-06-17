@@ -4,7 +4,7 @@ Goal: move from correctness-first CUDA code toward a worker that can realistical
 
 The product no longer matches any prefix after fixed `T`. It matches only the last 5 Base58Check characters. The Python wrapper maps product input to internal full-address `prefix_len=0`, `suffix_len=5` for the CUDA binary. Capacity math is therefore `58^5`.
 
-Current sprint priority: speed only. Pause age/find delivery work until the GPU path is stable above `200M attempts/s`. Treat `200M attempts/s` as the minimum engineering pass gate and `300M+ attempts/s` as the preferred buffer before Serverless migration. Use normal RunPod GPU Pods with short sweeps, `nvidia-smi` utilization evidence, and profiler output before any Serverless migration.
+The speed sprint passed on 2026-06-18 with about `1.543B attempts/s` on RTX PRO 6000 Blackwell. Treat `200M attempts/s` as the minimum engineering pass gate and `300M+ attempts/s` as the preferred regression buffer. Current priority has shifted to Serverless migration: patched VanitySearch worker packaging, production `find`, age-encrypted return, and cold/warm end-to-end timing.
 
 ## Why Current Code Is Not Enough
 
@@ -88,11 +88,16 @@ Each RunPod worker gets:
 - `shard_count`
 - `duration_seconds`
 
-## Paused Hit Delivery Work
+## Active Hit Delivery Work
 
-Age/find delivery work is intentionally paused during the speed sprint. Do not add encryption, private-key return plumbing, or complex response logic until the GPU path is stable above the `200M attempts/s` engineering minimum.
+Age/find delivery work has resumed now that the suffix-only speed gate is above the `200M attempts/s` engineering minimum. The current production flow must remain simple:
 
-The active engineering focus is:
+1. VanitySearch handles the CUDA-heavy suffix-only search.
+2. The C++ worker emits a compact internal JSON hit only when explicitly requested.
+3. `app.py` parses that internal hit and age-encrypts the key value.
+4. The API response returns only `matched_address`, `encrypted_private_key`, and non-sensitive metadata.
+
+The continuing performance focus is:
 
 1. secp256k1 point walking and point-add throughput.
 2. Larger `STEP_SIZE` and grid/batch settings that actually saturate the GPU.

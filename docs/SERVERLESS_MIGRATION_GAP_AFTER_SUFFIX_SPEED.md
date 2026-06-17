@@ -24,29 +24,24 @@ This proves the patched VanitySearch CUDA path is fast enough on a normal GPU Po
 - `app.py` detects that binary and routes benchmark mode through the patched VanitySearch backend.
 - Benchmark mode sets `TRON_SUPPRESS_SECRET_OUTPUT=1`.
 - Benchmark mode returns only speed metadata, not raw VanitySearch output.
+- Patched VanitySearch has a TRON JSON hit output mode for production `find`.
+- `app.py` can call the patched VanitySearch backend for `find`, parse the internal JSON hit, and age-encrypt the internal key value before returning.
+- Local contract tests cover both the original self-written worker path and the patched VanitySearch worker path.
 
 ## What Is Not Finished
 
-Production `find` is intentionally not enabled for the VanitySearch backend yet.
+Production `find` is wired locally, but it is not RunPod-proven yet.
 
 Missing pieces:
 
-1. A dedicated patched VanitySearch production hit mode that emits structured JSON to the Python wrapper.
-2. The JSON must include:
-   - `matched=true`
-   - `matched_address`
-   - internal-only `private_key_hex`
-   - `attempts`
-   - `gpu_name` if available
-3. The JSON must not be returned directly to the API.
-4. `app.py` must age-encrypt `private_key_hex` with customer `age_recipient`.
-5. API response must include only:
+1. Serverless image must be built with the updated patch.
+2. A normal GPU Pod find smoke test should prove the patched binary emits exactly one internal JSON hit for an easy test suffix.
+3. Serverless calls must prove the Python wrapper returns only:
    - `matched`
    - `matched_address`
    - `encrypted_private_key`
    - non-sensitive metadata
-6. Serverless image must be built and tested.
-7. Repeated Serverless runs must prove:
+4. Repeated Serverless runs must prove:
    - warm-start average <= 5s
    - warm-start P90 <= 8s
    - cold-start behavior is measured separately
@@ -56,18 +51,19 @@ Missing pieces:
 If `GPU_WORKER_BACKEND=vanitysearch` or `/app/build/vanitysearch_tron_worker` exists:
 
 - `benchmark` can use the high-speed VanitySearch backend.
-- `find` refuses with an explicit error until JSON hit output and age encryption are wired end-to-end.
+- `find` uses `TRON_JSON_HIT_OUTPUT=1`, parses the internal JSON hit, and returns age ciphertext plus non-sensitive metadata.
+- Raw VanitySearch stdout is not returned to the API.
 
-This prevents accidentally returning plaintext key material from the upstream VanitySearch output path.
+This prevents accidentally returning raw key material from the upstream VanitySearch output path.
 
 ## Next Engineering Step
 
-Patch VanitySearch with a dedicated TRON production find mode for suffix-only search:
+Run a short GPU Pod build/find smoke before Serverless:
 
 - strict input pattern: `T*<suffix5>`
 - no normal `Priv (WIF)` / `Priv (HEX)` output
-- emit one compact JSON object on hit
-- allow bounded `duration_seconds` / `max_attempts`
+- emit one compact JSON object on hit internally
+- prove API response contains age ciphertext only
 - keep benchmark mode separate from production find mode
 
-After that, run a GPU Pod find smoke test with a deliberately easy suffix, using only a test age recipient and no customer data.
+After that, create/update the Serverless endpoint and run cold-start plus warm-start end-to-end tests with only test recipients and no customer data.

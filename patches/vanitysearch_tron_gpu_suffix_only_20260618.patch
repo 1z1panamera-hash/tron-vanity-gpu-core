@@ -1280,7 +1280,7 @@ index 8cf4881..e91bc08 100644
    std::string GetPublicKeyHex(bool compressed, Point &p);
    Point ParsePublicKeyHex(std::string str, bool &isCompressed);
 diff --git a/Vanity.cpp b/Vanity.cpp
-index e7ad0d7..fb9eead 100644
+index e7ad0d7..b8e1fbd 100644
 --- a/Vanity.cpp
 +++ b/Vanity.cpp
 @@ -27,6 +27,7 @@
@@ -1392,7 +1392,34 @@ index e7ad0d7..fb9eead 100644
    } else {
  
      // P2PKH/P2SH
-@@ -692,9 +750,17 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
+@@ -687,14 +745,44 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
+     }
+   }
+ 
++  bool tronJsonHitOutput =
++      searchType == TRON_ADDR &&
++      getenv("TRON_JSON_HIT_OUTPUT") != NULL &&
++      strcmp(getenv("TRON_JSON_HIT_OUTPUT"), "1") == 0;
++
++  if (tronJsonHitOutput) {
++    fprintf(f,
++            "{\"mode\":\"tron_find\",\"matched\":true,\"matched_address\":\"%s\",\"private_key_hex\":\"%s\"}\n",
++            addr.c_str(),
++            pAddrHex.c_str());
++
++    if(needToClose)
++      fclose(f);
++
++#ifdef WIN64
++    ReleaseMutex(ghMutex);
++#else
++    pthread_mutex_unlock(&ghMutex);
++#endif
++    return;
++  }
++
+   if(!needToClose)
+     printf("\n");
  
    fprintf(f, "PubAddress: %s\n", addr.c_str());
  
@@ -1411,7 +1438,7 @@ index e7ad0d7..fb9eead 100644
  
    } else {
  
-@@ -705,11 +771,20 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
+@@ -705,11 +793,20 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
      case P2SH:
        fprintf(f, "Priv (WIF): p2wpkh-p2sh:%s\n", pAddr.c_str());
        break;
@@ -1437,7 +1464,7 @@ index e7ad0d7..fb9eead 100644
  
    }
  
-@@ -1468,7 +1543,7 @@ void VanitySearch::FindKeyCPU(TH_PARAM *ph) {
+@@ -1468,7 +1565,7 @@ void VanitySearch::FindKeyCPU(TH_PARAM *ph) {
      }
  
      key.Add((uint64_t)CPU_GRP_SIZE);
@@ -1446,7 +1473,7 @@ index e7ad0d7..fb9eead 100644
  
    }
  
-@@ -1528,7 +1603,9 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
+@@ -1528,7 +1625,9 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
      g.SetPrefix(usedPrefixL,nbPrefix);
    } else {
      if(hasPattern)
@@ -1457,7 +1484,7 @@ index e7ad0d7..fb9eead 100644
      else
        g.SetPrefix(usedPrefix);
    }
-@@ -1562,7 +1639,8 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
+@@ -1562,7 +1661,8 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
        for (int i = 0; i < nbThread; i++) {
          keys[i].Add((uint64_t)STEP_SIZE);
        }
