@@ -59,6 +59,16 @@
     },
     "production": {
       "purpose": "Find a match and encrypt key material to customer age recipient.",
+      "input": {
+        "prefix_after_t": "one custom Base58 character immediately after fixed T",
+        "suffix": "five custom Base58 characters at the end of the address",
+        "age_recipient": "customer age recipient public key beginning with age1",
+        "duration_seconds": "bounded worker invocation, default/max 15 during production target",
+        "max_attempts": "positive cap for bounded RunPod invocation",
+        "start_counter": "non-negative deterministic candidate offset",
+        "shard_id": "0-based worker shard id",
+        "shard_count": "total concurrent shards"
+      },
       "output": {
         "matched_address": "TRON address",
         "encrypted_private_key": "age encrypted private key"

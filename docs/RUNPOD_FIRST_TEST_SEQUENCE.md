@@ -102,6 +102,8 @@ Expected response:
 
 This is only a smoke test. It is not a 10 second production capacity claim.
 
+Do not run `mode=find` until CUDA/C++ `--find` is implemented and validate/benchmark gates pass.
+
 ## Request 3: A100 Short Benchmark
 
 Only after smoke passes, increase carefully:

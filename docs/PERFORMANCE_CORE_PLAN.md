@@ -94,6 +94,13 @@ For production, a hit must use age encryption before returning key material:
 The worker must not log plaintext key material.
 47.80.70.211 must not store plaintext key material or customer age identity.
 
+Current wrapper status:
+
+- `mode=find` exists behind `ALLOW_GPU_FIND=1`.
+- Product input is `prefix_after_t` + `suffix` + `age_recipient`.
+- CUDA/C++ `--find` mode is still required before this can generate production results.
+- See `docs/AGE_ENCRYPTED_FIND_MODE.md`.
+
 ## Validation Gates
 
 Before claiming performance:

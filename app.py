@@ -20,6 +20,7 @@ DEFAULT_PREFIX_LEN = 2
 DEFAULT_SUFFIX_LEN = 5
 DEFAULT_TRON_ADDRESS_LEN = 34
 MAX_BENCHMARK_SECONDS = 10
+MAX_FIND_SECONDS = 15
 MAX_BENCHMARK_ATTEMPTS = 10_000_000_000
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 DEFAULT_CUDA_ARCH_FALLBACKS = ["native", "sm_120", "sm_80"]
@@ -262,6 +263,50 @@ def run_gpu_binary(args: List[str], timeout_seconds: int) -> Dict[str, Any]:
     }
 
 
+def run_gpu_binary_internal(args: List[str], timeout_seconds: int) -> Dict[str, Any]:
+    """Run CUDA binary for production find path without echoing stdout to API."""
+    if not GPU_BINARY_PATH.exists():
+        return {
+            "ready": False,
+            "returncode": None,
+            "error": "GPU binary is not built yet.",
+            "binary": str(GPU_BINARY_PATH),
+            "parsed": {},
+        }
+    try:
+        result = subprocess.run(
+            [str(GPU_BINARY_PATH), *args],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "ready": True,
+            "returncode": None,
+            "error": "GPU binary timed out.",
+            "binary": str(GPU_BINARY_PATH),
+            "parsed": {},
+        }
+
+    parsed: Dict[str, Any] = {}
+    try:
+        loaded = json.loads(result.stdout) if result.stdout.strip() else {}
+        if isinstance(loaded, dict):
+            parsed = loaded
+    except json.JSONDecodeError:
+        parsed = {}
+
+    return {
+        "ready": True,
+        "returncode": result.returncode,
+        "stderr": result.stderr[-2000:],
+        "binary": str(GPU_BINARY_PATH),
+        "parsed": parsed,
+    }
+
+
 def parse_json_stdout(status: Dict[str, Any]) -> Dict[str, Any]:
     stdout = status.get("stdout")
     if not isinstance(stdout, str) or not stdout.strip():
@@ -273,6 +318,47 @@ def parse_json_stdout(status: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(parsed, dict):
         return parsed
     return {}
+
+
+def validate_age_recipient(recipient: Any) -> str:
+    if not isinstance(recipient, str) or not recipient.startswith("age1"):
+        raise ValueError("age_recipient must be an age recipient public key beginning with age1")
+    if len(recipient) < 20 or len(recipient) > 200:
+        raise ValueError("age_recipient length is invalid")
+    allowed = set("qpzry9x8gf2tvdw0s3jn54khce6mua7l")
+    if any(ch not in allowed for ch in recipient[4:]):
+        raise ValueError("age_recipient contains invalid characters")
+    return recipient
+
+
+def encrypt_private_key_with_age(private_key_hex: str, age_recipient: str) -> str:
+    if not isinstance(private_key_hex, str) or len(private_key_hex) != 64:
+        raise ValueError("internal private key must be 64 hex characters")
+    try:
+        int(private_key_hex, 16)
+    except ValueError as exc:
+        raise ValueError("internal private key is not hex") from exc
+
+    try:
+        result = subprocess.run(
+            ["age", "-a", "-r", age_recipient],
+            input=private_key_hex + "\n",
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("age binary not found in worker image") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("age encryption timed out") from exc
+
+    if result.returncode != 0:
+        raise RuntimeError("age encryption failed")
+    encrypted = result.stdout.strip()
+    if not encrypted.startswith("-----BEGIN AGE ENCRYPTED FILE-----"):
+        raise RuntimeError("age encryption output is invalid")
+    return encrypted
 
 
 def handle_health() -> Dict[str, Any]:
@@ -402,6 +488,127 @@ def handle_benchmark(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
+    if os.environ.get("ALLOW_GPU_FIND") != "1":
+        return {
+            "mode": "find",
+            "allowed": False,
+            "error": "GPU find disabled. Set ALLOW_GPU_FIND=1 only inside an approved RunPod production worker.",
+            "notes": [
+                "This prevents accidental private-key generation on local machines or 47.80.70.211.",
+                "Production mode must return only matched_address and encrypted_private_key.",
+            ],
+        }
+
+    age_recipient = validate_age_recipient(payload.get("age_recipient"))
+    match_rule = normalize_match_rule(payload)
+    duration_seconds = int(payload.get("duration_seconds", MAX_FIND_SECONDS))
+    duration_seconds = max(1, min(duration_seconds, MAX_FIND_SECONDS))
+    max_attempts = int(payload.get("max_attempts", MAX_BENCHMARK_ATTEMPTS))
+    max_attempts = max(1, min(max_attempts, MAX_BENCHMARK_ATTEMPTS))
+    start_counter = int(payload.get("start_counter", 0))
+    shard_id = int(payload.get("shard_id", 0))
+    shard_count = int(payload.get("shard_count", 1))
+    if shard_count < 1 or shard_id < 0 or shard_id >= shard_count:
+        raise ValueError("invalid shard_id/shard_count")
+    if start_counter < 0:
+        raise ValueError("start_counter must be non-negative")
+
+    compile_status = compile_gpu_binary_if_allowed()
+    if not compile_status.get("ready"):
+        return {
+            "mode": "find",
+            "allowed": True,
+            "compile": compile_status,
+            "error": "GPU binary is not ready.",
+            "notes": [
+                "Find remains blocked until the CUDA binary exists.",
+                "No key material or credential material is returned.",
+            ],
+        }
+
+    args = [
+        "--find",
+        "--target-address",
+        match_rule["target_address"],
+        "--prefix-len",
+        str(match_rule["prefix_len"]),
+        "--suffix-len",
+        str(match_rule["suffix_len"]),
+        "--duration-seconds",
+        str(duration_seconds),
+        "--max-attempts",
+        str(max_attempts),
+        "--start-counter",
+        str(start_counter),
+        "--shard-id",
+        str(shard_id),
+        "--shard-count",
+        str(shard_count),
+    ]
+    started = time.perf_counter()
+    binary_status = run_gpu_binary_internal(args, timeout_seconds=duration_seconds + 120)
+    elapsed = time.perf_counter() - started
+    gpu_result = binary_status.get("parsed", {})
+
+    if binary_status.get("returncode") != 0:
+        return {
+            "mode": "find",
+            "allowed": True,
+            "matched": False,
+            "match_rule": match_rule,
+            "elapsed_seconds": elapsed,
+            "compile": compile_status,
+            "gpu_binary": {
+                "ready": binary_status.get("ready"),
+                "returncode": binary_status.get("returncode"),
+                "stderr": binary_status.get("stderr"),
+                "binary": binary_status.get("binary"),
+            },
+            "error": binary_status.get("error", "GPU find failed or is not implemented."),
+            "notes": [
+                "No plaintext private key is returned.",
+            ],
+        }
+
+    matched = bool(gpu_result.get("matched"))
+    matched_address = gpu_result.get("matched_address", "")
+    if not matched:
+        return {
+            "mode": "find",
+            "allowed": True,
+            "matched": False,
+            "match_rule": match_rule,
+            "elapsed_seconds": elapsed,
+            "attempts": gpu_result.get("attempts"),
+            "gpu_name": gpu_result.get("gpu_name"),
+            "notes": [
+                "No match found within this bounded RunPod invocation.",
+                "No key material is returned.",
+            ],
+        }
+
+    if not isinstance(matched_address, str) or not matched_address.startswith("T"):
+        raise ValueError("GPU result matched_address is invalid")
+    private_key_hex = gpu_result.get("private_key_hex")
+    encrypted_private_key = encrypt_private_key_with_age(private_key_hex, age_recipient)
+    return {
+        "mode": "find",
+        "allowed": True,
+        "matched": True,
+        "matched_address": matched_address,
+        "encrypted_private_key": encrypted_private_key,
+        "match_rule": match_rule,
+        "elapsed_seconds": elapsed,
+        "attempts": gpu_result.get("attempts"),
+        "gpu_name": gpu_result.get("gpu_name"),
+        "notes": [
+            "Plaintext private key was encrypted with customer age recipient before returning.",
+            "Response intentionally omits private_key_hex, seed, mnemonic, token, and secret.",
+        ],
+    }
+
+
 def handler(event: Dict[str, Any]) -> Dict[str, Any]:
     payload = event.get("input", event)
     mode = payload.get("mode", "health")
@@ -413,6 +620,8 @@ def handler(event: Dict[str, Any]) -> Dict[str, Any]:
             result = handle_validate_vectors()
         elif mode == "benchmark":
             result = handle_benchmark(payload)
+        elif mode == "find":
+            result = handle_find(payload)
         else:
             raise ValueError(f"unsupported mode: {mode}")
         result["started_at"] = started_at

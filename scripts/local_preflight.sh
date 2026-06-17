@@ -20,6 +20,7 @@ for p in [
     "RUNPOD_BENCHMARK_SMOKE_PAYLOAD.json",
     "RUNPOD_A100_BENCHMARK_10S_PAYLOAD.json",
     "RUNPOD_RTX5090_BENCHMARK_10S_PAYLOAD.json",
+    "RUNPOD_FIND_SAMPLE_PAYLOAD.json",
     "src/GPU_CORE_CONTRACT.json",
     "tests/phase0_test_vectors.json",
 ]:
@@ -43,6 +44,14 @@ result = app.handle_benchmark({
     "max_attempts": 1,
 })
 assert result["allowed"] is False
+find_result = app.handle_find({
+    "prefix_after_t": "A",
+    "suffix": "CDEFG",
+    "age_recipient": "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+    "duration_seconds": 1,
+    "max_attempts": 1,
+})
+assert find_result["allowed"] is False
 rule = app.normalize_match_rule({
     "prefix_after_t": "X",
     "suffix": "86666",
