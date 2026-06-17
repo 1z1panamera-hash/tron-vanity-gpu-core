@@ -41,6 +41,7 @@ Then each next candidate can be derived with elliptic-curve point addition inste
 - Attempts are accumulated per CUDA thread and committed to the global counter once per thread, avoiding one global atomic operation per candidate in the incremental benchmark loop.
 - Prefix range bounds and suffix target values are precomputed once in `BenchmarkConfig`, so each candidate avoids reparsing target Base58 prefix/suffix strings inside the GPU loop.
 - The incremental CUDA benchmark kernel now uses cooperative block-level batch inversion for same-stride point additions, so a block can share one inversion pass across point updates while each CUDA thread still computes its own point output.
+- The VanitySearch TRON suffix-only patch now avoids per-candidate payload25 assembly for the common non-hit path. It computes checksum4, compares the last-5 Base58 value with a payload21+checksum chunked modulo path, and only builds payload25/Base58 when a rare suffix candidate passes.
 - `tests/verify_incremental_walking.cpp` validates that walked public keys match direct scalar multiplication for small deterministic candidates.
 - `tests/verify_batch_inversion.cpp` validates the device-compatible batch inversion primitive used by the benchmark kernel.
 - `tests/verify_batch_point_add.cpp` validates that same-stride affine point additions can share one batch inversion while matching direct `point_add` outputs.

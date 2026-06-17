@@ -1,8 +1,8 @@
 diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index 6c43e94..1d1387a 100644
+index 6c43e94..1b0d67a 100644
 --- a/GPU/GPUCompute.h
 +++ b/GPU/GPUCompute.h
-@@ -251,6 +251,152 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
+@@ -251,6 +251,155 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
  
  // -----------------------------------------------------------------------------------------
  
@@ -16,16 +16,19 @@ index 6c43e94..1d1387a 100644
 +    uint32_t *out) {
 +
 +  uint8_t payload21[21];
-+  uint8_t payload25[25];
-+  char address[48];
++  uint8_t checksum4[4];
 +  uint32_t tid = (blockIdx.x*blockDim.x) + threadIdx.x;
 +
 +  tron_payload21_from_xy(px, py, payload21);
-+  tron_payload25_from_payload21(payload21, payload25);
-+  if (!tron_payload25_matches_suffix5(payload25, suffix5Value)) {
++  tron_checksum4(payload21, checksum4);
++  if (!tron_payload21_checksum_matches_suffix5(payload21, checksum4, suffix5Value)) {
 +    return;
 +  }
 +
++  uint8_t payload25[25];
++  char address[48];
++  for (int i = 0; i < 21; ++i) payload25[i] = payload21[i];
++  for (int i = 0; i < 4; ++i) payload25[21 + i] = checksum4[i];
 +  int address_len = tron_base58_payload25(payload25, address);
 +  if (address_len < 6 || address[0] != 'T') {
 +    return;
@@ -310,10 +313,10 @@ index 6d00aab..7970290 100644
  
 diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
 new file mode 100644
-index 0000000..3b5eba0
+index 0000000..101174f
 --- /dev/null
 +++ b/GPU/GPUTron.h
-@@ -0,0 +1,367 @@
+@@ -0,0 +1,400 @@
 +/*
 + * TRON address helpers for the VanitySearch GPU adaptation prototype.
 + *
@@ -393,6 +396,39 @@ index 0000000..3b5eba0
 +  words[2] = tron_pack_payload21_word(payload21, 2);
 +  return tron_payload21_words_compare(words, prefixRange.possibleLowWords) >= 0 &&
 +         tron_payload21_words_compare(words, prefixRange.possibleHighWords) <= 0;
++}
++
++__device__ __forceinline__ uint32_t tron_read_be32(const uint8_t *bytes) {
++  return (static_cast<uint32_t>(bytes[0]) << 24) |
++         (static_cast<uint32_t>(bytes[1]) << 16) |
++         (static_cast<uint32_t>(bytes[2]) << 8) |
++         static_cast<uint32_t>(bytes[3]);
++}
++
++__device__ __forceinline__ uint64_t tron_mod58p5_append_be32(uint64_t value, uint32_t chunk) {
++  const uint64_t base58_power_5 = 656356768ULL;
++  const uint64_t base256_power_4_mod58p5 = 356826688ULL;
++  return ((value * base256_power_4_mod58p5) + static_cast<uint64_t>(chunk)) %
++         base58_power_5;
++}
++
++__device__ __forceinline__ uint64_t tron_payload21_checksum_mod_base58_power5(
++    const uint8_t payload21[21],
++    const uint8_t checksum4[4]) {
++  const uint64_t base58_power_5 = 656356768ULL;
++  uint64_t value = static_cast<uint64_t>(payload21[0]) % base58_power_5;
++  for (int offset = 1; offset < 21; offset += 4) {
++    value = tron_mod58p5_append_be32(value, tron_read_be32(payload21 + offset));
++  }
++  value = tron_mod58p5_append_be32(value, tron_read_be32(checksum4));
++  return value;
++}
++
++__device__ __forceinline__ bool tron_payload21_checksum_matches_suffix5(
++    const uint8_t payload21[21],
++    const uint8_t checksum4[4],
++    uint64_t suffix5_value) {
++  return tron_payload21_checksum_mod_base58_power5(payload21, checksum4) == suffix5_value;
 +}
 +
 +__device__ __noinline__ uint64_t tron_payload25_mod_base58_power(
@@ -702,10 +738,10 @@ index 0000000..da947fa
 +#endif
 diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
 new file mode 100644
-index 0000000..1a76f6a
+index 0000000..f6c46cc
 --- /dev/null
 +++ b/GPU/GPUTronVectorCheck.cu
-@@ -0,0 +1,326 @@
+@@ -0,0 +1,338 @@
 +/*
 + * RunPod-only CUDA correctness check for TRON address construction.
 + *
@@ -741,6 +777,8 @@ index 0000000..1a76f6a
 +  int wrong_rule_rejected;
 +  int suffix_prefilter_passed;
 +  int wrong_suffix_prefilter_rejected;
++  int suffix_fast_prefilter_passed;
++  int wrong_suffix_fast_prefilter_rejected;
 +  int xy_payload_passed;
 +  char computed_address[48];
 +  uint8_t payload25[25];
@@ -781,6 +819,12 @@ index 0000000..1a76f6a
 +      tron_payload25_matches_suffix5(result.payload25, suffix_value) ? 1 : 0;
 +  result.wrong_suffix_prefilter_rejected =
 +      !tron_payload25_matches_suffix5(result.payload25, wrong_suffix_value) ? 1 : 0;
++  uint8_t checksum4[4];
++  tron_checksum4(payload21, checksum4);
++  result.suffix_fast_prefilter_passed =
++      tron_payload21_checksum_matches_suffix5(payload21, checksum4, suffix_value) ? 1 : 0;
++  result.wrong_suffix_fast_prefilter_rejected =
++      !tron_payload21_checksum_matches_suffix5(payload21, checksum4, wrong_suffix_value) ? 1 : 0;
 +  result.passed = 1;
 +  for (int i = 0; i < 48; ++i) {
 +    if (result.computed_address[i] != inputs[idx].expected_address[i]) {
@@ -793,6 +837,8 @@ index 0000000..1a76f6a
 +      !result.wrong_rule_rejected ||
 +      !result.suffix_prefilter_passed ||
 +      !result.wrong_suffix_prefilter_rejected ||
++      !result.suffix_fast_prefilter_passed ||
++      !result.wrong_suffix_fast_prefilter_rejected ||
 +      !result.xy_payload_passed) {
 +    result.passed = 0;
 +  }
@@ -1004,7 +1050,7 @@ index 0000000..1a76f6a
 +  for (size_t i = 0; i < results.size(); ++i) {
 +    if (results[i].passed) ++passed;
 +    std::printf(
-+        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s, \"xy_payload_passed\": %s}%s\n",
++        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s, \"suffix_fast_prefilter_passed\": %s, \"wrong_suffix_fast_prefilter_rejected\": %s, \"xy_payload_passed\": %s}%s\n",
 +        i,
 +        results[i].passed ? "true" : "false",
 +        results[i].computed_address,
@@ -1012,6 +1058,8 @@ index 0000000..1a76f6a
 +        results[i].wrong_rule_rejected ? "true" : "false",
 +        results[i].suffix_prefilter_passed ? "true" : "false",
 +        results[i].wrong_suffix_prefilter_rejected ? "true" : "false",
++        results[i].suffix_fast_prefilter_passed ? "true" : "false",
++        results[i].wrong_suffix_fast_prefilter_rejected ? "true" : "false",
 +        results[i].xy_payload_passed ? "true" : "false",
 +        i + 1 == results.size() ? "" : ",");
 +  }

@@ -31,6 +31,8 @@ Required per-vector fields:
 - `xy_payload_passed` all true:
 - `suffix_prefilter_passed` all true:
 - `wrong_suffix_prefilter_rejected` all true:
+- `suffix_fast_prefilter_passed` all true:
+- `wrong_suffix_fast_prefilter_rejected` all true:
 
 Decision:
 
