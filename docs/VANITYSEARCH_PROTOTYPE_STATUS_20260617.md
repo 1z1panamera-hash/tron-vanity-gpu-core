@@ -11,6 +11,9 @@ This work is in the separate candidate source checkout, not in the main `tron-va
   - `55470e4 Add RunPod TRON CPU vector check`
 - Upstream base: `c8d48ce5f03f5357c0e87cbdb3e1e93cd50af88b`
 - Pushed to GitHub: no
+- Exported local patch:
+  - `工作记录/vanitysearch_tron_cpu_prototype_20260617.patch`
+  - SHA-256: `22cc774726d904e01afecb83684303c750ea03ad565b9182469a270e0c7c6a6c`
 
 Reason: VanitySearch is GPLv3. Keep derivative source separate until the license and distribution decision is explicit.
 
@@ -53,6 +56,12 @@ Preferred RunPod check:
 
 ```sh
 scripts/runpod_verify_tron_cpu_vectors.sh
+```
+
+RunPod handoff doc:
+
+```text
+docs/RUNPOD_VANITYSEARCH_CPU_VECTOR_CHECK.md
 ```
 
 ## Local Compile Result
