@@ -15,7 +15,7 @@ if [ ! -f "$PATCH_PATH" ]; then
   exit 1
 fi
 
-EXPECTED_SHA="c98854e32622ad1cf1c4661cd2c1e4ec4bfcc8117b5270ce8b6caf3e8ca011b5"
+EXPECTED_SHA="8dae0ae4ed3b8afd9bb93c6fd569a2aa4bf621d32f7330b49323662d14b2daa9"
 ACTUAL_SHA="$(sha256sum "$PATCH_PATH" | awk '{print $1}')"
 if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
   echo "patch sha256 mismatch" >&2
@@ -78,6 +78,8 @@ required_fields = [
     "wrong_suffix_prefilter_rejected",
     "suffix_fast_prefilter_passed",
     "wrong_suffix_fast_prefilter_rejected",
+    "suffix_checksum_word_prefilter_passed",
+    "wrong_suffix_checksum_word_prefilter_rejected",
     "xy_payload_passed",
 ]
 

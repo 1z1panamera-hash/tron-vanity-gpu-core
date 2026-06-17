@@ -43,6 +43,7 @@ Then each next candidate can be derived with elliptic-curve point addition inste
 - The incremental CUDA benchmark kernel now uses cooperative block-level batch inversion for same-stride point additions, so a block can share one inversion pass across point updates while each CUDA thread still computes its own point output.
 - The VanitySearch TRON suffix-only patch now avoids per-candidate payload25 assembly for the common non-hit path. It computes checksum4, compares the last-5 Base58 value with a payload21+checksum chunked modulo path, and only builds payload25/Base58 when a rare suffix candidate passes.
 - The suffix modulo path now uses fixed-modulus reduction for `58^5`, replacing the hot `% 656356768` operation with reciprocal high-multiply plus bounded subtraction.
+- The hot checksum path now keeps the second SHA256 result as a big-endian 32-bit word, avoiding a per-candidate `checksum4[4]` local array and full second digest writeback before suffix comparison.
 - The GPU hit path now returns the 20-byte TRON address body directly after suffix match instead of doing full Base58 confirmation in the kernel. CPU-side verification still reconstructs the full TRON address before accepting a hit.
 - The VanitySearch patch exposes `STEP_SIZE` as a compile-time Makefile override so RunPod sweeps can test larger per-thread batches without editing source code.
 - `tests/verify_incremental_walking.cpp` validates that walked public keys match direct scalar multiplication for small deterministic candidates.
