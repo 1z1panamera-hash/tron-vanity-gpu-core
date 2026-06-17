@@ -55,7 +55,9 @@ Current evidence:
 - VanitySearch TRON CPU adapter exists only as a local candidate patch.
 - VanitySearch TRON GPU hot path is not implemented yet.
 - No complete TRON `addresses_per_second` benchmark from the VanitySearch TRON path exists yet.
-- Python wrapper has a gated `find` mode contract, but the CUDA/C++ `--find` implementation is not complete yet.
+- Python wrapper has a gated `find` mode contract.
+- CUDA/C++ `--find` now has a staging implementation for wrapper integration, but it is not yet RunPod-compiled or performance-validated.
+- The current `--find` implementation uses the deterministic staging candidate schedule, not the final high-performance/randomized production core.
 - Find-mode safety contract is documented in `docs/AGE_ENCRYPTED_FIND_MODE.md`.
 
 ## Next Gate

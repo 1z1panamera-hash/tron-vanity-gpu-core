@@ -70,13 +70,24 @@ For the Python wrapper contract, the internal CUDA binary may emit a matched pri
 
 ## Current Status
 
-Not complete.
+Partially complete.
 
 - Python wrapper now has gated `mode=find`.
 - `ALLOW_GPU_FIND=1` is required before `find` can run.
 - The sample payload is `RUNPOD_FIND_SAMPLE_PAYLOAD.json`.
-- CUDA/C++ `--find` mode is not implemented yet.
+- CUDA/C++ `--find` mode now emits an internal hit result for the Python wrapper.
+- The CUDA/C++ `--find` path still needs RunPod-side nvcc compile and GPU validation.
+- The current deterministic candidate generator is a staging implementation, not the final high-performance/randomized production core.
 - Final performance target is still unproven.
+
+## CUDA Binary Output Boundary
+
+`src/tron_gpu_core.cu --find` may include `private_key_hex` in its local stdout when a match is found. That stdout is an internal process boundary only:
+
+- It must be consumed by `app.py`.
+- It must not be returned directly to RunPod callers.
+- It must not be written to controller logs.
+- `app.py` must encrypt it with the customer age recipient and return only `encrypted_private_key`.
 
 ## Safety Gate
 

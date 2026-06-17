@@ -151,4 +151,24 @@ if [ "$rc" -ne 2 ]; then
     exit 1
 fi
 
+echo "== non-cuda find gate"
+set +e
+/tmp/compile_tron_gpu_core_host_stub \
+    --find \
+    --kernel-mode incremental \
+    --target-address TX8888888888888888888888888886666 \
+    --prefix-len 2 \
+    --suffix-len 5 \
+    --duration-seconds 1 \
+    --max-attempts 1 \
+    --start-counter 0 \
+    --shard-id 0 \
+    --shard-count 1
+rc=$?
+set -e
+if [ "$rc" -ne 2 ]; then
+    echo "expected host-stub find rejection rc=2, got rc=$rc" >&2
+    exit 1
+fi
+
 echo "local_preflight_passed"

@@ -69,6 +69,7 @@ struct BenchmarkConfig {
 
 struct BenchmarkResult {
     unsigned long long attempts;
+    unsigned long long matched_candidate;
     double elapsed_seconds;
     double addresses_per_second;
     int matched;
@@ -300,6 +301,7 @@ __global__ void benchmark_kernel(BenchmarkConfig config, BenchmarkResult* result
             while (matched_len < 63 && matched_address[matched_len] != '\0') {
                 ++matched_len;
             }
+            result->matched_candidate = candidate;
             copy_cstr64(result->matched_address, matched_address, matched_len);
         }
     }
@@ -347,6 +349,8 @@ __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkRe
     }
 
     char candidate_address[64];
+    unsigned long long current_candidate = first_candidate;
+    const unsigned long long candidate_step = total_threads * config.shard_count;
     unsigned long long local_attempts = 0ULL;
     for (unsigned long long attempt_idx = global_idx;; attempt_idx += total_threads) {
         if (threadIdx.x == 0) {
@@ -375,6 +379,7 @@ __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkRe
                 while (matched_len < 63 && candidate_address[matched_len] != '\0') {
                     ++matched_len;
                 }
+                result->matched_candidate = current_candidate;
                 copy_cstr64(result->matched_address, candidate_address, matched_len);
             }
             shared_stop = 1;
@@ -433,6 +438,7 @@ __global__ void benchmark_incremental_kernel(BenchmarkConfig config, BenchmarkRe
                 break;
             }
             current_point = next_point;
+            current_candidate += candidate_step;
         }
     }
 
@@ -795,6 +801,18 @@ static const char* kernel_mode_name(int kernel_mode) {
     return "unknown";
 }
 
+static std::string private_key_hex_from_candidate(unsigned long long candidate) {
+    static const char* hex = "0123456789abcdef";
+    std::string out(64, '0');
+    for (int byte = 0; byte < 8; ++byte) {
+        uint8_t value = static_cast<uint8_t>((candidate >> ((7 - byte) * 8)) & 0xffULL);
+        const int offset = 48 + byte * 2;
+        out[offset] = hex[value >> 4];
+        out[offset + 1] = hex[value & 0x0f];
+    }
+    return out;
+}
+
 static int run_benchmark_cuda(int argc, char** argv) {
     BenchmarkConfig config{};
     BenchmarkResult host_result{};
@@ -959,13 +977,182 @@ static int run_benchmark_cuda(int argc, char** argv) {
     std::printf("}\n");
     return 0;
 }
+
+static int run_find_cuda(int argc, char** argv) {
+    BenchmarkConfig config{};
+    BenchmarkResult host_result{};
+    const std::string detected_gpu_name = gpu_name();
+    const char* target_address = arg_value(argc, argv, "--target-address", nullptr);
+    if (!validate_target_address(target_address, &config.target_len)) {
+        std::fprintf(stderr, "invalid --target-address; expected TRON Base58 address starting with T\n");
+        return 1;
+    }
+
+    std::strncpy(config.target_address, target_address, sizeof(config.target_address) - 1);
+    config.prefix_len = parse_int_arg(argc, argv, "--prefix-len", DEFAULT_PREFIX_LEN);
+    config.suffix_len = parse_int_arg(argc, argv, "--suffix-len", DEFAULT_SUFFIX_LEN);
+    config.duration_seconds = parse_int_arg(argc, argv, "--duration-seconds", 15);
+    config.kernel_mode = parse_kernel_mode(argc, argv);
+    config.max_attempts = parse_ull_arg(argc, argv, "--max-attempts", 1024ULL);
+    config.start_counter = parse_ull_arg(argc, argv, "--start-counter", 0ULL);
+    config.shard_id = parse_ull_arg(argc, argv, "--shard-id", 0ULL);
+    config.shard_count = parse_ull_arg(argc, argv, "--shard-count", 1ULL);
+
+    if (config.prefix_len < 0 || config.suffix_len < 0 ||
+        config.prefix_len + config.suffix_len > config.target_len) {
+        std::fprintf(stderr, "invalid prefix/suffix lengths\n");
+        return 1;
+    }
+    if (config.duration_seconds < 1 || config.duration_seconds > 15) {
+        std::fprintf(stderr, "duration_seconds must be between 1 and 15 for find mode\n");
+        return 1;
+    }
+    if (config.max_attempts == 0) {
+        std::fprintf(stderr, "max_attempts must be positive\n");
+        return 1;
+    }
+    if (config.shard_count == 0 || config.shard_id >= config.shard_count) {
+        std::fprintf(stderr, "invalid shard_id/shard_count\n");
+        return 1;
+    }
+    std::string filter_error;
+    if (!prepare_benchmark_filters(config, filter_error)) {
+        std::fprintf(stderr, "%s\n", filter_error.c_str());
+        return 1;
+    }
+
+    BenchmarkResult* d_result = nullptr;
+    cudaError_t status = cudaMalloc(&d_result, sizeof(BenchmarkResult));
+    if (status != cudaSuccess) {
+        std::fprintf(stderr, "cudaMalloc find result failed: %s\n", cuda_status(status));
+        return 1;
+    }
+    status = cudaMemset(d_result, 0, sizeof(BenchmarkResult));
+    if (status != cudaSuccess) {
+        std::fprintf(stderr, "cudaMemset find result failed: %s\n", cuda_status(status));
+        cudaFree(d_result);
+        return 1;
+    }
+
+    const int threads = BENCHMARK_BLOCK_THREADS;
+    const unsigned long long scalar_batch_limit = 1024ULL;
+    const unsigned long long incremental_batch_limit = 1048576ULL;
+    const unsigned long long max_incremental_launch_threads = 65536ULL;
+    unsigned long long launched = 0;
+    const auto started = std::chrono::steady_clock::now();
+    double elapsed = 0.0;
+
+    while (launched < config.max_attempts) {
+        elapsed = std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - started).count();
+        if (elapsed >= static_cast<double>(config.duration_seconds)) {
+            break;
+        }
+
+        BenchmarkConfig batch_config = config;
+        unsigned long long remaining = config.max_attempts - launched;
+        unsigned long long batch_limit =
+            config.kernel_mode == BENCHMARK_KERNEL_INCREMENTAL_WALK
+                ? incremental_batch_limit
+                : scalar_batch_limit;
+        unsigned long long batch_attempts = remaining < batch_limit ? remaining : batch_limit;
+        batch_config.max_attempts = batch_attempts;
+        batch_config.start_counter = config.start_counter + launched * config.shard_count;
+        unsigned long long launch_threads = batch_attempts;
+        if (config.kernel_mode == BENCHMARK_KERNEL_INCREMENTAL_WALK &&
+            launch_threads > max_incremental_launch_threads) {
+            launch_threads = max_incremental_launch_threads;
+        }
+        int blocks = static_cast<int>((launch_threads + threads - 1) / threads);
+        const unsigned long long actual_total_threads =
+            static_cast<unsigned long long>(blocks) * static_cast<unsigned long long>(threads);
+
+        batch_config.incremental_step_point_ready = 0;
+        if (config.kernel_mode == BENCHMARK_KERNEL_INCREMENTAL_WALK) {
+            if (batch_config.shard_count != 0 &&
+                actual_total_threads > (~0ULL / batch_config.shard_count)) {
+                std::fprintf(stderr, "incremental step scalar overflow\n");
+                cudaFree(d_result);
+                return 1;
+            }
+            const unsigned long long step_scalar_value = actual_total_threads * batch_config.shard_count;
+            secp256k1_device::UInt256 step_scalar = uint256_from_u64(step_scalar_value);
+            if (!secp256k1_device::scalar_multiply(batch_config.incremental_step_point, step_scalar)) {
+                std::fprintf(stderr, "incremental step point precompute failed\n");
+                cudaFree(d_result);
+                return 1;
+            }
+            batch_config.incremental_step_point_ready = 1;
+        }
+
+        if (config.kernel_mode == BENCHMARK_KERNEL_INCREMENTAL_WALK) {
+            benchmark_incremental_kernel<<<blocks, threads>>>(batch_config, d_result);
+        } else {
+            benchmark_kernel<<<blocks, threads>>>(batch_config, d_result);
+        }
+        status = cudaDeviceSynchronize();
+        if (status != cudaSuccess) {
+            std::fprintf(stderr, "find kernel failed: %s\n", cuda_status(status));
+            cudaFree(d_result);
+            return 1;
+        }
+
+        launched += batch_attempts;
+        status = cudaMemcpy(&host_result, d_result, sizeof(BenchmarkResult), cudaMemcpyDeviceToHost);
+        if (status != cudaSuccess) {
+            std::fprintf(stderr, "cudaMemcpy find result failed: %s\n", cuda_status(status));
+            cudaFree(d_result);
+            return 1;
+        }
+        if (host_result.matched != 0) {
+            break;
+        }
+    }
+
+    elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    cudaFree(d_result);
+
+    host_result.elapsed_seconds = elapsed;
+    host_result.addresses_per_second =
+        elapsed > 0.0 ? static_cast<double>(host_result.attempts) / elapsed : 0.0;
+    const std::string matched_private_key_hex =
+        host_result.matched ? private_key_hex_from_candidate(host_result.matched_candidate) : "";
+
+    std::printf("{\n");
+    std::printf("  \"mode\": \"find\",\n");
+    std::printf("  \"target_prefix\": \"%.*s\",\n", config.prefix_len, config.target_address);
+    std::printf("  \"target_suffix\": \"%s\",\n", config.target_address + config.target_len - config.suffix_len);
+    std::printf("  \"duration_seconds\": %d,\n", config.duration_seconds);
+    std::printf("  \"kernel_mode\": \"%s\",\n", kernel_mode_name(config.kernel_mode));
+    std::printf("  \"attempts\": %llu,\n", host_result.attempts);
+    std::printf("  \"elapsed_seconds\": %.6f,\n", host_result.elapsed_seconds);
+    std::printf("  \"addresses_per_second\": %.6f,\n", host_result.addresses_per_second);
+    std::printf("  \"keys_per_second\": %.6f,\n", host_result.addresses_per_second);
+    std::printf("  \"gpu_name\": \"%s\",\n", detected_gpu_name.c_str());
+    std::printf("  \"matched\": %s,\n", host_result.matched ? "true" : "false");
+    std::printf("  \"matched_address\": \"%s\",\n", host_result.matched ? host_result.matched_address : "");
+    std::printf("  \"private_key_hex\": \"%s\",\n", matched_private_key_hex.c_str());
+    std::printf("  \"max_attempts\": %llu,\n", config.max_attempts);
+    std::printf("  \"start_counter\": %llu,\n", config.start_counter);
+    std::printf("  \"shard_id\": %llu,\n", config.shard_id);
+    std::printf("  \"shard_count\": %llu,\n", config.shard_count);
+    std::printf("  \"notes\": [\n");
+    std::printf("    \"Internal worker output only; Python wrapper must age-encrypt private_key_hex before API response.\",\n");
+    std::printf("    \"Do not expose this binary output directly to customers or controller logs.\",\n");
+    std::printf("    \"This deterministic candidate generator is intended for gated RunPod find integration before replacing the hot path with a high-performance core.\"\n");
+    std::printf("  ]\n");
+    std::printf("}\n");
+    return 0;
+}
 #endif
 
 static void print_usage(const char* argv0) {
     std::fprintf(stderr,
         "Usage:\n"
         "  %s --validate-vectors tests/phase0_test_vectors.json\n"
-        "  %s --benchmark --kernel-mode incremental --target-address T... --prefix-len 2 --suffix-len 5 --duration-seconds 5 --max-attempts 1024 --start-counter 0 --shard-id 0 --shard-count 1\n",
+        "  %s --benchmark --kernel-mode incremental --target-address T... --prefix-len 2 --suffix-len 5 --duration-seconds 5 --max-attempts 1024 --start-counter 0 --shard-id 0 --shard-count 1\n"
+        "  %s --find --kernel-mode incremental --target-address T... --prefix-len 2 --suffix-len 5 --duration-seconds 15 --max-attempts 1024 --start-counter 0 --shard-id 0 --shard-count 1\n",
+        argv0,
         argv0,
         argv0);
 }
@@ -988,6 +1175,16 @@ int main(int argc, char** argv) {
 #else
         std::fprintf(stderr,
             "GPU benchmark requires nvcc build and explicit RunPod-side benchmark gate.\n");
+        return 2;
+#endif
+    }
+
+    if (argc >= 2 && std::strcmp(argv[1], "--find") == 0) {
+#ifdef __CUDACC__
+        return run_find_cuda(argc, argv);
+#else
+        std::fprintf(stderr,
+            "GPU find requires nvcc build and explicit RunPod-side find gate.\n");
         return 2;
 #endif
     }
