@@ -1,7 +1,7 @@
 From 221922d62bde31625d8abd2ec9f5054db76f635a Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:37:26 +0800
-Subject: [PATCH 01/13] Add local TRON CPU address prototype
+Subject: [PATCH 01/14] Add local TRON CPU address prototype
 
 ---
  Makefile           |  7 ++--
@@ -256,7 +256,7 @@ index f404066..55c41f4 100644
 From 55470e4c21b5d213323850b6daa3c165abea41f0 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:49:24 +0800
-Subject: [PATCH 02/13] Add RunPod TRON CPU vector check
+Subject: [PATCH 02/14] Add RunPod TRON CPU vector check
 
 ---
  scripts/runpod_verify_tron_cpu_vectors.sh | 47 +++++++++++++++++++++++
@@ -323,7 +323,7 @@ index 0000000..074dfab
 From 4c938377714b95d74f65296b0828e05245e5402f Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:15:10 +0800
-Subject: [PATCH 03/13] Add TRON GPU address layer vector check
+Subject: [PATCH 03/14] Add TRON GPU address layer vector check
 
 ---
  GPU/GPUTron.h                                 | 190 ++++++++++++++++++
@@ -817,7 +817,7 @@ index 0000000..a6aeff3
 From 98a05c73c7b0bdd61d105a7984b8a4a1173fa4b7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:26:41 +0800
-Subject: [PATCH 04/13] Add TRON GPU product rule vector checks
+Subject: [PATCH 04/14] Add TRON GPU product rule vector checks
 
 ---
  GPU/GPUTron.h                               | 14 +++++++++
@@ -953,7 +953,7 @@ index 797f6c9..05a64a9 100644
 From 6224f8980c57e95ec149c15c01b6f95cd9b1abb7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:35:56 +0800
-Subject: [PATCH 05/13] Add TRON GPU wildcard search path
+Subject: [PATCH 05/14] Add TRON GPU wildcard search path
 
 ---
  GPU/GPUCompute.h                              | 143 ++++++++++++++++++
@@ -1466,7 +1466,7 @@ index 0000000..c7e9640
 From 2403869713f9b64c07556beaf7aec7475e0bddf7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:46:37 +0800
-Subject: [PATCH 06/13] Use dedicated TRON prefix suffix GPU rule
+Subject: [PATCH 06/14] Use dedicated TRON prefix suffix GPU rule
 
 ---
  GPU/GPUCompute.h                              | 14 ++++----
@@ -1691,7 +1691,7 @@ index c7e9640..1eadcce 100755
 From ff433253cd0ece485062f0cbc944f3e74e7d43d8 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 01:22:44 +0800
-Subject: [PATCH 07/13] Add TRON suffix modulo GPU prefilter
+Subject: [PATCH 07/14] Add TRON suffix modulo GPU prefilter
 
 ---
  GPU/GPUCompute.h          | 16 ++++++++------
@@ -1974,7 +1974,7 @@ index 64f99f8..d56bb43 100644
 From 25fcd54ad53a68dfe99fb1330bbb062f3f8c1be9 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:15:53 +0800
-Subject: [PATCH 08/13] Add TRON prefix range GPU prefilter
+Subject: [PATCH 08/14] Add TRON prefix range GPU prefilter
 
 ---
  GPU/GPUCompute.h          |  9 +++--
@@ -2346,7 +2346,7 @@ index d56bb43..72e5f0f 100644
 From fef351d2eaddd76ec5de46d993523f23a4de934d Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:27:46 +0800
-Subject: [PATCH 09/13] Gate TRON checksum behind prefix range
+Subject: [PATCH 09/14] Gate TRON checksum behind prefix range
 
 ---
  GPU/GPUCompute.h          |  8 ++++++-
@@ -2510,7 +2510,7 @@ index 72e5f0f..1d64dc8 100644
 From d79918f448348063ccd76f4feb0cf8a72ddefef8 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:44:28 +0800
-Subject: [PATCH 10/13] Suppress TRON secrets in bounded GPU smoke
+Subject: [PATCH 10/14] Suppress TRON secrets in bounded GPU smoke
 
 ---
  Vanity.cpp                                    | 21 ++++++++++++++++---
@@ -2649,7 +2649,7 @@ index 1eadcce..2ec8b95 100755
 From 13b202c70a39a73684fc942971d16fc478696503 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:48:16 +0800
-Subject: [PATCH 11/13] Add bounded TRON GPU pattern benchmark script
+Subject: [PATCH 11/14] Add bounded TRON GPU pattern benchmark script
 
 ---
  docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md    | 50 +++++++++++
@@ -2822,7 +2822,7 @@ index 0000000..67ab22e
 From 486494e7c2439eeb6b9418b70feead7c674d4cf4 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 04:11:57 +0800
-Subject: [PATCH 12/13] Correct TRON VanitySearch attempt counters
+Subject: [PATCH 12/14] Correct TRON VanitySearch attempt counters
 
 ---
  Vanity.cpp | 5 +++--
@@ -2858,7 +2858,7 @@ index d9b9f57..a867c6b 100644
 From ba65a1ac965a125cec942686781efbd0c00b2361 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 04:18:26 +0800
-Subject: [PATCH 13/13] Absorb TRON public key coordinates directly
+Subject: [PATCH 13/14] Absorb TRON public key coordinates directly
 
 ---
  GPU/GPUCompute.h          |  4 +---
@@ -3035,6 +3035,115 @@ index 1d64dc8..59475db 100644
    std::printf("    \"The product rule checked here is fixed T plus prefix_after_t(1) plus suffix(5).\",\n");
    std::printf("    \"Inputs are public TEST_ONLY public-key vectors; no scalar material is generated or printed.\"\n");
    std::printf("  ]\n");
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 60e9495fa72e8595ea7f66d273cfa811840bfc8e Mon Sep 17 00:00:00 2001
+From: 1z1 <1z1@1z1deMacBook-Air.local>
+Date: Thu, 18 Jun 2026 04:27:05 +0800
+Subject: [PATCH 14/14] Precompute TRON payload21 prefix bounds
+
+---
+ GPU/GPUEngine.cu          |  5 ++++-
+ GPU/GPUTron.h             | 31 +++++++++++++------------------
+ GPU/GPUTronTypes.h        |  2 ++
+ GPU/GPUTronVectorCheck.cu |  2 ++
+ 4 files changed, 21 insertions(+), 19 deletions(-)
+
+diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
+index 7ecce69..f347022 100644
+--- a/GPU/GPUEngine.cu
++++ b/GPU/GPUEngine.cu
+@@ -105,7 +105,10 @@ static bool host_tron_prefix_range(char prefixAfterT, TronPrefixRange *range) {
+     if (!host_big25_mul_small(range->low, 58U)) return false;
+     if (!host_big25_mul_small(range->high, 58U)) return false;
+   }
+-  return host_big25_sub_one(range->high);
++  if (!host_big25_sub_one(range->high)) return false;
++  memcpy(range->possibleLow21, range->low, sizeof(range->possibleLow21));
++  memcpy(range->possibleHigh21, range->high, sizeof(range->possibleHigh21));
++  return true;
+ }
+ 
+ // ---------------------------------------------------------------------------------------
+diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
+index 1399b19..6ae45bb 100644
+--- a/GPU/GPUTron.h
++++ b/GPU/GPUTron.h
+@@ -39,6 +39,16 @@ __device__ __noinline__ int tron_payload25_compare(
+   return 0;
+ }
+ 
++__device__ __forceinline__ int tron_payload21_compare(
++    const uint8_t a[21],
++    const uint8_t b[21]) {
++  for (int i = 0; i < 21; ++i) {
++    if (a[i] < b[i]) return -1;
++    if (a[i] > b[i]) return 1;
++  }
++  return 0;
++}
++
+ __device__ __noinline__ bool tron_payload25_matches_prefix_range(
+     const uint8_t payload25[25],
+     const TronPrefixRange prefixRange) {
+@@ -46,26 +56,11 @@ __device__ __noinline__ bool tron_payload25_matches_prefix_range(
+          tron_payload25_compare(payload25, prefixRange.high) <= 0;
+ }
+ 
+-__device__ __noinline__ int tron_payload21_with_tail_compare(
+-    const uint8_t payload21[21],
+-    const uint8_t value25[25],
+-    uint8_t tailByte) {
+-  for (int i = 0; i < 21; ++i) {
+-    if (payload21[i] < value25[i]) return -1;
+-    if (payload21[i] > value25[i]) return 1;
+-  }
+-  for (int i = 21; i < 25; ++i) {
+-    if (tailByte < value25[i]) return -1;
+-    if (tailByte > value25[i]) return 1;
+-  }
+-  return 0;
+-}
+-
+-__device__ __noinline__ bool tron_payload21_can_match_prefix_range(
++__device__ __forceinline__ bool tron_payload21_can_match_prefix_range(
+     const uint8_t payload21[21],
+     const TronPrefixRange prefixRange) {
+-  return tron_payload21_with_tail_compare(payload21, prefixRange.low, 0xff) >= 0 &&
+-         tron_payload21_with_tail_compare(payload21, prefixRange.high, 0x00) <= 0;
++  return tron_payload21_compare(payload21, prefixRange.possibleLow21) >= 0 &&
++         tron_payload21_compare(payload21, prefixRange.possibleHigh21) <= 0;
+ }
+ 
+ __device__ __noinline__ uint64_t tron_payload25_mod_base58_power(
+diff --git a/GPU/GPUTronTypes.h b/GPU/GPUTronTypes.h
+index dfa1741..29fa286 100644
+--- a/GPU/GPUTronTypes.h
++++ b/GPU/GPUTronTypes.h
+@@ -6,6 +6,8 @@
+ typedef struct {
+   uint8_t low[25];
+   uint8_t high[25];
++  uint8_t possibleLow21[21];
++  uint8_t possibleHigh21[21];
+ } TronPrefixRange;
+ 
+ #endif
+diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
+index 59475db..0e676ad 100644
+--- a/GPU/GPUTronVectorCheck.cu
++++ b/GPU/GPUTronVectorCheck.cu
+@@ -189,6 +189,8 @@ static TronPrefixRange make_prefix_range(char prefix_after_t) {
+     if (!big25_mul_small(range.high, 58U)) throw std::runtime_error("prefix high scale overflow");
+   }
+   if (!big25_sub_one(range.high)) throw std::runtime_error("prefix high underflow");
++  std::memcpy(range.possibleLow21, range.low, sizeof(range.possibleLow21));
++  std::memcpy(range.possibleHigh21, range.high, sizeof(range.possibleHigh21));
+   return range;
+ }
+ 
 -- 
 2.50.1 (Apple Git-155)
 

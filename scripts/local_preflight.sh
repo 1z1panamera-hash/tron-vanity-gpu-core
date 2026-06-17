@@ -131,8 +131,8 @@ python3 - <<'PY'
 from hashlib import sha256
 from pathlib import Path
 
-patch = Path("patches/vanitysearch_tron_gpu_direct_xy_keccak_20260618.patch")
-expected = "d3f250f4c4ec09de9765395a699813f6825a94751506123562966d41c622c109"
+patch = Path("patches/vanitysearch_tron_gpu_payload21_prefix_bounds_20260618.patch")
+expected = "3dd7ebdbf72cec611afa0d5b829942b9842f3e1b90c35c00d68d5e0bbadbc61a"
 actual = sha256(patch.read_bytes()).hexdigest()
 assert actual == expected, actual
 print("vanitysearch_patch_sha_ok")

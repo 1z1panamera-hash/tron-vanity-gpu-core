@@ -22,24 +22,26 @@ An optional smoke can also compile patched VanitySearch and run a bounded TRON w
 Tracked patch in this repository:
 
 ```text
-patches/vanitysearch_tron_gpu_direct_xy_keccak_20260618.patch
+patches/vanitysearch_tron_gpu_payload21_prefix_bounds_20260618.patch
 ```
 
 SHA-256:
 
 ```text
-d3f250f4c4ec09de9765395a699813f6825a94751506123562966d41c622c109
+3dd7ebdbf72cec611afa0d5b829942b9842f3e1b90c35c00d68d5e0bbadbc61a
 ```
 
 Candidate branch head:
 
 ```text
-ba65a1a Absorb TRON public key coordinates directly
+60e9495 Precompute TRON payload21 prefix bounds
 ```
 
 The TRON GPU search path now parses `T<one-char>*<five-char-suffix>` into a dedicated product rule, precomputes the `T` + `prefix_after_t` Base58 value range and suffix-5 value, checks whether the 21-byte TRON payload can possibly fall in the prefix range before computing the double-SHA256 checksum, then applies exact prefix range, suffix modulo, and full Base58 confirmation. This avoids passing host string pointers into the kernel and skips checksum/modulo/Base58 work for most non-matching candidates.
 
 The hot path now derives the TRON payload directly from VanitySearch's GPU x/y coordinate words, instead of first materializing a 64-byte public-key array and then hashing that array. The RunPod vector check compares the direct x/y Keccak absorption path with the public-key reference path through the `xy_payload_passed` field.
+
+The checksum-before gate now uses precomputed 21-byte possible prefix bounds. This keeps the exact 25-byte `T + prefix_after_t` range for post-checksum confirmation, while removing the per-candidate synthetic 4-byte checksum-tail comparisons from the hot reject path.
 
 The optional pattern smoke sets `TRON_SUPPRESS_SECRET_OUTPUT=1` before running VanitySearch. If an accidental hit happens during the bounded smoke, WIF/HEX key material is suppressed instead of printed.
 
