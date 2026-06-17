@@ -1,7 +1,7 @@
 From 221922d62bde31625d8abd2ec9f5054db76f635a Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:37:26 +0800
-Subject: [PATCH 01/10] Add local TRON CPU address prototype
+Subject: [PATCH 01/11] Add local TRON CPU address prototype
 
 ---
  Makefile           |  7 ++--
@@ -256,7 +256,7 @@ index f404066..55c41f4 100644
 From 55470e4c21b5d213323850b6daa3c165abea41f0 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:49:24 +0800
-Subject: [PATCH 02/10] Add RunPod TRON CPU vector check
+Subject: [PATCH 02/11] Add RunPod TRON CPU vector check
 
 ---
  scripts/runpod_verify_tron_cpu_vectors.sh | 47 +++++++++++++++++++++++
@@ -323,7 +323,7 @@ index 0000000..074dfab
 From 4c938377714b95d74f65296b0828e05245e5402f Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:15:10 +0800
-Subject: [PATCH 03/10] Add TRON GPU address layer vector check
+Subject: [PATCH 03/11] Add TRON GPU address layer vector check
 
 ---
  GPU/GPUTron.h                                 | 190 ++++++++++++++++++
@@ -817,7 +817,7 @@ index 0000000..a6aeff3
 From 98a05c73c7b0bdd61d105a7984b8a4a1173fa4b7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:26:41 +0800
-Subject: [PATCH 04/10] Add TRON GPU product rule vector checks
+Subject: [PATCH 04/11] Add TRON GPU product rule vector checks
 
 ---
  GPU/GPUTron.h                               | 14 +++++++++
@@ -953,7 +953,7 @@ index 797f6c9..05a64a9 100644
 From 6224f8980c57e95ec149c15c01b6f95cd9b1abb7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:35:56 +0800
-Subject: [PATCH 05/10] Add TRON GPU wildcard search path
+Subject: [PATCH 05/11] Add TRON GPU wildcard search path
 
 ---
  GPU/GPUCompute.h                              | 143 ++++++++++++++++++
@@ -1466,7 +1466,7 @@ index 0000000..c7e9640
 From 2403869713f9b64c07556beaf7aec7475e0bddf7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:46:37 +0800
-Subject: [PATCH 06/10] Use dedicated TRON prefix suffix GPU rule
+Subject: [PATCH 06/11] Use dedicated TRON prefix suffix GPU rule
 
 ---
  GPU/GPUCompute.h                              | 14 ++++----
@@ -1691,7 +1691,7 @@ index c7e9640..1eadcce 100755
 From ff433253cd0ece485062f0cbc944f3e74e7d43d8 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 01:22:44 +0800
-Subject: [PATCH 07/10] Add TRON suffix modulo GPU prefilter
+Subject: [PATCH 07/11] Add TRON suffix modulo GPU prefilter
 
 ---
  GPU/GPUCompute.h          | 16 ++++++++------
@@ -1974,7 +1974,7 @@ index 64f99f8..d56bb43 100644
 From 25fcd54ad53a68dfe99fb1330bbb062f3f8c1be9 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:15:53 +0800
-Subject: [PATCH 08/10] Add TRON prefix range GPU prefilter
+Subject: [PATCH 08/11] Add TRON prefix range GPU prefilter
 
 ---
  GPU/GPUCompute.h          |  9 +++--
@@ -2346,7 +2346,7 @@ index d56bb43..72e5f0f 100644
 From fef351d2eaddd76ec5de46d993523f23a4de934d Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:27:46 +0800
-Subject: [PATCH 09/10] Gate TRON checksum behind prefix range
+Subject: [PATCH 09/11] Gate TRON checksum behind prefix range
 
 ---
  GPU/GPUCompute.h          |  8 ++++++-
@@ -2510,7 +2510,7 @@ index 72e5f0f..1d64dc8 100644
 From d79918f448348063ccd76f4feb0cf8a72ddefef8 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:44:28 +0800
-Subject: [PATCH 10/10] Suppress TRON secrets in bounded GPU smoke
+Subject: [PATCH 10/11] Suppress TRON secrets in bounded GPU smoke
 
 ---
  Vanity.cpp                                    | 21 ++++++++++++++++---
@@ -2642,6 +2642,179 @@ index 1eadcce..2ec8b95 100755
 +PY
 +
  echo "tron_gpu_pattern_smoke_passed"
+-- 
+2.50.1 (Apple Git-155)
+
+
+From 13b202c70a39a73684fc942971d16fc478696503 Mon Sep 17 00:00:00 2001
+From: 1z1 <1z1@1z1deMacBook-Air.local>
+Date: Thu, 18 Jun 2026 03:48:16 +0800
+Subject: [PATCH 11/11] Add bounded TRON GPU pattern benchmark script
+
+---
+ docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md    | 50 +++++++++++
+ scripts/runpod_tron_gpu_pattern_benchmark.sh | 95 ++++++++++++++++++++
+ 2 files changed, 145 insertions(+)
+ create mode 100644 docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md
+ create mode 100644 scripts/runpod_tron_gpu_pattern_benchmark.sh
+
+diff --git a/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md b/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md
+new file mode 100644
+index 0000000..74bb45e
+--- /dev/null
++++ b/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md
+@@ -0,0 +1,50 @@
++# RunPod TRON GPU Pattern Benchmark
++
++## Purpose
++
++This is a bounded benchmark signal for the patched VanitySearch TRON path on a normal RunPod GPU Pod.
++
++It is not the final Serverless production proof. It is meant to answer whether the patched CUDA path is fast enough to justify deeper benchmark-only worker integration.
++
++## Safety Rules
++
++- Do not run this on `47.80.70.211`.
++- Do not use customer patterns.
++- Do not use customer data.
++- Do not run it without `ALLOW_RUNPOD_TRON_GPU_PATTERN_BENCHMARK=1`.
++- Keep `TRON_SUPPRESS_SECRET_OUTPUT=1`; the script sets it before launching VanitySearch.
++- Treat the output as a bounded GPU Pod signal, not final average/P90 proof.
++
++## Command
++
++From the patched VanitySearch repository on a short-lived CUDA RunPod Pod:
++
++```bash
++ALLOW_RUNPOD_TRON_GPU_PATTERN_BENCHMARK=1 CUDA_ARCH=80 BENCHMARK_SECONDS=10 scripts/runpod_tron_gpu_pattern_benchmark.sh
++```
++
++Optional variables:
++
++```bash
++BENCHMARK_PATTERN=TA*CDEFG
++GPU_GRID=8,128
++BENCHMARK_SECONDS=10
++```
++
++`BENCHMARK_SECONDS` is intentionally limited to 3-30 seconds.
++
++## Output
++
++The script prints JSON with:
++
++- `reported_gpu_mkey_s`
++- `candidate_attempts_per_second_estimate`
++- `samples`
++- `timeout_reached`
++- safety notes
++
++The estimate comes from VanitySearch's reported GPU key rate. It should be treated as a direction signal until a dedicated benchmark-only worker reports complete TRON address attempts per second.
++
++## Next Gate
++
++If this bounded benchmark is promising, add a dedicated no-secret benchmark mode that reports complete TRON candidate attempts per second and then run a longer controlled comparison on the intended GPU classes.
+diff --git a/scripts/runpod_tron_gpu_pattern_benchmark.sh b/scripts/runpod_tron_gpu_pattern_benchmark.sh
+new file mode 100644
+index 0000000..67ab22e
+--- /dev/null
++++ b/scripts/runpod_tron_gpu_pattern_benchmark.sh
+@@ -0,0 +1,95 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++if [ "${ALLOW_RUNPOD_TRON_GPU_PATTERN_BENCHMARK:-0}" != "1" ]; then
++  echo "refusing_to_run_without_ALLOW_RUNPOD_TRON_GPU_PATTERN_BENCHMARK=1" >&2
++  echo "This bounded benchmark is intended for a short-lived CUDA RunPod Pod only." >&2
++  exit 2
++fi
++
++CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
++CUDA_ARCH="${CUDA_ARCH:-80}"
++CXXCUDA="${CXXCUDA:-/usr/bin/g++}"
++BENCHMARK_PATTERN="${BENCHMARK_PATTERN:-TA*CDEFG}"
++BENCHMARK_SECONDS="${BENCHMARK_SECONDS:-10}"
++GPU_GRID="${GPU_GRID:-8,128}"
++
++case "$BENCHMARK_SECONDS" in
++  ''|*[!0-9]*)
++    echo "BENCHMARK_SECONDS must be an integer" >&2
++    exit 1
++    ;;
++esac
++if [ "$BENCHMARK_SECONDS" -lt 3 ] || [ "$BENCHMARK_SECONDS" -gt 30 ]; then
++  echo "BENCHMARK_SECONDS must be between 3 and 30 for this bounded check" >&2
++  exit 1
++fi
++
++echo "== build VanitySearch with GPU support"
++make gpu=1 CCAP="$CUDA_ARCH" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" all
++
++echo "== run bounded TRON GPU pattern benchmark"
++set +e
++TRON_SUPPRESS_SECRET_OUTPUT=1 timeout "$BENCHMARK_SECONDS"s ./VanitySearch -gpu -t 0 -g "$GPU_GRID" "$BENCHMARK_PATTERN" \
++  > /tmp/tron_gpu_pattern_benchmark_stdout.txt \
++  2> /tmp/tron_gpu_pattern_benchmark_stderr.txt
++rc=$?
++set -e
++
++if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then
++  echo "tron_gpu_pattern_benchmark_failed rc=$rc" >&2
++  tail -80 /tmp/tron_gpu_pattern_benchmark_stdout.txt >&2 || true
++  tail -80 /tmp/tron_gpu_pattern_benchmark_stderr.txt >&2 || true
++  exit 1
++fi
++
++if grep -Eiq "Priv|WIF|HEX|private_key|mnemonic|seed|token|secret" \
++  /tmp/tron_gpu_pattern_benchmark_stdout.txt /tmp/tron_gpu_pattern_benchmark_stderr.txt; then
++  echo "unexpected sensitive marker or hit output in TRON GPU pattern benchmark" >&2
++  exit 1
++fi
++
++python3 - "$BENCHMARK_PATTERN" "$BENCHMARK_SECONDS" "$GPU_GRID" "$rc" <<'PY'
++from pathlib import Path
++import json
++import re
++import sys
++
++pattern, seconds, grid, rc = sys.argv[1], int(sys.argv[2]), sys.argv[3], int(sys.argv[4])
++stdout = Path("/tmp/tron_gpu_pattern_benchmark_stdout.txt").read_text(errors="ignore")
++stderr = Path("/tmp/tron_gpu_pattern_benchmark_stderr.txt").read_text(errors="ignore")
++matches = re.findall(r"\[([0-9.]+) Mkey/s\]\[GPU ([0-9.]+) Mkey/s\]", stdout)
++if not matches:
++    print(json.dumps({
++        "mode": "tron_gpu_pattern_benchmark",
++        "passed": False,
++        "error": "no Mkey/s sample found",
++        "return_code": rc,
++        "stderr_tail": stderr[-2000:],
++    }, indent=2, sort_keys=True))
++    raise SystemExit(1)
++
++total_mkey_s, gpu_mkey_s = (float(x) for x in matches[-1])
++result = {
++    "mode": "tron_gpu_pattern_benchmark",
++    "passed": True,
++    "pattern": pattern,
++    "duration_seconds_limit": seconds,
++    "gpu_grid": grid,
++    "return_code": rc,
++    "timeout_reached": rc == 124,
++    "samples": len(matches),
++    "reported_total_mkey_s": total_mkey_s,
++    "reported_gpu_mkey_s": gpu_mkey_s,
++    "candidate_attempts_per_second_estimate": gpu_mkey_s * 1_000_000.0,
++    "notes": [
++        "This is a bounded RunPod GPU Pod benchmark signal, not final Serverless P90 proof.",
++        "TRON_SUPPRESS_SECRET_OUTPUT=1 is required and was set by the script.",
++        "Use only TEST patterns; do not use customer patterns or customer data.",
++        "Final production delivery must use the Python wrapper and age encryption."
++    ],
++}
++print(json.dumps(result, indent=2, sort_keys=True))
++PY
++
++echo "tron_gpu_pattern_benchmark_passed"
 -- 
 2.50.1 (Apple Git-155)
 

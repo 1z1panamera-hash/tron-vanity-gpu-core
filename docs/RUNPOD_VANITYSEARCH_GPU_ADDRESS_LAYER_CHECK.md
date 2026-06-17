@@ -15,31 +15,33 @@ By default it checks only the GPU-side TRON address construction layer:
 
 It is not a search benchmark and cannot be used as an address generation speed result.
 
-An optional smoke can also compile patched VanitySearch and run a bounded TRON wildcard GPU search startup check. That smoke is still not a speed result.
+An optional smoke can also compile patched VanitySearch and run a bounded TRON wildcard GPU search startup check. A separate optional benchmark signal can run a 10 second bounded TRON pattern benchmark and print JSON. These are still not final Serverless average/P90 proof.
 
 ## Candidate Patch
 
 Tracked patch in this repository:
 
 ```text
-patches/vanitysearch_tron_gpu_safe_smoke_20260618.patch
+patches/vanitysearch_tron_gpu_bounded_benchmark_20260618.patch
 ```
 
 SHA-256:
 
 ```text
-b791ee6b28f1bba9b9f9371ea345af5c4199585135ef1ee93784c6e1b73e893b
+7584003c3fefe537eff86ae3b7f7cb42a3eb8b8d0a598f18d97ab7f955a0c44f
 ```
 
 Candidate branch head:
 
 ```text
-d79918f Suppress TRON secrets in bounded GPU smoke
+13b202c Add bounded TRON GPU pattern benchmark script
 ```
 
 The TRON GPU search path now parses `T<one-char>*<five-char-suffix>` into a dedicated product rule, precomputes the `T` + `prefix_after_t` Base58 value range and suffix-5 value, checks whether the 21-byte TRON payload can possibly fall in the prefix range before computing the double-SHA256 checksum, then applies exact prefix range, suffix modulo, and full Base58 confirmation. This avoids passing host string pointers into the kernel and skips checksum/modulo/Base58 work for most non-matching candidates.
 
 The optional pattern smoke sets `TRON_SUPPRESS_SECRET_OUTPUT=1` before running VanitySearch. If an accidental hit happens during the bounded smoke, WIF/HEX key material is suppressed instead of printed.
+
+The optional bounded benchmark also sets `TRON_SUPPRESS_SECRET_OUTPUT=1`, limits runtime to 3-30 seconds, and reports `candidate_attempts_per_second_estimate` from VanitySearch's GPU Mkey/s output. It is a GPU Pod direction signal, not final production proof.
 
 ## RunPod Command
 
@@ -67,6 +69,18 @@ Expected extra success marker:
 tron_gpu_pattern_smoke_passed
 ```
 
+Optional bounded pattern benchmark:
+
+```bash
+ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK=1 RUN_TRON_PATTERN_BENCHMARK=1 CUDA_ARCH=sm_80 scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
+```
+
+Expected extra success marker:
+
+```text
+tron_gpu_pattern_benchmark_passed
+```
+
 ## Safety
 
 - The script refuses to run unless `ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK=1` is set.
@@ -74,6 +88,7 @@ tron_gpu_pattern_smoke_passed
 - The script refuses to overwrite an existing work directory.
 - The optional wildcard smoke uses the strict product-rule pattern and suppresses key material if an accidental hit occurs.
 - The optional wildcard smoke defaults to 5 seconds and may print a best-effort `tron_gpu_pattern_smoke_rate` line; this is only a startup signal.
+- The optional bounded benchmark defaults to 10 seconds, refuses durations outside 3-30 seconds, and emits JSON for review.
 - The checksum-gated prefix range and suffix modulo prefilters are optimization gates, not proof of final production speed.
 - Do not run this on `47.80.70.211`.
 - Do not run a search benchmark from this check.
@@ -82,4 +97,4 @@ tron_gpu_pattern_smoke_passed
 
 ## Next Gate
 
-After this passes on RunPod, measure the patched VanitySearch path with short bounded runs on a GPU Pod, then continue optimizing the secp256k1 and TRON address hot path. Do not treat this address-layer check as a benchmark.
+After this passes on RunPod, inspect the bounded benchmark JSON locally and compare it with the `58^6` target space. If it is promising, replace this signal path with a dedicated benchmark-only worker and then run controlled GPU-class comparisons.

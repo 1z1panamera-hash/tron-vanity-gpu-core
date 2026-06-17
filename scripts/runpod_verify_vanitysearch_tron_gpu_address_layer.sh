@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_safe_smoke_20260618.patch"
+PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_bounded_benchmark_20260618.patch"
 
 if [ "${ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK:-0}" != "1" ]; then
   echo "refusing_to_run_without_ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK=1" >&2
@@ -15,7 +15,7 @@ if [ ! -f "$PATCH_PATH" ]; then
   exit 1
 fi
 
-EXPECTED_SHA="b791ee6b28f1bba9b9f9371ea345af5c4199585135ef1ee93784c6e1b73e893b"
+EXPECTED_SHA="7584003c3fefe537eff86ae3b7f7cb42a3eb8b8d0a598f18d97ab7f955a0c44f"
 ACTUAL_SHA="$(sha256sum "$PATCH_PATH" | awk '{print $1}')"
 if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
   echo "patch sha256 mismatch" >&2
@@ -50,4 +50,10 @@ if [ "${RUN_TRON_PATTERN_SMOKE:-0}" = "1" ]; then
   echo "== run optional TRON GPU pattern search smoke"
   ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE=1 CUDA_ARCH="${CUDA_ARCH#sm_}" \
     scripts/runpod_tron_gpu_pattern_search_smoke.sh
+fi
+
+if [ "${RUN_TRON_PATTERN_BENCHMARK:-0}" = "1" ]; then
+  echo "== run optional bounded TRON GPU pattern benchmark"
+  ALLOW_RUNPOD_TRON_GPU_PATTERN_BENCHMARK=1 CUDA_ARCH="${CUDA_ARCH#sm_}" \
+    scripts/runpod_tron_gpu_pattern_benchmark.sh
 fi
