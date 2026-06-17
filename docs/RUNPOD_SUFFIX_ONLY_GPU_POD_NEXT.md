@@ -80,6 +80,15 @@ ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=sm_80 BENCHMARK_SECONDS=3 \
   scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 ```
 
+To compare the pre-optimization baseline with the current commit on the same GPU Pod, use:
+
+```bash
+ALLOW_RUNPOD_SUFFIX_COMPARE=1 CUDA_ARCH=sm_80 BENCHMARK_SECONDS=3 \
+  scripts/runpod_gpu_pod_suffix_compare_commits.sh
+```
+
+By default this compares baseline commit `f2a17c99f41d9e0069f474a087caa49c95f6fc5d` against the current checkout. Override with `BASE_COMMIT=<hash>` and `TEST_COMMIT=<hash>` when needed. The output summary is written to `runpod_results/suffix_compare_<utc-run-id>/suffix_compare_summary.json`.
+
 Default sweep dimensions:
 
 ```text
