@@ -1,7 +1,7 @@
 From 221922d62bde31625d8abd2ec9f5054db76f635a Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:37:26 +0800
-Subject: [PATCH 1/8] Add local TRON CPU address prototype
+Subject: [PATCH 1/9] Add local TRON CPU address prototype
 
 ---
  Makefile           |  7 ++--
@@ -256,7 +256,7 @@ index f404066..55c41f4 100644
 From 55470e4c21b5d213323850b6daa3c165abea41f0 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:49:24 +0800
-Subject: [PATCH 2/8] Add RunPod TRON CPU vector check
+Subject: [PATCH 2/9] Add RunPod TRON CPU vector check
 
 ---
  scripts/runpod_verify_tron_cpu_vectors.sh | 47 +++++++++++++++++++++++
@@ -323,7 +323,7 @@ index 0000000..074dfab
 From 4c938377714b95d74f65296b0828e05245e5402f Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:15:10 +0800
-Subject: [PATCH 3/8] Add TRON GPU address layer vector check
+Subject: [PATCH 3/9] Add TRON GPU address layer vector check
 
 ---
  GPU/GPUTron.h                                 | 190 ++++++++++++++++++
@@ -817,7 +817,7 @@ index 0000000..a6aeff3
 From 98a05c73c7b0bdd61d105a7984b8a4a1173fa4b7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:26:41 +0800
-Subject: [PATCH 4/8] Add TRON GPU product rule vector checks
+Subject: [PATCH 4/9] Add TRON GPU product rule vector checks
 
 ---
  GPU/GPUTron.h                               | 14 +++++++++
@@ -953,7 +953,7 @@ index 797f6c9..05a64a9 100644
 From 6224f8980c57e95ec149c15c01b6f95cd9b1abb7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:35:56 +0800
-Subject: [PATCH 5/8] Add TRON GPU wildcard search path
+Subject: [PATCH 5/9] Add TRON GPU wildcard search path
 
 ---
  GPU/GPUCompute.h                              | 143 ++++++++++++++++++
@@ -1466,7 +1466,7 @@ index 0000000..c7e9640
 From 2403869713f9b64c07556beaf7aec7475e0bddf7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:46:37 +0800
-Subject: [PATCH 6/8] Use dedicated TRON prefix suffix GPU rule
+Subject: [PATCH 6/9] Use dedicated TRON prefix suffix GPU rule
 
 ---
  GPU/GPUCompute.h                              | 14 ++++----
@@ -1691,7 +1691,7 @@ index c7e9640..1eadcce 100755
 From ff433253cd0ece485062f0cbc944f3e74e7d43d8 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 01:22:44 +0800
-Subject: [PATCH 7/8] Add TRON suffix modulo GPU prefilter
+Subject: [PATCH 7/9] Add TRON suffix modulo GPU prefilter
 
 ---
  GPU/GPUCompute.h          | 16 ++++++++------
@@ -1974,7 +1974,7 @@ index 64f99f8..d56bb43 100644
 From 25fcd54ad53a68dfe99fb1330bbb062f3f8c1be9 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:15:53 +0800
-Subject: [PATCH 8/8] Add TRON prefix range GPU prefilter
+Subject: [PATCH 8/9] Add TRON prefix range GPU prefilter
 
 ---
  GPU/GPUCompute.h          |  9 +++--
@@ -2339,6 +2339,170 @@ index d56bb43..72e5f0f 100644
          results[i].suffix_prefilter_passed ? "true" : "false",
          results[i].wrong_suffix_prefilter_rejected ? "true" : "false",
          i + 1 == results.size() ? "" : ",");
+-- 
+2.50.1 (Apple Git-155)
+
+
+From fef351d2eaddd76ec5de46d993523f23a4de934d Mon Sep 17 00:00:00 2001
+From: 1z1 <1z1@1z1deMacBook-Air.local>
+Date: Thu, 18 Jun 2026 03:27:46 +0800
+Subject: [PATCH 9/9] Gate TRON checksum behind prefix range
+
+---
+ GPU/GPUCompute.h          |  8 ++++++-
+ GPU/GPUTron.h             | 48 ++++++++++++++++++++++++++++++++++-----
+ GPU/GPUTronVectorCheck.cu | 14 +++++++++++-
+ 3 files changed, 62 insertions(+), 8 deletions(-)
+
+diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
+index aa1c565..941b61d 100644
+--- a/GPU/GPUCompute.h
++++ b/GPU/GPUCompute.h
+@@ -263,12 +263,18 @@ __device__ __noinline__ void CheckTronPoint(
+     uint32_t *out) {
+ 
+   uint8_t public_key64[64];
++  uint8_t payload21[21];
+   uint8_t payload25[25];
+   char address[48];
+   uint32_t tid = (blockIdx.x*blockDim.x) + threadIdx.x;
+ 
+   tron_public_key64_from_xy(px, py, public_key64);
+-  tron_payload25_from_public_key64(public_key64, payload25);
++  tron_payload21_from_public_key64(public_key64, payload21);
++  if (!tron_payload21_can_match_prefix_range(payload21, prefixRange)) {
++    return;
++  }
++
++  tron_payload25_from_payload21(payload21, payload25);
+   if (!tron_payload25_matches_prefix_range(payload25, prefixRange)) {
+     return;
+   }
+diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
+index e94cb14..b5aecc2 100644
+--- a/GPU/GPUTron.h
++++ b/GPU/GPUTron.h
+@@ -46,6 +46,28 @@ __device__ __noinline__ bool tron_payload25_matches_prefix_range(
+          tron_payload25_compare(payload25, prefixRange.high) <= 0;
+ }
+ 
++__device__ __noinline__ int tron_payload21_with_tail_compare(
++    const uint8_t payload21[21],
++    const uint8_t value25[25],
++    uint8_t tailByte) {
++  for (int i = 0; i < 21; ++i) {
++    if (payload21[i] < value25[i]) return -1;
++    if (payload21[i] > value25[i]) return 1;
++  }
++  for (int i = 21; i < 25; ++i) {
++    if (tailByte < value25[i]) return -1;
++    if (tailByte > value25[i]) return 1;
++  }
++  return 0;
++}
++
++__device__ __noinline__ bool tron_payload21_can_match_prefix_range(
++    const uint8_t payload21[21],
++    const TronPrefixRange prefixRange) {
++  return tron_payload21_with_tail_compare(payload21, prefixRange.low, 0xff) >= 0 &&
++         tron_payload21_with_tail_compare(payload21, prefixRange.high, 0x00) <= 0;
++}
++
+ __device__ __noinline__ uint64_t tron_payload25_mod_base58_power(
+     const uint8_t payload25[25],
+     uint64_t modulus) {
+@@ -226,18 +248,32 @@ __device__ __noinline__ int tron_base58_payload25(const uint8_t payload25[25], c
+   return ret_pos;
+ }
+ 
+-__device__ __noinline__ void tron_payload25_from_public_key64(
++__device__ __noinline__ void tron_payload21_from_public_key64(
+     const uint8_t public_key64[64],
+-    uint8_t payload25[25]) {
++    uint8_t payload21[21]) {
+   uint8_t digest[32];
+-  uint8_t checksum[4];
+   tron_keccak256_64(public_key64, digest);
+-  payload25[0] = 0x41;
+-  for (int i = 0; i < 20; ++i) payload25[i + 1] = digest[i + 12];
+-  tron_checksum4(payload25, checksum);
++  payload21[0] = 0x41;
++  for (int i = 0; i < 20; ++i) payload21[i + 1] = digest[i + 12];
++}
++
++__device__ __noinline__ void tron_payload25_from_payload21(
++    const uint8_t payload21[21],
++    uint8_t payload25[25]) {
++  uint8_t checksum[4];
++  for (int i = 0; i < 21; ++i) payload25[i] = payload21[i];
++  tron_checksum4(payload21, checksum);
+   for (int i = 0; i < 4; ++i) payload25[21 + i] = checksum[i];
+ }
+ 
++__device__ __noinline__ void tron_payload25_from_public_key64(
++    const uint8_t public_key64[64],
++    uint8_t payload25[25]) {
++  uint8_t payload21[21];
++  tron_payload21_from_public_key64(public_key64, payload21);
++  tron_payload25_from_payload21(payload21, payload25);
++}
++
+ __device__ __noinline__ int tron_address_from_public_key64(
+     const uint8_t public_key64[64],
+     char address[48],
+diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
+index 72e5f0f..1d64dc8 100644
+--- a/GPU/GPUTronVectorCheck.cu
++++ b/GPU/GPUTronVectorCheck.cu
+@@ -32,6 +32,8 @@ struct TronVectorResult {
+   int address_len;
+   int match_rule_passed;
+   int wrong_rule_rejected;
++  int prefix_possible_passed;
++  int wrong_prefix_possible_rejected;
+   int prefix_prefilter_passed;
+   int wrong_prefix_prefilter_rejected;
+   int suffix_prefilter_passed;
+@@ -60,8 +62,14 @@ __global__ void tron_vector_kernel(
+       result.address_len,
+       inputs[idx].prefix_after_t,
+       inputs[idx].wrong_suffix5) ? 1 : 0;
++  uint8_t payload21[21];
++  tron_payload21_from_public_key64(inputs[idx].public_key64, payload21);
+   uint64_t suffix_value = tron_suffix5_value(inputs[idx].suffix5);
+   uint64_t wrong_suffix_value = tron_suffix5_value(inputs[idx].wrong_suffix5);
++  result.prefix_possible_passed =
++      tron_payload21_can_match_prefix_range(payload21, inputs[idx].prefix_range) ? 1 : 0;
++  result.wrong_prefix_possible_rejected =
++      !tron_payload21_can_match_prefix_range(payload21, inputs[idx].wrong_prefix_range) ? 1 : 0;
+   result.prefix_prefilter_passed =
+       tron_payload25_matches_prefix_range(result.payload25, inputs[idx].prefix_range) ? 1 : 0;
+   result.wrong_prefix_prefilter_rejected =
+@@ -80,6 +88,8 @@ __global__ void tron_vector_kernel(
+   }
+   if (!result.match_rule_passed ||
+       !result.wrong_rule_rejected ||
++      !result.prefix_possible_passed ||
++      !result.wrong_prefix_possible_rejected ||
+       !result.prefix_prefilter_passed ||
+       !result.wrong_prefix_prefilter_rejected ||
+       !result.suffix_prefilter_passed ||
+@@ -266,12 +276,14 @@ int main() {
+   for (size_t i = 0; i < results.size(); ++i) {
+     if (results[i].passed) ++passed;
+     std::printf(
+-        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"prefix_prefilter_passed\": %s, \"wrong_prefix_prefilter_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s}%s\n",
++        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"prefix_possible_passed\": %s, \"wrong_prefix_possible_rejected\": %s, \"prefix_prefilter_passed\": %s, \"wrong_prefix_prefilter_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s}%s\n",
+         i,
+         results[i].passed ? "true" : "false",
+         results[i].computed_address,
+         results[i].match_rule_passed ? "true" : "false",
+         results[i].wrong_rule_rejected ? "true" : "false",
++        results[i].prefix_possible_passed ? "true" : "false",
++        results[i].wrong_prefix_possible_rejected ? "true" : "false",
+         results[i].prefix_prefilter_passed ? "true" : "false",
+         results[i].wrong_prefix_prefilter_rejected ? "true" : "false",
+         results[i].suffix_prefilter_passed ? "true" : "false",
 -- 
 2.50.1 (Apple Git-155)
 
