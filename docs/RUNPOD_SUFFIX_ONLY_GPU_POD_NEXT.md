@@ -96,6 +96,7 @@ The sweep writes:
 runpod_results/suffix_speed_sweep_<utc-run-id>/speed_sweep_summary.json
 runpod_results/suffix_speed_sweep_<utc-run-id>/nvidia_smi_initial.txt
 runpod_results/suffix_speed_sweep_<utc-run-id>/gpu_utilization.csv
+runpod_results/suffix_speed_sweep_<utc-run-id>/build_step_<STEP_SIZE>.stdout.txt
 ```
 
 Inspect the saved sweep result:
@@ -110,6 +111,8 @@ Important decisions:
 - `optimize_secp256k1_or_address_hot_path`: GPU is working, but speed is still below `200M`.
 - `engineering_min_passed_continue_toward_300m`: minimum speed passed; continue toward preferred `300M+`.
 - `preferred_speed_passed_profile_before_serverless`: speed is good enough to profile stability before Serverless work resumes.
+
+The inspector also parses `ptxas` build output where available. Register count or spill warnings are useful evidence for the next CUDA optimization pass.
 
 Speed targets:
 

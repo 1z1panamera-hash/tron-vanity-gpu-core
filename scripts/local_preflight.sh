@@ -130,7 +130,9 @@ mkdir -p "$speed_sweep_dir"
 cleanup_speed_sweep_dir() {
     rm -f \
         "$speed_sweep_dir/speed_sweep_summary.json" \
-        "$speed_sweep_dir/gpu_utilization.csv"
+        "$speed_sweep_dir/gpu_utilization.csv" \
+        "$speed_sweep_dir/build_step_1024.stdout.txt" \
+        "$speed_sweep_dir/build_step_4096.stdout.txt"
     rmdir "$speed_sweep_dir" 2>/dev/null || true
 }
 trap cleanup_speed_sweep_dir EXIT
@@ -150,6 +152,9 @@ cat >"$speed_sweep_dir/gpu_utilization.csv" <<'CSV'
 timestamp, index, name, driver_version, utilization.gpu [%], utilization.memory [%], power.draw [W], memory.used [MiB], memory.total [MiB]
 2026/06/18 00:00:00.000, 0, TEST_GPU, 555.0, 42 %, 5 %, 120 W, 1000 MiB, 80000 MiB
 CSV
+cat >"$speed_sweep_dir/build_step_1024.stdout.txt" <<'TXT'
+ptxas info    : Used 64 registers, 320 bytes cmem[0]
+TXT
 python3 scripts/inspect_suffix_speed_sweep.py "$speed_sweep_dir" >/tmp/suffix_speed_sweep_low_inspect.json
 python3 - <<'PY'
 import json
@@ -158,6 +163,7 @@ data = json.loads(Path("/tmp/suffix_speed_sweep_low_inspect.json").read_text())
 assert data["decision"] == "increase_batch_or_fix_gpu_utilization", data["decision"]
 assert data["meets_engineering_minimum"] is False
 assert data["gpu_utilization"]["max_gpu_utilization_percent"] == 42.0
+assert data["build_diagnostics"][0]["registers"] == 64
 PY
 cat >"$speed_sweep_dir/speed_sweep_summary.json" <<'JSON'
 {
@@ -175,6 +181,9 @@ cat >"$speed_sweep_dir/gpu_utilization.csv" <<'CSV'
 timestamp, index, name, driver_version, utilization.gpu [%], utilization.memory [%], power.draw [W], memory.used [MiB], memory.total [MiB]
 2026/06/18 00:00:00.000, 0, TEST_GPU, 555.0, 91 %, 30 %, 300 W, 1000 MiB, 80000 MiB
 CSV
+cat >"$speed_sweep_dir/build_step_4096.stdout.txt" <<'TXT'
+ptxas info    : Used 72 registers, 0 bytes spill stores, 0 bytes spill loads, 384 bytes cmem[0]
+TXT
 python3 scripts/inspect_suffix_speed_sweep.py "$speed_sweep_dir" >/tmp/suffix_speed_sweep_min_inspect.json
 python3 - <<'PY'
 import json

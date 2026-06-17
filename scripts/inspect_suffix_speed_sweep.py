@@ -65,6 +65,44 @@ def inspect_gpu_utilization(result_dir: Path, summary: Dict[str, Any]) -> Dict[s
     }
 
 
+def inspect_build_diagnostics(result_dir: Path) -> List[Dict[str, Any]]:
+    diagnostics: List[Dict[str, Any]] = []
+    for path in sorted(result_dir.glob("build_step_*.stdout.txt")):
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        step_match = re.search(r"build_step_([0-9]+)\.stdout\.txt$", path.name)
+        item: Dict[str, Any] = {
+            "path": str(path),
+            "step_size": int(step_match.group(1)) if step_match else None,
+            "registers": None,
+            "spill_stores_bytes": 0,
+            "spill_loads_bytes": 0,
+            "shared_memory_bytes": None,
+            "constant_memory_bytes": None,
+            "ptxas_lines": [],
+        }
+        for line in text.splitlines():
+            if "ptxas" not in line:
+                continue
+            item["ptxas_lines"].append(line)
+            reg_match = re.search(r"Used\s+([0-9]+)\s+registers", line)
+            if reg_match:
+                item["registers"] = int(reg_match.group(1))
+            smem_match = re.search(r"([0-9]+)\s+bytes\s+smem", line)
+            if smem_match:
+                item["shared_memory_bytes"] = int(smem_match.group(1))
+            cmem_match = re.search(r"([0-9]+)\s+bytes\s+cmem", line)
+            if cmem_match:
+                item["constant_memory_bytes"] = int(cmem_match.group(1))
+            spill_store_match = re.search(r"([0-9]+)\s+bytes\s+spill stores", line)
+            if spill_store_match:
+                item["spill_stores_bytes"] += int(spill_store_match.group(1))
+            spill_load_match = re.search(r"([0-9]+)\s+bytes\s+spill loads", line)
+            if spill_load_match:
+                item["spill_loads_bytes"] += int(spill_load_match.group(1))
+        diagnostics.append(item)
+    return diagnostics
+
+
 def inspect(result_dir: Path) -> Dict[str, Any]:
     failures: List[str] = []
     warnings: List[str] = []
@@ -92,6 +130,7 @@ def inspect(result_dir: Path) -> Dict[str, Any]:
         failures.append("grid results are missing")
 
     gpu_util = inspect_gpu_utilization(result_dir, summary)
+    build_diagnostics = inspect_build_diagnostics(result_dir)
     max_util = gpu_util.get("max_gpu_utilization_percent")
     avg_util = gpu_util.get("avg_gpu_utilization_percent")
     if not gpu_util.get("present"):
@@ -100,6 +139,14 @@ def inspect(result_dir: Path) -> Dict[str, Any]:
         warnings.append("gpu utilization samples are missing")
     elif isinstance(max_util, (int, float)) and max_util < LOW_GPU_UTILIZATION_PERCENT:
         warnings.append("GPU utilization is low; increase STEP_SIZE/grid or inspect occupancy")
+    if not build_diagnostics:
+        warnings.append("build_step_<STEP_SIZE>.stdout.txt files are missing")
+    for item in build_diagnostics:
+        if item.get("spill_stores_bytes") or item.get("spill_loads_bytes"):
+            warnings.append(
+                f"ptxas spill detected for STEP_SIZE={item.get('step_size')}: "
+                f"stores={item.get('spill_stores_bytes')} loads={item.get('spill_loads_bytes')}"
+            )
 
     meets_min = best_speed >= ENGINEERING_MIN_ATTEMPTS_PER_SECOND
     meets_preferred = best_speed >= ENGINEERING_PREFERRED_ATTEMPTS_PER_SECOND
@@ -137,6 +184,7 @@ def inspect(result_dir: Path) -> Dict[str, Any]:
             "max_gpu_utilization_percent": max_util,
             "low_utilization_threshold_percent": LOW_GPU_UTILIZATION_PERCENT,
         },
+        "build_diagnostics": build_diagnostics,
         "notes": [
             "This inspector reads local files only.",
             "It does not call RunPod, compile CUDA, or run benchmarks.",
