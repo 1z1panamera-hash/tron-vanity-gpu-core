@@ -45,14 +45,12 @@ os.environ["CUDA_ARCH"] = "sm_80"
 assert app.cuda_arch_candidates()[0] == "sm_80"
 os.environ.pop("CUDA_ARCH", None)
 result = app.handle_benchmark({
-    "prefix_after_t": "X",
     "suffix": "86666",
     "duration_seconds": 1,
     "max_attempts": 1,
 })
 assert result["allowed"] is False
 find_result = app.handle_find({
-    "prefix_after_t": "A",
     "suffix": "CDEFG",
     "age_recipient": "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
     "duration_seconds": 1,
@@ -60,14 +58,13 @@ find_result = app.handle_find({
 })
 assert find_result["allowed"] is False
 rule = app.normalize_match_rule({
-    "prefix_after_t": "X",
     "suffix": "86666",
 })
-assert rule["target_address"].startswith("TX")
+assert rule["target_address"].startswith("T")
 assert rule["target_address"].endswith("86666")
-assert rule["prefix_len"] == 2
+assert rule["prefix_len"] == 0
 assert rule["suffix_len"] == 5
-assert rule["search_space"] == 58 ** 6
+assert rule["search_space"] == 58 ** 5
 print("wrapper_gate_ok")
 PY
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 tests/verify_find_response_contract.py
@@ -148,7 +145,7 @@ printf '%s\n' \
     >"$sequence_dir/vector_gate.stdout.txt"
 printf '%s\n' "tron_gpu_pattern_smoke_passed" >"$sequence_dir/smoke.stdout.txt"
 printf '%s\n' "tron_gpu_pattern_benchmark_passed" >"$sequence_dir/benchmark_3s.stdout.txt"
-printf '%s\n' '{"passed": true, "failures": [], "summary": {"candidate_attempts_per_second_estimate": 800000000, "expected_mean_seconds": 47.5, "p90_seconds": 109.5, "single_worker_meets_goal": false, "required_workers": {"mean_10s": 5, "p90_15s": 8}}}' >"$sequence_dir/benchmark_3s.inspect.json"
+printf '%s\n' '{"passed": true, "failures": [], "summary": {"candidate_attempts_per_second_estimate": 800000000, "expected_mean_seconds": 0.82, "p90_seconds": 1.89, "single_worker_meets_goal": true, "required_workers": {"mean_5s": 1, "p90_8s": 1}}}' >"$sequence_dir/benchmark_3s.inspect.json"
 python3 scripts/inspect_runpod_sequence_result.py "$sequence_dir" >/tmp/runpod_sequence_inspect.json
 
 echo "== vanitysearch patch gate"
@@ -156,8 +153,8 @@ python3 - <<'PY'
 from hashlib import sha256
 from pathlib import Path
 
-patch = Path("patches/vanitysearch_tron_gpu_payload21_word_bounds_20260618.patch")
-expected = "c2b5055f39d1c84cc3d286d4d861dac821ec00c668fc89521483c9f8c49e22f3"
+patch = Path("patches/vanitysearch_tron_gpu_suffix_only_20260618.patch")
+expected = "eed696759855c331cbac7c68231b33b627511f2df0cb636df4e59befa5ee29a7"
 actual = sha256(patch.read_bytes()).hexdigest()
 assert actual == expected, actual
 print("vanitysearch_patch_sha_ok")
@@ -186,7 +183,7 @@ set +e
     --benchmark \
     --kernel-mode incremental \
     --target-address TX8888888888888888888888888886666 \
-    --prefix-len 2 \
+    --prefix-len 0 \
     --suffix-len 5 \
     --duration-seconds 5 \
     --max-attempts 1 \
@@ -206,7 +203,7 @@ set +e
     --find \
     --kernel-mode incremental \
     --target-address TX8888888888888888888888888886666 \
-    --prefix-len 2 \
+    --prefix-len 0 \
     --suffix-len 5 \
     --duration-seconds 1 \
     --max-attempts 1 \

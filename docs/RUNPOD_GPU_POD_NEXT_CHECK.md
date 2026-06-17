@@ -130,6 +130,6 @@ docs/RUNPOD_GPU_POD_RESULT_TEMPLATE.md
 ## Safety Boundary
 
 - The bounded benchmark uses `TRON_SUPPRESS_SECRET_OUTPUT=1`.
-- Benchmark patterns must be test patterns only, for example `TA*CDEFG`.
+- Benchmark patterns must be test patterns only, for example `T*CDEFG`.
 - The reported rate must be treated as complete TRON address candidates per second, not hash speed.
 - This is still GPU Pod evidence, not Serverless P90 proof.

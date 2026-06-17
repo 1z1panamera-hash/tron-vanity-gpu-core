@@ -12,7 +12,6 @@ RunPod Serverless request:
 {
   "input": {
     "mode": "find",
-    "prefix_after_t": "A",
     "suffix": "CDEFG",
     "age_recipient": "age1...",
     "duration_seconds": 15,
@@ -27,8 +26,8 @@ RunPod Serverless request:
 The Python wrapper derives the internal CUDA matcher:
 
 ```text
-target_address = "T" + prefix_after_t + filler + suffix
-prefix_len = 2
+target_address = "T" + filler + suffix
+prefix_len = 0
 suffix_len = 5
 ```
 
@@ -62,7 +61,7 @@ CUDA/C++ must implement the heavy path:
 - secp256k1 point math,
 - Keccak-256,
 - TRON Base58Check,
-- prefix-after-T and suffix match,
+- suffix-only last-5 match over complete Base58Check address,
 - shard/stride schedule,
 - hit private scalar reconstruction.
 
@@ -78,7 +77,7 @@ Partially complete.
 - CUDA/C++ `--find` mode now emits an internal hit result for the Python wrapper.
 - The CUDA/C++ `--find` path still needs RunPod-side nvcc compile and GPU validation.
 - The current deterministic candidate generator is a staging implementation, not the final high-performance/randomized production core.
-- Final performance target is still unproven.
+- Final performance target is average <= 5 seconds and P90 <= 8 seconds; it is still unproven.
 - Local response-contract test `tests/verify_find_response_contract.py` uses fake local GPU/age binaries to verify that a matched API response contains `encrypted_private_key` and omits plaintext key markers.
 
 ## CUDA Binary Output Boundary

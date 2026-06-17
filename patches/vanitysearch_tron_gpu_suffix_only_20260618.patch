@@ -1,8 +1,8 @@
 diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index 6c43e94..c78d571 100644
+index 6c43e94..1d1387a 100644
 --- a/GPU/GPUCompute.h
 +++ b/GPU/GPUCompute.h
-@@ -251,6 +251,162 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
+@@ -251,6 +251,152 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
  
  // -----------------------------------------------------------------------------------------
  
@@ -11,8 +11,6 @@ index 6c43e94..c78d571 100644
 +    uint64_t *py,
 +    int32_t incr,
 +    int32_t endo,
-+    char prefixAfterT,
-+    TronPrefixRange prefixRange,
 +    uint64_t suffix5Value,
 +    uint32_t maxFound,
 +    uint32_t *out) {
@@ -23,20 +21,13 @@ index 6c43e94..c78d571 100644
 +  uint32_t tid = (blockIdx.x*blockDim.x) + threadIdx.x;
 +
 +  tron_payload21_from_xy(px, py, payload21);
-+  if (!tron_payload21_can_match_prefix_range(payload21, prefixRange)) {
-+    return;
-+  }
-+
 +  tron_payload25_from_payload21(payload21, payload25);
-+  if (!tron_payload25_matches_prefix_range(payload25, prefixRange)) {
-+    return;
-+  }
 +  if (!tron_payload25_matches_suffix5(payload25, suffix5Value)) {
 +    return;
 +  }
 +
 +  int address_len = tron_base58_payload25(payload25, address);
-+  if (address_len < 2 || address[0] != 'T' || address[1] != prefixAfterT) {
++  if (address_len < 6 || address[0] != 'T') {
 +    return;
 +  }
 +
@@ -48,10 +39,9 @@ index 6c43e94..c78d571 100644
 +  }
 +}
 +
-+#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, prefixAfterT, prefixRange, suffix5Value, maxFound, out)
++#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, suffix5Value, maxFound, out)
 +
-+__device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, char prefixAfterT,
-+                                       TronPrefixRange prefixRange, uint64_t suffix5Value,
++__device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, uint64_t suffix5Value,
 +                                       uint32_t maxFound, uint32_t *out) {
 +
 +  uint64_t dx[GRP_SIZE/2+1][4];
@@ -166,10 +156,10 @@ index 6c43e94..c78d571 100644
                              prefix_t *sPrefix, uint32_t *lookup32, uint32_t maxFound, uint32_t *out) {
  
 diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
-index ccb113c..05c1e56 100644
+index ccb113c..735e401 100644
 --- a/GPU/GPUEngine.cu
 +++ b/GPU/GPUEngine.cu
-@@ -33,11 +33,102 @@
+@@ -33,11 +33,33 @@
  #include "GPUMath.h"
  #include "GPUHash.h"
  #include "GPUBase58.h"
@@ -198,110 +188,39 @@ index ccb113c..05c1e56 100644
 +  return true;
 +}
 +
-+static bool host_big25_mul_small(uint8_t value[25], uint32_t multiplier) {
-+  uint32_t carry = 0;
-+  for (int i = 24; i >= 0; --i) {
-+    uint32_t product = (uint32_t)value[i] * multiplier + carry;
-+    value[i] = (uint8_t)(product & 0xff);
-+    carry = product >> 8;
-+  }
-+  return carry == 0;
-+}
-+
-+static bool host_big25_add_small(uint8_t value[25], uint32_t addend) {
-+  uint32_t carry = addend;
-+  for (int i = 24; i >= 0 && carry > 0; --i) {
-+    uint32_t sum = (uint32_t)value[i] + (carry & 0xff);
-+    value[i] = (uint8_t)(sum & 0xff);
-+    carry = (carry >> 8) + (sum >> 8);
-+  }
-+  return carry == 0;
-+}
-+
-+static bool host_big25_sub_one(uint8_t value[25]) {
-+  for (int i = 24; i >= 0; --i) {
-+    if (value[i] > 0) {
-+      --value[i];
-+      return true;
-+    }
-+    value[i] = 0xff;
-+  }
-+  return false;
-+}
-+
-+static uint64_t host_payload21_word(const uint8_t value[21], int wordIndex) {
-+  uint64_t out = 0;
-+  int offset = wordIndex * 8;
-+  int limit = wordIndex == 2 ? 5 : 8;
-+  for (int i = 0; i < limit; ++i) {
-+    out |= (uint64_t)value[offset + i] << (56 - 8 * i);
-+  }
-+  return out;
-+}
-+
-+static bool host_tron_prefix_range(char prefixAfterT, TronPrefixRange *range) {
-+  int first = host_tron_base58_value('T');
-+  int second = host_tron_base58_value(prefixAfterT);
-+  if (first < 0 || second < 0) return false;
-+
-+  memset(range->low, 0, sizeof(range->low));
-+  memset(range->high, 0, sizeof(range->high));
-+
-+  uint32_t prefixValue = (uint32_t)first * 58U + (uint32_t)second;
-+  if (!host_big25_add_small(range->low, prefixValue)) return false;
-+  if (!host_big25_add_small(range->high, prefixValue + 1U)) return false;
-+
-+  for (int i = 0; i < 32; ++i) {
-+    if (!host_big25_mul_small(range->low, 58U)) return false;
-+    if (!host_big25_mul_small(range->high, 58U)) return false;
-+  }
-+  if (!host_big25_sub_one(range->high)) return false;
-+  uint8_t possibleLow21[21];
-+  uint8_t possibleHigh21[21];
-+  memcpy(possibleLow21, range->low, sizeof(possibleLow21));
-+  memcpy(possibleHigh21, range->high, sizeof(possibleHigh21));
-+  for (int i = 0; i < 3; ++i) {
-+    range->possibleLowWords[i] = host_payload21_word(possibleLow21, i);
-+    range->possibleHighWords[i] = host_payload21_word(possibleHigh21, i);
-+  }
-+  return true;
-+}
-+
 +// ---------------------------------------------------------------------------------------
 +
  __global__ void comp_keys(uint32_t mode,prefix_t *prefix, uint32_t *lookup32, uint64_t *keys, uint32_t maxFound, uint32_t *found) {
  
    int xPtr = (blockIdx.x*blockDim.x) * 8;
-@@ -78,6 +169,16 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
+@@ -78,6 +100,15 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
  
  }
  
-+__global__ void comp_keys_tron_pattern(char prefixAfterT, TronPrefixRange prefixRange,
-+                                       uint64_t suffix5Value, uint64_t *keys, uint32_t maxFound,
++__global__ void comp_keys_tron_pattern(uint64_t suffix5Value, uint64_t *keys, uint32_t maxFound,
 +                                       uint32_t *found) {
 +
 +  int xPtr = (blockIdx.x*blockDim.x) * 8;
 +  int yPtr = xPtr + 4 * blockDim.x;
-+  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, prefixAfterT, prefixRange, suffix5Value, maxFound, found);
++  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, suffix5Value, maxFound, found);
 +
 +}
 +
  //#define FULLCHECK
  #ifdef FULLCHECK
  
-@@ -284,6 +385,11 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
+@@ -284,6 +315,10 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
    initialised = true;
    pattern = "";
    hasPattern = false;
 +  hasTronRule = false;
-+  tronPrefixAfterT = 0;
 +  memset(tronSuffix5, 0, sizeof(tronSuffix5));
 +  tronSuffixValue = 0;
 +  memset(&tronPrefixRange, 0, sizeof(tronPrefixRange));
    inputPrefixLookUp = NULL;
  
  }
-@@ -404,6 +510,43 @@ void GPUEngine::SetPattern(const char *pattern) {
+@@ -404,6 +439,32 @@ void GPUEngine::SetPattern(const char *pattern) {
  
  }
  
@@ -312,31 +231,20 @@ index ccb113c..05c1e56 100644
 +    return false;
 +  }
 +  size_t len = strlen(pattern);
-+  if (len != 8 || pattern[0] != 'T' || pattern[2] != '*') {
-+    printf("GPUEngine: TRON pattern must be T<one-char>*<five-char-suffix>, for example TA*CDEFG\n");
-+    return false;
-+  }
-+  if (host_tron_base58_value(pattern[1]) < 0) {
-+    printf("GPUEngine: invalid TRON prefix character after T\n");
++  if (len != 7 || pattern[0] != 'T' || pattern[1] != '*') {
++    printf("GPUEngine: TRON pattern must be T*<five-char-suffix>, for example T*CDEFG\n");
 +    return false;
 +  }
 +  uint64_t suffixValue = 0;
-+  if (!host_tron_suffix5_value(pattern + 3, &suffixValue)) {
++  if (!host_tron_suffix5_value(pattern + 2, &suffixValue)) {
 +    printf("GPUEngine: invalid TRON Base58 suffix\n");
-+    return false;
-+  }
-+  TronPrefixRange prefixRange;
-+  if (!host_tron_prefix_range(pattern[1], &prefixRange)) {
-+    printf("GPUEngine: failed to build TRON prefix range\n");
 +    return false;
 +  }
 +
 +  SetPattern(pattern);
-+  tronPrefixAfterT = pattern[1];
-+  memcpy(tronSuffix5, pattern + 3, 5);
++  memcpy(tronSuffix5, pattern + 2, 5);
 +  tronSuffix5[5] = 0;
 +  tronSuffixValue = suffixValue;
-+  tronPrefixRange = prefixRange;
 +  hasTronRule = true;
 +  return true;
 +
@@ -345,7 +253,7 @@ index ccb113c..05c1e56 100644
  void GPUEngine::SetPrefix(std::vector<LPREFIX> prefixes, uint32_t totalPrefix) {
  
    // Allocate memory for the second level of lookup tables
-@@ -459,7 +602,16 @@ bool GPUEngine::callKernel() {
+@@ -459,7 +520,16 @@ bool GPUEngine::callKernel() {
    cudaMemset(outputPrefix,0,4);
  
    // Call the kernel (Perform STEP_SIZE keys per thread)
@@ -353,24 +261,24 @@ index ccb113c..05c1e56 100644
 +  if (searchType == TRON_ADDR) {
 +
 +    if (!hasPattern || !hasTronRule) {
-+      printf("GPUEngine: TRON currently requires wildcard pattern mode, for example TA*CDEFG\n");
++      printf("GPUEngine: TRON currently requires suffix-only wildcard pattern mode, for example T*CDEFG\n");
 +      return false;
 +    }
 +    comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
-+      (tronPrefixAfterT, tronPrefixRange, tronSuffixValue, inputKey, maxFound, outputPrefix);
++      (tronSuffixValue, inputKey, maxFound, outputPrefix);
 +
 +  } else if (searchType == P2SH) {
  
      if (hasPattern) {
        comp_keys_p2sh_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
-@@ -840,5 +992,3 @@ bool GPUEngine::Check(Secp256K1 *secp) {
+@@ -840,5 +910,3 @@ bool GPUEngine::Check(Secp256K1 *secp) {
    return ok;
  
  }
 -
 -
 diff --git a/GPU/GPUEngine.h b/GPU/GPUEngine.h
-index 6d00aab..48ccd5e 100644
+index 6d00aab..7970290 100644
 --- a/GPU/GPUEngine.h
 +++ b/GPU/GPUEngine.h
 @@ -20,6 +20,7 @@
@@ -389,12 +297,11 @@ index 6d00aab..48ccd5e 100644
    bool Launch(std::vector<ITEM> &prefixFound,bool spinWait=false);
    int GetNbThread();
    int GetGroupSize();
-@@ -101,6 +103,11 @@ private:
+@@ -101,6 +103,10 @@ private:
    uint32_t outputSize;
    std::string pattern;
    bool hasPattern;
 +  bool hasTronRule;
-+  char tronPrefixAfterT;
 +  char tronSuffix5[6];
 +  uint64_t tronSuffixValue;
 +  TronPrefixRange tronPrefixRange;
@@ -403,10 +310,10 @@ index 6d00aab..48ccd5e 100644
  
 diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
 new file mode 100644
-index 0000000..6c44b3b
+index 0000000..3b5eba0
 --- /dev/null
 +++ b/GPU/GPUTron.h
-@@ -0,0 +1,369 @@
+@@ -0,0 +1,367 @@
 +/*
 + * TRON address helpers for the VanitySearch GPU adaptation prototype.
 + *
@@ -761,14 +668,12 @@ index 0000000..6c44b3b
 +  }
 +}
 +
-+__device__ __noinline__ bool tron_match_prefix_after_t_suffix(
++__device__ __noinline__ bool tron_match_suffix5(
 +    const char address[48],
 +    int address_len,
-+    char prefix_after_t,
 +    const char suffix5[6]) {
-+  if (address_len < 7) return false;
++  if (address_len < 6) return false;
 +  if (address[0] != 'T') return false;
-+  if (address[1] != prefix_after_t) return false;
 +  for (int i = 0; i < 5; ++i) {
 +    if (address[address_len - 5 + i] != suffix5[i]) return false;
 +  }
@@ -797,10 +702,10 @@ index 0000000..da947fa
 +#endif
 diff --git a/GPU/GPUTronVectorCheck.cu b/GPU/GPUTronVectorCheck.cu
 new file mode 100644
-index 0000000..280523d
+index 0000000..1a76f6a
 --- /dev/null
 +++ b/GPU/GPUTronVectorCheck.cu
-@@ -0,0 +1,354 @@
+@@ -0,0 +1,326 @@
 +/*
 + * RunPod-only CUDA correctness check for TRON address construction.
 + *
@@ -825,11 +730,8 @@ index 0000000..280523d
 +  uint64_t x[4];
 +  uint64_t y[4];
 +  char expected_address[48];
-+  char prefix_after_t;
 +  char suffix5[6];
 +  char wrong_suffix5[6];
-+  TronPrefixRange prefix_range;
-+  TronPrefixRange wrong_prefix_range;
 +};
 +
 +struct TronVectorResult {
@@ -837,10 +739,6 @@ index 0000000..280523d
 +  int address_len;
 +  int match_rule_passed;
 +  int wrong_rule_rejected;
-+  int prefix_possible_passed;
-+  int wrong_prefix_possible_rejected;
-+  int prefix_prefilter_passed;
-+  int wrong_prefix_prefilter_rejected;
 +  int suffix_prefilter_passed;
 +  int wrong_suffix_prefilter_rejected;
 +  int xy_payload_passed;
@@ -858,15 +756,13 @@ index 0000000..280523d
 +  TronVectorResult result{};
 +  result.address_len =
 +      tron_address_from_public_key64(inputs[idx].public_key64, result.computed_address, result.payload25);
-+  result.match_rule_passed = tron_match_prefix_after_t_suffix(
++  result.match_rule_passed = tron_match_suffix5(
 +      result.computed_address,
 +      result.address_len,
-+      inputs[idx].prefix_after_t,
 +      inputs[idx].suffix5) ? 1 : 0;
-+  result.wrong_rule_rejected = !tron_match_prefix_after_t_suffix(
++  result.wrong_rule_rejected = !tron_match_suffix5(
 +      result.computed_address,
 +      result.address_len,
-+      inputs[idx].prefix_after_t,
 +      inputs[idx].wrong_suffix5) ? 1 : 0;
 +  uint8_t payload21[21];
 +  tron_payload21_from_public_key64(inputs[idx].public_key64, payload21);
@@ -881,14 +777,6 @@ index 0000000..280523d
 +  }
 +  uint64_t suffix_value = tron_suffix5_value(inputs[idx].suffix5);
 +  uint64_t wrong_suffix_value = tron_suffix5_value(inputs[idx].wrong_suffix5);
-+  result.prefix_possible_passed =
-+      tron_payload21_can_match_prefix_range(payload21, inputs[idx].prefix_range) ? 1 : 0;
-+  result.wrong_prefix_possible_rejected =
-+      !tron_payload21_can_match_prefix_range(payload21, inputs[idx].wrong_prefix_range) ? 1 : 0;
-+  result.prefix_prefilter_passed =
-+      tron_payload25_matches_prefix_range(result.payload25, inputs[idx].prefix_range) ? 1 : 0;
-+  result.wrong_prefix_prefilter_rejected =
-+      !tron_payload25_matches_prefix_range(result.payload25, inputs[idx].wrong_prefix_range) ? 1 : 0;
 +  result.suffix_prefilter_passed =
 +      tron_payload25_matches_suffix5(result.payload25, suffix_value) ? 1 : 0;
 +  result.wrong_suffix_prefilter_rejected =
@@ -903,10 +791,6 @@ index 0000000..280523d
 +  }
 +  if (!result.match_rule_passed ||
 +      !result.wrong_rule_rejected ||
-+      !result.prefix_possible_passed ||
-+      !result.wrong_prefix_possible_rejected ||
-+      !result.prefix_prefilter_passed ||
-+      !result.wrong_prefix_prefilter_rejected ||
 +      !result.suffix_prefilter_passed ||
 +      !result.wrong_suffix_prefilter_rejected ||
 +      !result.xy_payload_passed) {
@@ -1035,12 +919,9 @@ index 0000000..280523d
 +  }
 +  std::strncpy(input.expected_address, expected_address, sizeof(input.expected_address) - 1);
 +  const size_t address_len = std::strlen(expected_address);
-+  if (address_len < 7 || expected_address[0] != 'T') {
++  if (address_len < 6 || expected_address[0] != 'T') {
 +    throw std::runtime_error("expected address must be a TRON Base58 address");
 +  }
-+  input.prefix_after_t = expected_address[1];
-+  input.prefix_range = make_prefix_range(input.prefix_after_t);
-+  input.wrong_prefix_range = make_prefix_range(input.prefix_after_t == '1' ? '2' : '1');
 +  std::memcpy(input.suffix5, expected_address + address_len - 5, 5);
 +  input.suffix5[5] = 0;
 +  std::memcpy(input.wrong_suffix5, input.suffix5, 6);
@@ -1123,16 +1004,12 @@ index 0000000..280523d
 +  for (size_t i = 0; i < results.size(); ++i) {
 +    if (results[i].passed) ++passed;
 +    std::printf(
-+        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"prefix_possible_passed\": %s, \"wrong_prefix_possible_rejected\": %s, \"prefix_prefilter_passed\": %s, \"wrong_prefix_prefilter_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s, \"xy_payload_passed\": %s}%s\n",
++        "    {\"index\": %zu, \"passed\": %s, \"computed_address\": \"%s\", \"match_rule_passed\": %s, \"wrong_rule_rejected\": %s, \"suffix_prefilter_passed\": %s, \"wrong_suffix_prefilter_rejected\": %s, \"xy_payload_passed\": %s}%s\n",
 +        i,
 +        results[i].passed ? "true" : "false",
 +        results[i].computed_address,
 +        results[i].match_rule_passed ? "true" : "false",
 +        results[i].wrong_rule_rejected ? "true" : "false",
-+        results[i].prefix_possible_passed ? "true" : "false",
-+        results[i].wrong_prefix_possible_rejected ? "true" : "false",
-+        results[i].prefix_prefilter_passed ? "true" : "false",
-+        results[i].wrong_prefix_prefilter_rejected ? "true" : "false",
 +        results[i].suffix_prefilter_passed ? "true" : "false",
 +        results[i].wrong_suffix_prefilter_rejected ? "true" : "false",
 +        results[i].xy_payload_passed ? "true" : "false",
@@ -1144,7 +1021,7 @@ index 0000000..280523d
 +  std::printf("  \"notes\": [\n");
 +  std::printf("    \"GPU TRON address layer vector check only; no search or benchmark is run.\",\n");
 +  std::printf("    \"The check compares direct x/y Keccak absorption with the public_key64 reference path.\",\n");
-+  std::printf("    \"The product rule checked here is fixed T plus prefix_after_t(1) plus suffix(5).\",\n");
++  std::printf("    \"The product rule checked here is suffix-only last 5 Base58Check characters.\",\n");
 +  std::printf("    \"Inputs are public TEST_ONLY public-key vectors; no scalar material is generated or printed.\"\n");
 +  std::printf("  ]\n");
 +  std::printf("}\n");
@@ -1473,7 +1350,7 @@ index e7ad0d7..fb9eead 100644
    }
 diff --git a/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md b/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
 new file mode 100644
-index 0000000..05a64a9
+index 0000000..5906f06
 --- /dev/null
 +++ b/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
 @@ -0,0 +1,44 @@
@@ -1489,7 +1366,7 @@ index 0000000..05a64a9
 +- TRON payload construction with leading `0x41`
 +- double-SHA256 checksum
 +- Base58Check address encoding
-+- product matching rule: fixed `T` + `prefix_after_t` 1 char + suffix 5 chars
++- product matching rule: suffix-only last 5 Base58Check characters
 +- four public TEST_ONLY public-key vectors
 +
 +It does not:
@@ -1523,7 +1400,7 @@ index 0000000..05a64a9
 +Do not treat this check as an address generation speed result.
 diff --git a/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md b/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md
 new file mode 100644
-index 0000000..74bb45e
+index 0000000..4d464a2
 --- /dev/null
 +++ b/docs/RUNPOD_TRON_GPU_PATTERN_BENCHMARK.md
 @@ -0,0 +1,50 @@
@@ -1555,7 +1432,7 @@ index 0000000..74bb45e
 +Optional variables:
 +
 +```bash
-+BENCHMARK_PATTERN=TA*CDEFG
++BENCHMARK_PATTERN=T*CDEFG
 +GPU_GRID=8,128
 +BENCHMARK_SECONDS=10
 +```
@@ -1579,10 +1456,10 @@ index 0000000..74bb45e
 +If this bounded benchmark is promising, add a dedicated no-secret benchmark mode that reports complete TRON candidate attempts per second and then run a longer controlled comparison on the intended GPU classes.
 diff --git a/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
 new file mode 100644
-index 0000000..719e877
+index 0000000..0b6e479
 --- /dev/null
 +++ b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,57 @@
 +# RunPod TRON GPU Pattern Search Smoke
 +
 +## Purpose
@@ -1592,13 +1469,12 @@ index 0000000..719e877
 +It verifies that the existing VanitySearch GPU point-walking path can launch a TRON wildcard pattern search such as:
 +
 +```text
-+TA*CDEFG
++T*CDEFG
 +```
 +
 +That pattern means:
 +
 +- fixed leading `T`
-+- `A` as `prefix_after_t`
 +- any middle characters
 +- `CDEFG` as suffix 5
 +
@@ -1608,12 +1484,12 @@ index 0000000..719e877
 +
 +- `TRON_ADDR` is a separate address type.
 +- `T...` wildcard patterns select TRON search.
-+- TRON pattern parsing is strict: `T<one-char>*<five-char-suffix>`.
++- TRON pattern parsing is strict: `T*<five-char-suffix>`.
 +- GPU pattern mode calls `ComputeKeysTronPattern`.
 +- GPU returns the 20-byte TRON payload body.
 +- CPU reconstructs the TRON Base58Check address and verifies the candidate key.
 +
-+The current TRON GPU pattern path uses a dedicated fixed-position `prefix_after_t` plus suffix-5 rule with prefix/suffix prefilters. It is intended as a bounded GPU startup and direction check before proper benchmark-only worker integration.
++The current TRON GPU pattern path uses a dedicated suffix-only rule with suffix prefilter and full Base58Check confirmation. It is intended as a bounded GPU startup and direction check before proper benchmark-only worker integration.
 +
 +## RunPod Build And Smoke
 +
@@ -1625,7 +1501,7 @@ index 0000000..719e877
 +
 +`timeout` exit code `124` is acceptable for this smoke if there is no crash before timeout.
 +
-+The default smoke pattern is `TA*CDEFG`, which is the strict product-rule format. The script sets `TRON_SUPPRESS_SECRET_OUTPUT=1` before running VanitySearch so an accidental hit does not print WIF/HEX private key material.
++The default smoke pattern is `T*CDEFG`, which is the strict product-rule format. The script sets `TRON_SUPPRESS_SECRET_OUTPUT=1` before running VanitySearch so an accidental hit does not print WIF/HEX private key material.
 +
 +The script prints a best-effort `tron_gpu_pattern_smoke_rate` line if VanitySearch reports Mkey/s before timeout. Treat that line only as a rough startup signal. It is not the final product benchmark and does not prove average/P90 generation time.
 +
@@ -1792,7 +1668,7 @@ index f404066..55c41f4 100644
        a++;
 diff --git a/scripts/runpod_tron_gpu_pattern_benchmark.sh b/scripts/runpod_tron_gpu_pattern_benchmark.sh
 new file mode 100644
-index 0000000..5ef6325
+index 0000000..9a38e9a
 --- /dev/null
 +++ b/scripts/runpod_tron_gpu_pattern_benchmark.sh
 @@ -0,0 +1,102 @@
@@ -1808,7 +1684,7 @@ index 0000000..5ef6325
 +CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
 +CUDA_ARCH="${CUDA_ARCH:-80}"
 +CXXCUDA="${CXXCUDA:-/usr/bin/g++}"
-+BENCHMARK_PATTERN="${BENCHMARK_PATTERN:-TA*CDEFG}"
++BENCHMARK_PATTERN="${BENCHMARK_PATTERN:-T*CDEFG}"
 +BENCHMARK_SECONDS="${BENCHMARK_SECONDS:-10}"
 +GPU_GRID="${GPU_GRID:-8,128}"
 +
@@ -1900,7 +1776,7 @@ index 0000000..5ef6325
 +echo "tron_gpu_pattern_benchmark_passed"
 diff --git a/scripts/runpod_tron_gpu_pattern_search_smoke.sh b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
 new file mode 100755
-index 0000000..c9de0cc
+index 0000000..b32a446
 --- /dev/null
 +++ b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
 @@ -0,0 +1,60 @@
@@ -1916,7 +1792,7 @@ index 0000000..c9de0cc
 +CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
 +CUDA_ARCH="${CUDA_ARCH:-80}"
 +CXXCUDA="${CXXCUDA:-/usr/bin/g++}"
-+SMOKE_PATTERN="${SMOKE_PATTERN:-TA*CDEFG}"
++SMOKE_PATTERN="${SMOKE_PATTERN:-T*CDEFG}"
 +SMOKE_SECONDS="${SMOKE_SECONDS:-5}"
 +
 +echo "== build VanitySearch with GPU support"

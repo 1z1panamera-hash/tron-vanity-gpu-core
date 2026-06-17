@@ -2,7 +2,7 @@
 {
   "mode": "tron_gpu_pattern_benchmark",
   "passed": true,
-  "pattern": "TA*CDEFG",
+  "pattern": "T*CDEFG",
   "duration_seconds_limit": 10,
   "gpu_grid": "8,128",
   "return_code": 124,

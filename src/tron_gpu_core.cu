@@ -24,7 +24,7 @@
 #include <vector>
 #endif
 
-static constexpr int DEFAULT_PREFIX_LEN = 2;
+static constexpr int DEFAULT_PREFIX_LEN = 0;
 static constexpr int DEFAULT_SUFFIX_LEN = 5;
 static constexpr int PAYLOAD25_LEN = 25;
 static constexpr int MAX_VECTOR_CASES = 16;
@@ -92,7 +92,7 @@ enum ValidationFailure : uint32_t {
 // 4. checksum4 = double_sha256(payload21)[0:4]
 // 5. payload25 = payload21 + checksum4
 // 6. Base58 suffix modulo filter
-// 7. Base58 prefix range filter
+// 7. optional Base58 prefix range filter for diagnostics or legacy tests
 // 8. full Base58Check confirmation
 
 __device__ bool secp256k1_scalar_to_public_key(
@@ -1150,8 +1150,8 @@ static void print_usage(const char* argv0) {
     std::fprintf(stderr,
         "Usage:\n"
         "  %s --validate-vectors tests/phase0_test_vectors.json\n"
-        "  %s --benchmark --kernel-mode incremental --target-address T... --prefix-len 2 --suffix-len 5 --duration-seconds 5 --max-attempts 1024 --start-counter 0 --shard-id 0 --shard-count 1\n"
-        "  %s --find --kernel-mode incremental --target-address T... --prefix-len 2 --suffix-len 5 --duration-seconds 15 --max-attempts 1024 --start-counter 0 --shard-id 0 --shard-count 1\n",
+        "  %s --benchmark --kernel-mode incremental --target-address T... --prefix-len 0 --suffix-len 5 --duration-seconds 5 --max-attempts 1024 --start-counter 0 --shard-id 0 --shard-count 1\n"
+        "  %s --find --kernel-mode incremental --target-address T... --prefix-len 0 --suffix-len 5 --duration-seconds 15 --max-attempts 1024 --start-counter 0 --shard-id 0 --shard-count 1\n",
         argv0,
         argv0,
         argv0);

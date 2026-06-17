@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 
-SEARCH_SPACE = 58 ** 6
-MEAN_TARGET_SECONDS = 10.0
-P90_TARGET_SECONDS = 15.0
+SEARCH_SPACE = 58 ** 5
+MEAN_TARGET_SECONDS = 5.0
+P90_TARGET_SECONDS = 8.0
 FORBIDDEN_PATTERNS = [
     re.compile(pattern, re.IGNORECASE)
     for pattern in [
@@ -98,8 +98,8 @@ def inspect(data: Dict[str, Any], raw_text: str) -> Dict[str, Any]:
         failures.append("mode is not tron_gpu_pattern_benchmark")
     if data.get("passed") is not True:
         failures.append("passed is not true")
-    if data.get("pattern") and not re.fullmatch(r"T[1-9A-HJ-NP-Za-km-z]\*[1-9A-HJ-NP-Za-km-z]{5}", str(data["pattern"])):
-        failures.append("pattern does not match T<one-base58>*<five-base58>")
+    if data.get("pattern") and not re.fullmatch(r"T\*[1-9A-HJ-NP-Za-km-z]{5}", str(data["pattern"])):
+        failures.append("pattern does not match suffix-only T*<five-base58>")
 
     try:
         speed = as_float(data.get("candidate_attempts_per_second_estimate"))
@@ -121,8 +121,8 @@ def inspect(data: Dict[str, Any], raw_text: str) -> Dict[str, Any]:
     required_speed = max(required_mean_speed, required_p90_speed)
 
     required_workers = {
-        "mean_10s": math.ceil(required_mean_speed / speed) if speed > 0 else None,
-        "p90_15s": math.ceil(required_p90_speed / speed) if speed > 0 else None,
+        "mean_5s": math.ceil(required_mean_speed / speed) if speed > 0 else None,
+        "p90_8s": math.ceil(required_p90_speed / speed) if speed > 0 else None,
     }
 
     return {
@@ -135,19 +135,19 @@ def inspect(data: Dict[str, Any], raw_text: str) -> Dict[str, Any]:
             "reported_gpu_mkey_s": data.get("reported_gpu_mkey_s"),
             "candidate_attempts_per_second_estimate": speed,
             "search_space": SEARCH_SPACE,
-            "single_worker_probability_10s": probability_for_speed(speed, 10.0) if speed > 0 else 0.0,
-            "single_worker_probability_15s": probability_for_speed(speed, 15.0) if speed > 0 else 0.0,
+            "single_worker_probability_5s": probability_for_speed(speed, 5.0) if speed > 0 else 0.0,
+            "single_worker_probability_8s": probability_for_speed(speed, 8.0) if speed > 0 else 0.0,
             "expected_mean_seconds": mean_seconds,
             "p90_seconds": p90_seconds,
-            "required_speed_for_mean_10s": required_mean_speed,
-            "required_speed_for_p90_15s": required_p90_speed,
+            "required_speed_for_mean_5s": required_mean_speed,
+            "required_speed_for_p90_8s": required_p90_speed,
             "required_speed_to_meet_goal": required_speed,
             "single_worker_meets_goal": bool(speed >= required_speed) if speed > 0 else False,
             "required_workers": required_workers,
         },
         "notes": [
             "This only inspects local text/JSON; it does not call RunPod.",
-            "The target space is 58^6 because TRON leading T is fixed.",
+            "The target space is 58^5 because only the last 5 Base58 address characters are matched.",
             "Use benchmark output from the corrected TRON counter patch; older VanitySearch TRON Mkey/s can be 6x inflated.",
             "This bounded VanitySearch signal is not final Serverless P90 proof.",
         ],

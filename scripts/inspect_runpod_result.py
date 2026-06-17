@@ -18,7 +18,7 @@ FORBIDDEN_KEYS = {
     "apiKey",
 }
 
-SEARCH_SPACE = 58 ** 6
+SEARCH_SPACE = 58 ** 5
 TARGETS = {
     "p50": 0.50,
     "p90": 0.90,
@@ -130,11 +130,14 @@ def inspect_benchmark(result: Dict[str, Any]) -> Tuple[bool, List[str], Dict[str
     if speed <= 0:
         failures.append("speed is not positive")
 
-    p10 = probability_for_speed(speed, 10.0) if speed > 0 else 0.0
+    p5 = probability_for_speed(speed, 5.0) if speed > 0 else 0.0
+    p8 = probability_for_speed(speed, 8.0) if speed > 0 else 0.0
     workers = {}
     for label, probability in TARGETS.items():
-        req = required_speed(probability, 10.0)
+        req = required_speed(probability, 8.0)
         workers[label] = math.ceil(req / speed) if speed > 0 else None
+    required_mean_5s = SEARCH_SPACE / 5.0
+    required_p90_8s = required_speed(0.90, 8.0)
 
     return len(failures) == 0, failures, {
         "mode": result.get("mode"),
@@ -143,8 +146,12 @@ def inspect_benchmark(result: Dict[str, Any]) -> Tuple[bool, List[str], Dict[str
         "attempts": attempts,
         "addresses_per_second": speed,
         "keys_per_second": benchmark.get("keys_per_second"),
-        "single_worker_probability_10s": p10,
-        "required_workers_10s": workers,
+        "single_worker_probability_5s": p5,
+        "single_worker_probability_8s": p8,
+        "required_speed_for_mean_5s": required_mean_5s,
+        "required_speed_for_p90_8s": required_p90_8s,
+        "single_worker_meets_goal": speed >= max(required_mean_5s, required_p90_8s) if speed > 0 else False,
+        "required_workers_8s_probability_targets": workers,
         "matched": benchmark.get("matched"),
         "matched_address": benchmark.get("matched_address"),
     }
@@ -181,7 +188,7 @@ def main() -> int:
         "summary": summary,
         "notes": [
             "This inspector does not call RunPod.",
-            "Benchmark capacity uses product rule prefix_after_t=1 + suffix=5; Python maps it to full-address prefix_len=2 + suffix_len=5 and search space is 58^6.",
+            "Benchmark capacity uses product rule suffix=5 only; Python maps it to full-address prefix_len=0 + suffix_len=5 and search space is 58^5.",
             "Do not treat benchmark results as production proof until validate_vectors passes on RunPod.",
         ],
     }, indent=2))

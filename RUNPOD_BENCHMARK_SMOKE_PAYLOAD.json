@@ -1,7 +1,6 @@
 {
   "input": {
     "mode": "benchmark",
-    "prefix_after_t": "X",
     "suffix": "86666",
     "kernel_mode": "incremental",
     "duration_seconds": 5,

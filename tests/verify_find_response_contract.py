@@ -88,7 +88,6 @@ def main() -> int:
         try:
             response = app.handle_find(
                 {
-                    "prefix_after_t": "A",
                     "suffix": "CDEFG",
                     "age_recipient": "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
                     "duration_seconds": 1,

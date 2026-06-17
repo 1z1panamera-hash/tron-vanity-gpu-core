@@ -2,28 +2,27 @@
 
 ## Objective
 
-Find a TRON vanity address in about 10 seconds using RunPod Serverless workers, with `47.80.70.211` acting only as the controller/API server.
+Find a TRON vanity address with a 5-character suffix using RunPod Serverless workers, with `47.80.70.211` acting only as the controller/API server.
 
 ## Matching Rule
 
 - Product input:
-  - `prefix_after_t`: 1 custom Base58 character immediately after fixed `T`
   - `suffix`: 5 custom Base58 characters at the end of the address
 - Python wrapper derives the lower-level full-address matcher:
-  - internal `target_address = "T" + prefix_after_t + filler + suffix`
-  - internal `prefix_len = 2`
+  - internal `target_address = "T" + filler + suffix`
+  - internal `prefix_len = 0`
   - internal `suffix_len = 5`
 - Normal TRON addresses start with fixed `T`.
-- Effective random target:
-  - 1 variable prefix character after `T`
-  - 5 suffix characters
+- No prefix-after-`T` character is matched.
+- The last 5 Base58Check address characters are matched, so checksum logic must be correct.
+- Effective random target: 5 suffix characters
 - Effective search space:
 
 ```text
-58^6 = 38,068,692,544
+58^5 = 656,356,768
 ```
 
-Do not call the product rule "front2+back5" and do not report `58^7` capacity math for this product rule.
+Do not call the product rule "front2+back5" and do not report `58^6` or `58^7` capacity math for this product rule.
 
 ## Completion Requirements
 
@@ -31,12 +30,12 @@ The goal is not complete until all of these are true:
 
 1. RunPod Serverless worker uses a CUDA/OpenCL GPU core, not CPU correctness mode.
 2. Worker validates TRON address math against public test vectors.
-3. Worker accepts product input `prefix_after_t` + `suffix`.
+3. Worker accepts product input `suffix`.
 4. Python remains a thin RunPod Serverless handler and calls a CUDA/C++ binary for computation.
 5. CUDA/C++ implements private-key generation, secp256k1 point math, Keccak, Base58Check, and matching.
 6. Benchmark reports complete TRON `addresses_per_second`, not hash speed or raw key stepping only.
-7. Average time to match is no more than 10 seconds.
-8. P90 time to match is no more than 15 seconds.
+7. Average time to match is no more than 5 seconds.
+8. P90 time to match is no more than 8 seconds.
 9. Output contains no plaintext `private_key`, WIF, mnemonic, seed, token, or secret.
 10. Production hit flow returns only `matched_address` and `encrypted_private_key`.
 11. Private key encryption uses customer `age recipient`.
@@ -52,9 +51,8 @@ Current evidence:
 
 - In-house CUDA scaffold validates TRON math but is far too slow.
 - VanitySearch upstream A100 Bitcoin baseline reached billion-class key/s, proving the architecture class is promising.
-- VanitySearch TRON CPU adapter exists only as a local candidate patch.
-- VanitySearch TRON GPU hot path is not implemented yet.
-- No complete TRON `addresses_per_second` benchmark from the VanitySearch TRON path exists yet.
+- VanitySearch TRON GPU path has passed a prior prefix+suffix bounded GPU Pod test, but that result is historical and not the suffix-only target.
+- Suffix-only hot path and benchmark gate still need to be updated and retested on RunPod GPU Pod.
 - Python wrapper has a gated `find` mode contract.
 - CUDA/C++ `--find` now has a staging implementation for wrapper integration, but it is not yet RunPod-compiled or performance-validated.
 - The current `--find` implementation uses the deterministic staging candidate schedule, not the final high-performance/randomized production core.

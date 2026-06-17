@@ -53,19 +53,19 @@ The inspector checks:
 - `kernel_mode`; accepted values are `incremental_public_key_walk` and `scalar_multiply_per_candidate`,
 - `gpu_name`,
 - forbidden key leakage,
-- 10 second probability and worker-count estimates.
+- suffix-only probability and worker-count estimates.
 
 ## Capacity Math Only
 
 To calculate worker count from a measured complete TRON address speed:
 
 ```bash
-scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10
+scripts/capacity_math.py --addresses-per-second 200000000 --seconds 8
 ```
 
 The input must be complete TRON `addresses_per_second`, not hash speed.
 
-The product rule is `prefix_after_t` plus `suffix`. Python maps it to full-address `prefix_len=2` plus `suffix_len=5` for the CUDA binary. Because normal TRON addresses have fixed leading `T`, the effective random space is `58^6`.
+The product rule is `suffix` only. Python maps it to full-address `prefix_len=0` plus `suffix_len=5` for the CUDA binary. The effective random space is `58^5`.
 
 ## VanitySearch Bounded Benchmark Signal
 
@@ -78,11 +78,11 @@ scripts/inspect_vanitysearch_benchmark.py vanitysearch_benchmark_stdout.txt
 The inspector reports:
 
 - `candidate_attempts_per_second_estimate`
-- single-worker 10 second and 15 second hit probability
+- single-worker 5 second and 8 second hit probability
 - expected mean seconds
 - P90 seconds
-- speed required for mean <= 10 seconds
-- speed required for P90 <= 15 seconds
+- speed required for mean <= 5 seconds
+- speed required for P90 <= 8 seconds
 - required worker count for both targets
 
 This is only a GPU Pod direction signal. It is not final Serverless proof and it does not replace the eventual age-encrypted worker path.
@@ -91,7 +91,7 @@ Current VanitySearch patch note: TRON bounded benchmark counters are corrected t
 
 Current GPU address-layer note: the hot path uses direct x/y coordinate Keccak absorption. Trust bounded benchmark output only after the RunPod vector check reports `xy_payload_passed=true` for every public TEST_ONLY vector.
 
-Current prefix-gate note: the hot reject path uses precomputed 3-word possible prefix bounds before checksum. Trust benchmark output only after the RunPod vector check still reports `prefix_possible_passed=true` and `wrong_prefix_possible_rejected=true` for every public TEST_ONLY vector.
+Current suffix-only note: the hot path must still compute checksum correctly before judging the final 5 Base58Check characters. Trust benchmark output only after the RunPod vector check reports suffix fields true for every public TEST_ONLY vector.
 
 Current RunPod gate note: `scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh` parses the vector JSON and must print `tron_gpu_vector_fields_verified` before any smoke or bounded benchmark output is considered usable.
 

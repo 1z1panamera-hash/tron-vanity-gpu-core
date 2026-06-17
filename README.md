@@ -1,6 +1,6 @@
 # TRON Vanity GPU Core
 
-This directory is the implementation track for making full TRON Base58 prefix 2 + suffix 5 feasible within a 10 second target window.
+This directory is the implementation track for making TRON Base58 suffix-only last-5 matching feasible within the current target window: average <= 5 seconds and P90 <= 8 seconds.
 
 Current status:
 
@@ -20,22 +20,21 @@ Current status:
 
 Default matching rule:
 
-- full TRON Base58Check address prefix 2 + suffix 5
-- `prefix_len = 2`
+- full TRON Base58Check address suffix 5 only
+- `prefix_len = 0`
 - `suffix_len = 5`
+- no prefix-after-`T` match
 
 Search space:
 
 ```text
-58^6 = 38,068,692,544
+58^5 = 656,356,768
 ```
 
-10 second target thresholds:
+Target thresholds:
 
-- 50% hit probability: about `2.64B addresses/s`
-- 90% hit probability: about `8.77B addresses/s`
-- 95% hit probability: about `11.40B addresses/s`
-- 99% hit probability: about `17.53B addresses/s`
+- Average <= 5 seconds: about `131.27M addresses/s`
+- P90 <= 8 seconds: about `188.91M addresses/s`
 
 ## Required GPU Chain
 
@@ -45,11 +44,11 @@ The GPU worker must implement complete address generation:
 2. Keccak-256 over uncompressed public key without `04`.
 3. TRON hex address: `0x41 + last20(keccak)`.
 4. Base58Check payload: `0x41 + address20 + checksum4`.
-5. Base58 suffix modulo filter.
-6. Base58 prefix range filter.
-7. Full Base58Check confirmation for candidates that pass filters.
+5. Base58 suffix modulo filter over the complete 25-byte payload, including checksum.
+6. Full Base58Check confirmation for candidates that pass filters.
 
 Hash-only speed is not TRON address generation speed.
+The last 5 Base58Check characters depend on checksum, so matching cannot be decided from Keccak output alone.
 
 ## Safety Boundary
 
@@ -115,7 +114,7 @@ Before any real benchmark:
 5. Only after smoke benchmark passes, compare A100 and RTX 5090-class capacity with the 10 second payloads.
 6. Treat current benchmark numbers as staging data until the CUDA core is optimized and independently reviewed.
 
-If smoke speed is far below the 10 second target, do not scale from the scalar kernel.
-Use the incremental kernel first; it now includes cooperative block-level batch inversion for stride point additions. If it is still too slow, the next core step is projective/precomputed-window point walking, then lower-level field arithmetic optimization.
+If smoke speed is far below the suffix-only target, do not scale from the scalar kernel.
+Use the incremental kernel first; it now includes cooperative block-level batch inversion for stride point additions. If it is still too slow, the next core step is suffix-only checksum/Base58 hot-path optimization, projective/precomputed-window point walking, then lower-level field arithmetic optimization.
 
 Before any future operation on 47.80.70.211, run `docs/SERVER_PREFLIGHT_47.md` first. If the preflight is slow or abnormal, stop and report instead of continuing.

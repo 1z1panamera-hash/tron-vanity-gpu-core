@@ -4,7 +4,7 @@ import json
 import math
 
 
-SEARCH_SPACE = 58 ** 6
+SEARCH_SPACE = 58 ** 5
 TARGETS = {
     "p50": 0.50,
     "p90": 0.90,
@@ -23,7 +23,7 @@ def probability_for_speed(speed: float, seconds: float) -> float:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Capacity math for TRON full prefix_len=2 + suffix_len=5; leading T is fixed, so random space is 58^6."
+        description="Capacity math for TRON suffix-only last-5 matching; random space is 58^5."
     )
     parser.add_argument("--addresses-per-second", type=float, default=0.0)
     parser.add_argument("--seconds", type=float, default=10.0)
@@ -38,9 +38,9 @@ def main() -> int:
     }
 
     print(json.dumps({
-        "rule": "TRON product rule prefix_after_t=1 + suffix=5",
-        "internal_rule": "Python maps product input to full Base58 prefix_len=2 + suffix_len=5 for the CUDA binary.",
-        "effective_random_rule": "TRON leading T is fixed; random search is 1 character after T plus 5 suffix characters.",
+        "rule": "TRON product rule suffix=5 only",
+        "internal_rule": "Python maps product input to full Base58 prefix_len=0 + suffix_len=5 for the CUDA binary.",
+        "effective_random_rule": "No prefix after fixed T is matched; random search is the last 5 Base58 characters.",
         "search_space": SEARCH_SPACE,
         "seconds": seconds,
         "single_worker_addresses_per_second": speed,
@@ -49,7 +49,7 @@ def main() -> int:
         "required_workers": workers,
         "notes": [
             "Uses independent random-search probability approximation.",
-            "Do not count the leading T as a random Base58 character.",
+            "Do not add a prefix-after-T requirement to this product rule.",
             "Inputs must be complete TRON addresses_per_second, not hash speed.",
         ],
     }, indent=2))

@@ -1,8 +1,8 @@
 # Performance Core Plan
 
-Goal: move from correctness-first CUDA code toward a worker that can realistically approach TRON product rule `prefix_after_t=1 char` + `suffix=5 chars` within 10 seconds on average, with P90 no more than 15 seconds, using RunPod GPUs.
+Goal: move from correctness-first CUDA code toward a worker that can realistically approach TRON suffix-only product rule `suffix=5 chars` within 5 seconds on average, with P90 no more than 8 seconds, using RunPod GPUs.
 
-TRON addresses normally start with fixed `T`, so the effective random target is `T` plus 1 variable prefix character plus 5 suffix characters. The Python wrapper maps product input to internal full-address `prefix_len=2`, `suffix_len=5` for the CUDA binary. Capacity math is therefore `58^6`, not `58^7`.
+The product no longer matches any prefix after fixed `T`. It matches only the last 5 Base58Check characters. The Python wrapper maps product input to internal full-address `prefix_len=0`, `suffix_len=5` for the CUDA binary. Capacity math is therefore `58^5`.
 
 ## Why Current Code Is Not Enough
 
@@ -52,9 +52,8 @@ The target fast path should do:
 1. Increment public key using point addition or a precomputed window table.
 2. Keccak-256 of uncompressed public key without `04`.
 3. TRON payload and double-SHA256 checksum.
-4. Base58 suffix modulo filter.
-5. Base58 prefix range filter.
-6. Full Base58Check confirmation only for candidates passing filters.
+4. Base58 suffix modulo filter over the full payload including checksum.
+5. Full Base58Check confirmation only for candidates passing filters.
 
 ## Sharding
 
@@ -70,10 +69,9 @@ candidate_range = [start_counter + global_worker_id * stride, ...)
 Each RunPod worker gets:
 
 - `job_id`
-- `prefix_after_t`
 - `suffix`
 - derived `target_address`
-- derived full-address `prefix_len = 2`
+- derived full-address `prefix_len = 0`
 - derived `suffix_len = 5`
 - `start_counter`
 - `shard_id`
@@ -97,7 +95,7 @@ The worker must not log plaintext key material.
 Current wrapper status:
 
 - `mode=find` exists behind `ALLOW_GPU_FIND=1`.
-- Product input is `prefix_after_t` + `suffix` + `age_recipient`.
+- Product input is `suffix` + `age_recipient`.
 - CUDA/C++ `--find` mode is still required before this can generate production results.
 - See `docs/AGE_ENCRYPTED_FIND_MODE.md`.
 
@@ -111,9 +109,9 @@ Before claiming performance:
 4. Benchmark smoke emits `gpu_name` and complete `addresses_per_second`.
 5. A100 and RTX 5090 tests use the same target rule and output schema.
 6. The output is inspected for absence of `private_key`, `mnemonic`, `seed`, `token`, and `secret`.
-7. Final performance evidence must report mean time to match and P90 time to match for the `58^6` rule.
+7. Final performance evidence must report mean time to match and P90 time to match for the `58^5` rule.
 
 ## If Smoke Speed Is Low
 
 Do not scale worker count from the `scalar` kernel mode.
-Use `incremental` mode first. It now includes cooperative block-level batch inversion. If incremental mode is still too slow, the next step is projective/precomputed-window point walking, then lower-level field arithmetic optimization, then measure again.
+Use `incremental` mode first. It now includes cooperative block-level batch inversion. If incremental mode is still too slow, the next step is suffix-only checksum/Base58 hot-path reduction, projective/precomputed-window point walking, then lower-level field arithmetic optimization, then measure again.

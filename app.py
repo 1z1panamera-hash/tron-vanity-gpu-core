@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parent
 TEST_VECTOR_PATH = ROOT / "tests" / "phase0_test_vectors.json"
 GPU_BINARY_PATH = ROOT / "build" / "tron_gpu_worker"
 GPU_SOURCE_PATH = ROOT / "src" / "tron_gpu_core.cu"
-DEFAULT_PREFIX_LEN = 2
+DEFAULT_PREFIX_LEN = 0
 DEFAULT_SUFFIX_LEN = 5
 DEFAULT_TRON_ADDRESS_LEN = 34
 MAX_BENCHMARK_SECONDS = 10
@@ -63,7 +63,7 @@ def validate_vector_file() -> Dict[str, Any]:
         if vector.get("warning") != "TEST_ONLY_PUBLIC_VECTOR_DO_NOT_USE_FOR_FUNDS":
             failures.append({"label": vector.get("label"), "warning": vector.get("warning")})
         address = vector.get("tron_base58_address", "")
-        if vector.get("prefix2") != address[:DEFAULT_PREFIX_LEN]:
+        if vector.get("prefix2") != address[:2]:
             failures.append({"label": vector.get("label"), "prefix2": "mismatch"})
         if vector.get("suffix5") != address[-DEFAULT_SUFFIX_LEN:]:
             failures.append({"label": vector.get("label"), "suffix5": "mismatch"})
@@ -102,36 +102,33 @@ def nvcc_command_for_arch(arch: str) -> List[str]:
     ]
 
 
-def synthesize_target_address(prefix_after_t: str, suffix: str) -> str:
-    if not isinstance(prefix_after_t, str) or len(prefix_after_t) != 1:
-        raise ValueError("prefix_after_t must be exactly one Base58 character after fixed T")
+def synthesize_target_address(suffix: str) -> str:
     if not isinstance(suffix, str) or len(suffix) != DEFAULT_SUFFIX_LEN:
         raise ValueError("suffix must be exactly 5 Base58 characters")
-    if prefix_after_t not in BASE58_ALPHABET:
-        raise ValueError("prefix_after_t contains a non-Base58 character")
     if any(ch not in BASE58_ALPHABET for ch in suffix):
         raise ValueError("suffix contains a non-Base58 character")
 
-    filler_len = DEFAULT_TRON_ADDRESS_LEN - 1 - len(prefix_after_t) - len(suffix)
+    filler_len = DEFAULT_TRON_ADDRESS_LEN - 1 - len(suffix)
     if filler_len < 0:
         raise ValueError("invalid target rule length")
-    return "T" + prefix_after_t + ("8" * filler_len) + suffix
+    return "T" + ("8" * filler_len) + suffix
 
 
 def normalize_match_rule(payload: Dict[str, Any]) -> Dict[str, Any]:
-    if "prefix_after_t" in payload or "suffix" in payload:
-        prefix_after_t = payload.get("prefix_after_t")
+    if "prefix_after_t" in payload:
+        raise ValueError("product rule is suffix-only; prefix_after_t is no longer accepted")
+
+    if "suffix" in payload:
         suffix = payload.get("suffix")
-        target_address = synthesize_target_address(prefix_after_t, suffix)
+        target_address = synthesize_target_address(suffix)
         return {
             "target_address": target_address,
             "prefix_len": DEFAULT_PREFIX_LEN,
             "suffix_len": DEFAULT_SUFFIX_LEN,
-            "prefix_after_t": prefix_after_t,
             "suffix": suffix,
-            "effective_random_chars": 1 + DEFAULT_SUFFIX_LEN,
-            "search_space": 58 ** (1 + DEFAULT_SUFFIX_LEN),
-            "rule": "TRON fixed T + prefix_after_t(1) + suffix(5)",
+            "effective_random_chars": DEFAULT_SUFFIX_LEN,
+            "search_space": 58 ** DEFAULT_SUFFIX_LEN,
+            "rule": "TRON suffix-only last 5 Base58 characters",
         }
 
     target_address = payload.get("target_address")
@@ -145,16 +142,15 @@ def normalize_match_rule(payload: Dict[str, Any]) -> Dict[str, Any]:
     ):
         raise ValueError("target_address must be a reasonable TRON Base58 address string starting with T")
     if prefix_len != DEFAULT_PREFIX_LEN or suffix_len != DEFAULT_SUFFIX_LEN:
-        raise ValueError("product rule requires full-address prefix_len=2 and suffix_len=5")
+        raise ValueError("product rule requires suffix-only prefix_len=0 and suffix_len=5")
     return {
         "target_address": target_address,
         "prefix_len": prefix_len,
         "suffix_len": suffix_len,
-        "prefix_after_t": target_address[1:2],
         "suffix": target_address[-suffix_len:],
-        "effective_random_chars": 1 + suffix_len,
-        "search_space": 58 ** (1 + suffix_len),
-        "rule": "TRON fixed T + prefix_after_t(1) + suffix(5)",
+        "effective_random_chars": suffix_len,
+        "search_space": 58 ** suffix_len,
+        "rule": "TRON suffix-only last 5 Base58 characters",
     }
 
 

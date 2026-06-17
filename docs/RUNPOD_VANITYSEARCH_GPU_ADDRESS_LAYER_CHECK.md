@@ -10,7 +10,7 @@ By default it checks only the GPU-side TRON address construction layer:
 - TRON payload prefix `0x41`
 - double-SHA256 checksum
 - Base58Check encoding
-- product matching rule: fixed `T` + `prefix_after_t` 1 char + suffix 5 chars
+- product matching rule: suffix-only last 5 Base58Check characters
 - four public TEST_ONLY public-key vectors
 
 It is not a search benchmark and cannot be used as an address generation speed result.
@@ -22,26 +22,26 @@ An optional smoke can also compile patched VanitySearch and run a bounded TRON w
 Tracked patch in this repository:
 
 ```text
-patches/vanitysearch_tron_gpu_payload21_word_bounds_20260618.patch
+patches/vanitysearch_tron_gpu_suffix_only_20260618.patch
 ```
 
 SHA-256:
 
 ```text
-c2b5055f39d1c84cc3d286d4d861dac821ec00c668fc89521483c9f8c49e22f3
+eed696759855c331cbac7c68231b33b627511f2df0cb636df4e59befa5ee29a7
 ```
 
 Candidate branch head:
 
 ```text
-4cd2de7 Use word bounds for TRON payload21 prefix gate
+0fa8a36 Switch TRON GPU pattern to suffix-only
 ```
 
-The TRON GPU search path now parses `T<one-char>*<five-char-suffix>` into a dedicated product rule, precomputes the `T` + `prefix_after_t` Base58 value range and suffix-5 value, checks whether the 21-byte TRON payload can possibly fall in the prefix range before computing the double-SHA256 checksum, then applies exact prefix range, suffix modulo, and full Base58 confirmation. This avoids passing host string pointers into the kernel and skips checksum/modulo/Base58 work for most non-matching candidates.
+The TRON GPU search path is being updated to parse `T*<five-char-suffix>` into the current suffix-only product rule. It must compute the double-SHA256 checksum before judging the last 5 Base58Check characters; matching from Keccak output alone is invalid.
 
 The hot path now derives the TRON payload directly from VanitySearch's GPU x/y coordinate words, instead of first materializing a 64-byte public-key array and then hashing that array. The RunPod vector check compares the direct x/y Keccak absorption path with the public-key reference path through the `xy_payload_passed` field.
 
-The checksum-before gate now uses precomputed 3-word possible prefix bounds for the 21-byte payload. This keeps the exact 25-byte `T + prefix_after_t` range for post-checksum confirmation, while replacing the per-candidate byte-loop/synthetic checksum-tail comparison with three high-aligned 64-bit word comparisons in the hot reject path.
+The previous prefix-gated checksum optimization was for the old rule and is historical. The current suffix-only path needs a new hot-path benchmark because removing prefix gating changes where checksum and suffix work are paid.
 
 The optional pattern smoke sets `TRON_SUPPRESS_SECRET_OUTPUT=1` before running VanitySearch. If an accidental hit happens during the bounded smoke, WIF/HEX key material is suppressed instead of printed.
 
@@ -91,13 +91,13 @@ tron_gpu_pattern_benchmark_passed
 - The script refuses to run unless `ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK=1` is set.
 - The script verifies the patch SHA-256 before applying it.
 - The script refuses to overwrite an existing work directory.
-- The GPU vector check must report all per-vector boolean gates as `true` before any benchmark result is trusted: `xy_payload_passed`, `prefix_possible_passed`, `wrong_prefix_possible_rejected`, `prefix_prefilter_passed`, `wrong_prefix_prefilter_rejected`, `suffix_prefilter_passed`, and `wrong_suffix_prefilter_rejected`.
+- The GPU vector check must report all current per-vector boolean gates as `true` before any benchmark result is trusted, especially suffix and full Base58Check confirmation gates.
 - The wrapper parses the vector JSON and prints `tron_gpu_vector_fields_verified` only after those fields are confirmed.
-- The optional wildcard smoke uses the strict product-rule pattern and suppresses key material if an accidental hit occurs.
+- The optional wildcard smoke uses the strict suffix-only test pattern and suppresses key material if an accidental hit occurs.
 - The optional wildcard smoke defaults to 5 seconds and may print a best-effort `tron_gpu_pattern_smoke_rate` line; this is only a startup signal.
 - The optional bounded benchmark defaults to 10 seconds, refuses durations outside 3-30 seconds, and emits JSON for review.
 - The optional bounded benchmark rate is corrected to complete TRON address candidates per second, not raw hash speed and not the old generic 6x VanitySearch counter.
-- The checksum-gated prefix range and suffix modulo prefilters are optimization gates, not proof of final production speed.
+- The suffix modulo prefilter is an optimization gate, not proof of final production speed.
 - Do not run this on `47.80.70.211`.
 - Do not run a search benchmark from this check.
 - Do not treat this as proof of production speed.
@@ -105,7 +105,7 @@ tron_gpu_pattern_benchmark_passed
 
 ## Next Gate
 
-After this passes on RunPod, inspect the bounded benchmark JSON locally and compare it with the `58^6` target space. If it is promising, replace this signal path with a dedicated benchmark-only worker and then run controlled GPU-class comparisons.
+After this passes on RunPod, inspect the bounded benchmark JSON locally and compare it with the `58^5` target space. If it is promising, replace this signal path with a dedicated benchmark-only worker and then run controlled GPU-class comparisons.
 
 Local inspection command:
 

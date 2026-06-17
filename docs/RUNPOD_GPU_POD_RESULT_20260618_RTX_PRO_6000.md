@@ -6,6 +6,8 @@ Date: 2026-06-18 Asia/Shanghai
 
 Normal RunPod GPU Pod check for the patched VanitySearch TRON GPU path.
 
+Important: this result used the previous `prefix_after_t + suffix5` rule. It is historical evidence only. The current product rule is suffix-only last 5 characters, with search space `58^5`.
+
 This was not a Serverless proof and not a production private key delivery test.
 
 ## Pod
@@ -80,18 +82,26 @@ Passed as a bounded signal.
 - Required workers for mean <= 10s: `45`
 - Required workers for P90 <= 15s: `69`
 
+## Suffix-Only Reinterpretation
+
+If the same `85.05M` complete TRON candidates/s held under the new suffix-only rule, the rough search-space math would be:
+
+- Search space: `58^5 = 656,356,768`
+- Expected mean: about `7.72` seconds
+- P90: about `17.77` seconds
+
+That still misses the new target:
+
+- Average <= 5 seconds needs about `131.27M` complete TRON candidates/s
+- P90 <= 8 seconds needs about `188.91M` complete TRON candidates/s
+
+This is only a reinterpretation. The actual suffix-only hot path must be patched and retested, because removing prefix gating can change per-candidate cost.
+
 ## Decision
 
-This patched VanitySearch TRON path is correct enough to run vector and bounded benchmark checks, but it is not fast enough for the product target.
+This patched VanitySearch TRON path was correct enough to run vector and bounded benchmark checks for the previous rule, but it is not yet proven for the current suffix-only target.
 
-The product target requires about:
-
-- `3.81B` complete TRON address candidates/s for average <= 10 seconds
-- `5.84B` complete TRON address candidates/s for P90 <= 15 seconds
-
-The measured 10 second RTX PRO 6000 result was about `85.05M` complete TRON address candidates/s, roughly `68.7x` below the P90 target for a single worker.
-
-Do not migrate this path to Serverless as the final production worker.
+Do not migrate this path to Serverless as the final production worker until the suffix-only path is tested and reaches average <= 5 seconds and P90 <= 8 seconds.
 
 ## Next Engineering Direction
 

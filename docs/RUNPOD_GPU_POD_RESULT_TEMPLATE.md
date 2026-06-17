@@ -79,8 +79,8 @@ Inspector summary:
 
 - `expected_mean_seconds`:
 - `p90_seconds`:
-- `required_workers.mean_10s`:
-- `required_workers.p90_15s`:
+- `required_workers.mean_5s`:
+- `required_workers.p90_8s`:
 
 Decision:
 
@@ -111,8 +111,8 @@ Inspector summary:
 
 - `expected_mean_seconds`:
 - `p90_seconds`:
-- `required_workers.mean_10s`:
-- `required_workers.p90_15s`:
+- `required_workers.mean_5s`:
+- `required_workers.p90_8s`:
 
 ## Review Decision
 

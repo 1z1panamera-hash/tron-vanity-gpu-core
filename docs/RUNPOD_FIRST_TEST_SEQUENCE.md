@@ -6,7 +6,7 @@ Preferred deployment path: RunPod GitHub integration, documented in `docs/RUNPOD
 
 ## Goal
 
-Measure whether RunPod GPUs can move toward the TRON full Base58 prefix2 + suffix5 target.
+Measure whether RunPod GPUs can move toward the TRON suffix-only last-5 target.
 
 The first RunPod tests are not production key generation. They are:
 
@@ -14,7 +14,7 @@ The first RunPod tests are not production key generation. They are:
 2. Tiny benchmark smoke test.
 3. A100 short benchmark.
 4. RTX 5090 short benchmark, if available.
-5. Capacity calculation for 10 second probability targets.
+5. Capacity calculation for average <= 5 seconds and P90 <= 8 seconds.
 
 ## Required Image
 
@@ -100,7 +100,7 @@ Expected response:
 - `benchmark_result.addresses_per_second` is present
 - no `private_key`, `mnemonic`, `seed`, `token`, or `secret`
 
-This is only a smoke test. It is not a 10 second production capacity claim.
+This is only a smoke test. It is not a production capacity claim.
 
 Do not run `mode=find` until CUDA/C++ `--find` is implemented and validate/benchmark gates pass.
 
@@ -130,36 +130,34 @@ Do not compare `scalar` mode against production targets except as a sanity basel
 
 ## Capacity Formula
 
-Default product rule: `prefix_after_t` + `suffix`.
+Default product rule: `suffix` only.
 
-The leading `T` is fixed for normal TRON addresses, so the random part is only 1 variable prefix character after `T` plus 5 suffix characters.
+No prefix-after-`T` character is matched. The random part is only the last 5 Base58Check characters.
 
 Python derives internal full-address matcher fields:
 
 ```text
-target_address = "T" + prefix_after_t + filler + suffix
-prefix_len = 2
+target_address = "T" + filler + suffix
+prefix_len = 0
 suffix_len = 5
 ```
 
 Effective random search space:
 
 ```text
-58^6 = 38,068,692,544
+58^5 = 656,356,768
 ```
 
-For total cluster speed `R` addresses/second and time `t = 10` seconds:
+For total cluster speed `R` addresses/second and time `t` seconds:
 
 ```text
-hit_probability = 1 - exp(-(R * t) / 58^6)
+hit_probability = 1 - exp(-(R * t) / 58^5)
 ```
 
 Targets:
 
-- 50% in 10s: about 2.64B addresses/s
-- 90% in 10s: about 8.77B addresses/s
-- 95% in 10s: about 11.40B addresses/s
-- 99% in 10s: about 17.53B addresses/s
+- Average <= 5s: about 131.27M addresses/s
+- P90 <= 8s: about 188.91M addresses/s
 
 Required worker count:
 

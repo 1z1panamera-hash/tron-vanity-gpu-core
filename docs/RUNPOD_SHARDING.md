@@ -1,19 +1,17 @@
 # RunPod Sharding Strategy
 
-Goal: make product rule `prefix_after_t=1` + `suffix=5` feasible by running many independent GPU workers.
+Goal: make product rule `suffix=5` feasible by running many independent GPU workers.
 
-Normal TRON addresses have fixed leading `T`, so Python maps this to internal full-address `prefix_len=2` plus `suffix_len=5`.
+Python maps this to internal full-address `prefix_len=0` plus `suffix_len=5`.
 
 ## Search Space
 
-`58^6 = 38,068,692,544`
+`58^5 = 656,356,768`
 
-10 second target rates:
+Target rates:
 
-- 50% probability: about `2.64B complete TRON addresses/s`
-- 90% probability: about `8.77B complete TRON addresses/s`
-- 95% probability: about `11.40B complete TRON addresses/s`
-- 99% probability: about `17.53B complete TRON addresses/s`
+- Average <= 5 seconds: about `131.27M complete TRON addresses/s`
+- P90 <= 8 seconds: about `188.91M complete TRON addresses/s`
 
 ## Shard Rule
 
@@ -53,7 +51,6 @@ The CPU-side schedule test `tests/verify_shard_schedule.cpp` validates that shar
 {
   "mode": "benchmark",
   "target_address": "T...",
-  "prefix_after_t": "X",
   "suffix": "86666",
   "kernel_mode": "incremental",
   "duration_seconds": 5,

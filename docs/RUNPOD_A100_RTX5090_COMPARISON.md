@@ -102,12 +102,12 @@ scripts/inspect_runpod_result.py runpod_a100_10s_response.json --mode benchmark
 scripts/inspect_runpod_result.py runpod_rtx5090_10s_response.json --mode benchmark
 ```
 
-The inspector estimates 10-second hit probability and required worker count for product input `prefix_after_t` + `suffix`, mapped internally to full TRON Base58 `prefix_len=2` + `suffix_len=5`.
+The inspector estimates hit probability and required worker count for product input `suffix`, mapped internally to full TRON Base58 `prefix_len=0` + `suffix_len=5`.
 
-The first `T` is fixed, so the effective random target is 1 variable prefix character after `T` plus 5 suffix characters:
+The effective random target is 5 suffix characters:
 
 ```text
-58^6 = 38,068,692,544
+58^5 = 656,356,768
 ```
 
 ## Stop Conditions

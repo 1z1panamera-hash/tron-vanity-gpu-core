@@ -3,14 +3,14 @@
   "component": "tron-gpu-core",
   "default_rule": {
     "address_format": "TRON full Base58Check address",
-    "product_prefix_after_t_len": 1,
+    "product_prefix_after_t_len": 0,
     "product_suffix_len": 5,
-    "internal_full_address_prefix_len": 2,
+    "internal_full_address_prefix_len": 0,
     "internal_suffix_len": 5,
     "fixed_leading_char": "T",
-    "effective_random_prefix_chars": 1,
+    "effective_random_prefix_chars": 0,
     "effective_random_suffix_chars": 5,
-    "effective_search_space": "58^6"
+    "effective_search_space": "58^5"
   },
   "modes": {
     "validate_vectors": {
@@ -27,10 +27,9 @@
         "tests/verify_shard_schedule.cpp"
       ],
       "input": {
-        "prefix_after_t": "one custom Base58 character immediately after fixed T",
         "suffix": "five custom Base58 characters at the end of the address",
         "internal_target_address": "derived by Python wrapper for CUDA binary",
-        "internal_prefix_len": 2,
+        "internal_prefix_len": 0,
         "internal_suffix_len": 5,
         "kernel_mode": "incremental or scalar; default incremental",
         "duration_seconds": "1..10 for first approved tests",
@@ -60,7 +59,6 @@
     "production": {
       "purpose": "Find a match and encrypt key material to customer age recipient.",
       "input": {
-        "prefix_after_t": "one custom Base58 character immediately after fixed T",
         "suffix": "five custom Base58 characters at the end of the address",
         "age_recipient": "customer age recipient public key beginning with age1",
         "duration_seconds": "bounded worker invocation, default/max 15 during production target",
