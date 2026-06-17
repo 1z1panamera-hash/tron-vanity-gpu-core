@@ -136,6 +136,7 @@ Backup route:
   - private-key output removal
 - Prepare low-cost RunPod GPU Pod build checklist.
 - Completed upstream VanitySearch A100 baseline; see `docs/RUNPOD_VANITYSEARCH_BASELINE_20260617.md`.
+- Created a local VanitySearch CPU TRON address prototype branch; see `docs/VANITYSEARCH_PROTOTYPE_STATUS_20260617.md`.
 
 ### Day 2
 
