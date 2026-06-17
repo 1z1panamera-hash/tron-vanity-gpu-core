@@ -72,6 +72,7 @@ Default production rule:
 - `prefix_len = 2`
 - `suffix_len = 5`
 - Prefix is counted on the full TRON Base58 address, usually including leading `T`.
+- Since normal TRON addresses start with fixed `T`, the actual random prefix work is only 1 character after `T`.
 
 For `TX8888888888888888888888888886666`, target prefix/suffix are:
 

@@ -6,9 +6,10 @@ Try to find or build a viable high-performance GPU core for TRON vanity address 
 
 Target matching rule:
 
-- Full TRON Base58 address prefix length: 2
+- Full TRON Base58 address prefix length: 2, including fixed leading `T`
 - Full TRON Base58 address suffix length: 5
-- Effective random search space: about `58^6 = 38,068,692,544`
+- Effective random search: `T` plus 1 variable prefix character plus 5 suffix characters
+- Effective random search space: about `58^6 = 38,068,692,544`, not `58^7`
 
 Hard speed target:
 

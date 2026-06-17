@@ -128,7 +128,9 @@ Do not compare `scalar` mode against production targets except as a sanity basel
 
 ## Capacity Formula
 
-Default rule: full TRON Base58 prefix2 + suffix5.
+Default rule: full TRON Base58 `prefix_len=2` + `suffix_len=5`.
+
+The leading `T` is fixed for normal TRON addresses, so the random part is only `T` after 1 variable prefix character plus 5 suffix characters.
 
 Effective random search space:
 

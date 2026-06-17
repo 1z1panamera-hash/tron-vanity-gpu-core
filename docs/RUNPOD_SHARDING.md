@@ -1,6 +1,8 @@
 # RunPod Sharding Strategy
 
-Goal: make prefix2 + suffix5 feasible by running many independent GPU workers.
+Goal: make full-address `prefix_len=2` + `suffix_len=5` feasible by running many independent GPU workers.
+
+Normal TRON addresses have fixed leading `T`, so this is effectively `T` plus 1 random prefix character plus 5 suffix characters.
 
 ## Search Space
 

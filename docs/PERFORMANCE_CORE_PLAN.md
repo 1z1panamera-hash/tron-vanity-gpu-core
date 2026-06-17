@@ -1,6 +1,8 @@
 # Performance Core Plan
 
-Goal: move from correctness-first CUDA code toward a worker that can realistically approach TRON prefix2 + suffix5 within 10 seconds using RunPod GPUs.
+Goal: move from correctness-first CUDA code toward a worker that can realistically approach TRON full-address `prefix_len=2` + `suffix_len=5` within 10 seconds using RunPod GPUs.
+
+TRON addresses normally start with fixed `T`, so the effective random target is `T` plus 1 variable prefix character plus 5 suffix characters. Capacity math is therefore `58^6`, not `58^7`.
 
 ## Why Current Code Is Not Enough
 
@@ -69,7 +71,7 @@ Each RunPod worker gets:
 
 - `job_id`
 - `target_address`
-- `prefix_len`
+- `prefix_len` on the full Base58 address, normally `2` to include `T` plus one variable prefix character
 - `suffix_len`
 - `start_counter`
 - `shard_id`

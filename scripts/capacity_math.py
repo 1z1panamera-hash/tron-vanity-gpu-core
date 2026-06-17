@@ -22,7 +22,9 @@ def probability_for_speed(speed: float, seconds: float) -> float:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Capacity math for TRON prefix2 + suffix5.")
+    parser = argparse.ArgumentParser(
+        description="Capacity math for TRON full prefix_len=2 + suffix_len=5; leading T is fixed, so random space is 58^6."
+    )
     parser.add_argument("--addresses-per-second", type=float, default=0.0)
     parser.add_argument("--seconds", type=float, default=10.0)
     args = parser.parse_args()
@@ -36,7 +38,8 @@ def main() -> int:
     }
 
     print(json.dumps({
-        "rule": "TRON full Base58 prefix2 + suffix5",
+        "rule": "TRON full Base58 prefix_len=2 + suffix_len=5",
+        "effective_random_rule": "TRON leading T is fixed; random search is T+1 prefix character plus 5 suffix characters.",
         "search_space": SEARCH_SPACE,
         "seconds": seconds,
         "single_worker_addresses_per_second": speed,
@@ -45,6 +48,7 @@ def main() -> int:
         "required_workers": workers,
         "notes": [
             "Uses independent random-search probability approximation.",
+            "Do not count the leading T as a random Base58 character.",
             "Inputs must be complete TRON addresses_per_second, not hash speed.",
         ],
     }, indent=2))
