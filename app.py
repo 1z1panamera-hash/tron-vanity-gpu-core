@@ -328,7 +328,7 @@ def handle_benchmark(payload: Dict[str, Any]) -> Dict[str, Any]:
         str(shard_count),
     ]
     started = time.perf_counter()
-    binary_status = run_gpu_binary(args, timeout_seconds=duration_seconds + 15)
+    binary_status = run_gpu_binary(args, timeout_seconds=duration_seconds + 120)
     benchmark_result = parse_json_stdout(binary_status)
     elapsed = time.perf_counter() - started
     return {
