@@ -109,11 +109,11 @@ PY
 if [ "${RUN_TRON_PATTERN_SMOKE:-0}" = "1" ]; then
   echo "== run optional TRON GPU pattern search smoke"
   ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE=1 CUDA_ARCH="${CUDA_ARCH#sm_}" \
-    scripts/runpod_tron_gpu_pattern_search_smoke.sh
+    bash scripts/runpod_tron_gpu_pattern_search_smoke.sh
 fi
 
 if [ "${RUN_TRON_PATTERN_BENCHMARK:-0}" = "1" ]; then
   echo "== run optional bounded TRON GPU pattern benchmark"
   ALLOW_RUNPOD_TRON_GPU_PATTERN_BENCHMARK=1 CUDA_ARCH="${CUDA_ARCH#sm_}" \
-    scripts/runpod_tron_gpu_pattern_benchmark.sh
+    bash scripts/runpod_tron_gpu_pattern_benchmark.sh
 fi
