@@ -126,9 +126,11 @@ git clone --quiet "$VANITYSEARCH_REPO" "$WORKDIR/VanitySearch"
 cd "$WORKDIR/VanitySearch"
 git checkout --quiet "$VANITYSEARCH_COMMIT"
 
-if ! grep -q '#include <cstdint>' Timer.h; then
-  sed -i '/#include <string>/a #include <cstdint>' Timer.h
-fi
+for header in Timer.h hash/sha256.h hash/sha512.h; do
+  if ! grep -q '#include <cstdint>' "$header"; then
+    sed -i '/#include <string>/a #include <cstdint>' "$header"
+  fi
+done
 
 echo "== apply TRON suffix-only patch"
 git apply "$PATCH_PATH"
