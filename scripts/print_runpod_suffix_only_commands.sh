@@ -47,13 +47,13 @@ RUN_SMOKE=1 RUN_BENCHMARK_3=1 RUN_BENCHMARK_10=1 CUDA_ARCH=$CUDA_ARCH_VALUE scri
 latest_result_dir=\$(ls -dt runpod_results/* | head -1)
 scripts/inspect_runpod_sequence_result.py "\$latest_result_dir"
 
-## 6. Current speed sprint sweep
-ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=$CUDA_ARCH_VALUE BENCHMARK_SECONDS=3 \\
-  scripts/runpod_gpu_pod_suffix_speed_sweep.sh
+## 6. Current speed sprint test: sweep + automatic inspection
+ALLOW_RUNPOD_SUFFIX_SPEED_TEST=1 CUDA_ARCH=$CUDA_ARCH_VALUE BENCHMARK_SECONDS=3 \\
+  scripts/runpod_gpu_pod_suffix_speed_test.sh
 
 ## 7. Optional profiler sweep, only after a short speed sweep is clean
 ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=$CUDA_ARCH_VALUE BENCHMARK_SECONDS=3 \\
-RUN_NSYS=1 PROFILE_GRID=64,128 PROFILE_SECONDS=5 \\
+RUN_NSYS=1 PROFILE_STEP_SIZE=4096 PROFILE_GRID=64,128 PROFILE_SECONDS=5 \\
   scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 
 ## 8. Decision

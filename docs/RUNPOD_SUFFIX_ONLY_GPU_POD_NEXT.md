@@ -66,7 +66,14 @@ This helper only prints commands. It does not call RunPod or run CUDA.
 
 ## Current Speed Sprint Path
 
-Use the speed sweep only after the vector gate is known to pass on the selected GPU image.
+Use the one-command speed test after the vector gate is known to pass on the selected GPU image. It runs the speed sweep and immediately inspects the saved result:
+
+```bash
+ALLOW_RUNPOD_SUFFIX_SPEED_TEST=1 CUDA_ARCH=sm_80 BENCHMARK_SECONDS=3 \
+  scripts/runpod_gpu_pod_suffix_speed_test.sh
+```
+
+The lower-level speed sweep remains available if you want to run the sweep without automatic inspection:
 
 ```bash
 ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=sm_80 BENCHMARK_SECONDS=3 \

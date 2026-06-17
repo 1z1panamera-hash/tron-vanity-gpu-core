@@ -12,6 +12,7 @@ test -x scripts/prepare_github_push.sh
 test -x scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
 test -x scripts/runpod_gpu_pod_sequence.sh
 test -x scripts/runpod_gpu_pod_suffix_speed_sweep.sh
+test -x scripts/runpod_gpu_pod_suffix_speed_test.sh
 test -x scripts/inspect_suffix_speed_sweep.py
 test -x scripts/inspect_runpod_sequence_result.py
 test -x scripts/print_runpod_suffix_only_commands.sh
@@ -19,6 +20,7 @@ test -x scripts/inspect_vanitysearch_benchmark.py
 bash -n scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
 bash -n scripts/runpod_gpu_pod_sequence.sh
 bash -n scripts/runpod_gpu_pod_suffix_speed_sweep.sh
+bash -n scripts/runpod_gpu_pod_suffix_speed_test.sh
 bash -n scripts/print_runpod_suffix_only_commands.sh
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_runpod_sequence_result.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_suffix_speed_sweep.py
@@ -292,6 +294,14 @@ rc=$?
 set -e
 if [ "$rc" -ne 2 ]; then
     echo "expected RunPod suffix speed sweep script to refuse without env gate rc=2, got rc=$rc" >&2
+    exit 1
+fi
+set +e
+scripts/runpod_gpu_pod_suffix_speed_test.sh >/tmp/runpod_suffix_speed_test_gate_stdout.txt 2>/tmp/runpod_suffix_speed_test_gate_stderr.txt
+rc=$?
+set -e
+if [ "$rc" -ne 2 ]; then
+    echo "expected RunPod suffix speed test script to refuse without env gate rc=2, got rc=$rc" >&2
     exit 1
 fi
 
