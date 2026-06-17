@@ -22,22 +22,24 @@ An optional smoke can also compile patched VanitySearch and run a bounded TRON w
 Tracked patch in this repository:
 
 ```text
-patches/vanitysearch_tron_gpu_checksum_gated_prefilter_20260618.patch
+patches/vanitysearch_tron_gpu_safe_smoke_20260618.patch
 ```
 
 SHA-256:
 
 ```text
-a82afae4b23b96ad432366fd616cc7cda1372c62878c913ede1851f87bf69053
+b791ee6b28f1bba9b9f9371ea345af5c4199585135ef1ee93784c6e1b73e893b
 ```
 
 Candidate branch head:
 
 ```text
-fef351d Gate TRON checksum behind prefix range
+d79918f Suppress TRON secrets in bounded GPU smoke
 ```
 
 The TRON GPU search path now parses `T<one-char>*<five-char-suffix>` into a dedicated product rule, precomputes the `T` + `prefix_after_t` Base58 value range and suffix-5 value, checks whether the 21-byte TRON payload can possibly fall in the prefix range before computing the double-SHA256 checksum, then applies exact prefix range, suffix modulo, and full Base58 confirmation. This avoids passing host string pointers into the kernel and skips checksum/modulo/Base58 work for most non-matching candidates.
+
+The optional pattern smoke sets `TRON_SUPPRESS_SECRET_OUTPUT=1` before running VanitySearch. If an accidental hit happens during the bounded smoke, WIF/HEX key material is suppressed instead of printed.
 
 ## RunPod Command
 
@@ -70,7 +72,8 @@ tron_gpu_pattern_smoke_passed
 - The script refuses to run unless `ALLOW_RUNPOD_VANITYSEARCH_GPU_CHECK=1` is set.
 - The script verifies the patch SHA-256 before applying it.
 - The script refuses to overwrite an existing work directory.
-- The optional wildcard smoke uses a long default suffix to avoid accidental hits and plaintext hit output.
+- The optional wildcard smoke uses the strict product-rule pattern and suppresses key material if an accidental hit occurs.
+- The optional wildcard smoke defaults to 5 seconds and may print a best-effort `tron_gpu_pattern_smoke_rate` line; this is only a startup signal.
 - The checksum-gated prefix range and suffix modulo prefilters are optimization gates, not proof of final production speed.
 - Do not run this on `47.80.70.211`.
 - Do not run a search benchmark from this check.

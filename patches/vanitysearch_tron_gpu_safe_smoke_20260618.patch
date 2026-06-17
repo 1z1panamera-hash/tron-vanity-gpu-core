@@ -1,7 +1,7 @@
 From 221922d62bde31625d8abd2ec9f5054db76f635a Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:37:26 +0800
-Subject: [PATCH 1/9] Add local TRON CPU address prototype
+Subject: [PATCH 01/10] Add local TRON CPU address prototype
 
 ---
  Makefile           |  7 ++--
@@ -256,7 +256,7 @@ index f404066..55c41f4 100644
 From 55470e4c21b5d213323850b6daa3c165abea41f0 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Wed, 17 Jun 2026 21:49:24 +0800
-Subject: [PATCH 2/9] Add RunPod TRON CPU vector check
+Subject: [PATCH 02/10] Add RunPod TRON CPU vector check
 
 ---
  scripts/runpod_verify_tron_cpu_vectors.sh | 47 +++++++++++++++++++++++
@@ -323,7 +323,7 @@ index 0000000..074dfab
 From 4c938377714b95d74f65296b0828e05245e5402f Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:15:10 +0800
-Subject: [PATCH 3/9] Add TRON GPU address layer vector check
+Subject: [PATCH 03/10] Add TRON GPU address layer vector check
 
 ---
  GPU/GPUTron.h                                 | 190 ++++++++++++++++++
@@ -817,7 +817,7 @@ index 0000000..a6aeff3
 From 98a05c73c7b0bdd61d105a7984b8a4a1173fa4b7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:26:41 +0800
-Subject: [PATCH 4/9] Add TRON GPU product rule vector checks
+Subject: [PATCH 04/10] Add TRON GPU product rule vector checks
 
 ---
  GPU/GPUTron.h                               | 14 +++++++++
@@ -953,7 +953,7 @@ index 797f6c9..05a64a9 100644
 From 6224f8980c57e95ec149c15c01b6f95cd9b1abb7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:35:56 +0800
-Subject: [PATCH 5/9] Add TRON GPU wildcard search path
+Subject: [PATCH 05/10] Add TRON GPU wildcard search path
 
 ---
  GPU/GPUCompute.h                              | 143 ++++++++++++++++++
@@ -1466,7 +1466,7 @@ index 0000000..c7e9640
 From 2403869713f9b64c07556beaf7aec7475e0bddf7 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 00:46:37 +0800
-Subject: [PATCH 6/9] Use dedicated TRON prefix suffix GPU rule
+Subject: [PATCH 06/10] Use dedicated TRON prefix suffix GPU rule
 
 ---
  GPU/GPUCompute.h                              | 14 ++++----
@@ -1691,7 +1691,7 @@ index c7e9640..1eadcce 100755
 From ff433253cd0ece485062f0cbc944f3e74e7d43d8 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 01:22:44 +0800
-Subject: [PATCH 7/9] Add TRON suffix modulo GPU prefilter
+Subject: [PATCH 07/10] Add TRON suffix modulo GPU prefilter
 
 ---
  GPU/GPUCompute.h          | 16 ++++++++------
@@ -1974,7 +1974,7 @@ index 64f99f8..d56bb43 100644
 From 25fcd54ad53a68dfe99fb1330bbb062f3f8c1be9 Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:15:53 +0800
-Subject: [PATCH 8/9] Add TRON prefix range GPU prefilter
+Subject: [PATCH 08/10] Add TRON prefix range GPU prefilter
 
 ---
  GPU/GPUCompute.h          |  9 +++--
@@ -2346,7 +2346,7 @@ index d56bb43..72e5f0f 100644
 From fef351d2eaddd76ec5de46d993523f23a4de934d Mon Sep 17 00:00:00 2001
 From: 1z1 <1z1@1z1deMacBook-Air.local>
 Date: Thu, 18 Jun 2026 03:27:46 +0800
-Subject: [PATCH 9/9] Gate TRON checksum behind prefix range
+Subject: [PATCH 09/10] Gate TRON checksum behind prefix range
 
 ---
  GPU/GPUCompute.h          |  8 ++++++-
@@ -2503,6 +2503,145 @@ index 72e5f0f..1d64dc8 100644
          results[i].prefix_prefilter_passed ? "true" : "false",
          results[i].wrong_prefix_prefilter_rejected ? "true" : "false",
          results[i].suffix_prefilter_passed ? "true" : "false",
+-- 
+2.50.1 (Apple Git-155)
+
+
+From d79918f448348063ccd76f4feb0cf8a72ddefef8 Mon Sep 17 00:00:00 2001
+From: 1z1 <1z1@1z1deMacBook-Air.local>
+Date: Thu, 18 Jun 2026 03:44:28 +0800
+Subject: [PATCH 10/10] Suppress TRON secrets in bounded GPU smoke
+
+---
+ Vanity.cpp                                    | 21 ++++++++++++++++---
+ docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md  |  9 +++++---
+ .../runpod_tron_gpu_pattern_search_smoke.sh   | 17 +++++++++++++--
+ 3 files changed, 39 insertions(+), 8 deletions(-)
+
+diff --git a/Vanity.cpp b/Vanity.cpp
+index b15f443..d9b9f57 100644
+--- a/Vanity.cpp
++++ b/Vanity.cpp
+@@ -27,6 +27,7 @@
+ #include <string.h>
+ #include <math.h>
+ #include <algorithm>
++#include <stdlib.h>
+ #ifndef WIN64
+ #include <pthread.h>
+ #endif
+@@ -746,9 +747,17 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
+ 
+   fprintf(f, "PubAddress: %s\n", addr.c_str());
+ 
++  bool suppressTronSecret =
++      searchType == TRON_ADDR &&
++      getenv("TRON_SUPPRESS_SECRET_OUTPUT") != NULL &&
++      strcmp(getenv("TRON_SUPPRESS_SECRET_OUTPUT"), "1") == 0;
++
+   if (startPubKeySpecified) {
+ 
+-    fprintf(f, "PartialPriv: %s\n", pAddr.c_str());
++    if (suppressTronSecret)
++      fprintf(f, "SensitiveOutput: suppressed\n");
++    else
++      fprintf(f, "PartialPriv: %s\n", pAddr.c_str());
+ 
+   } else {
+ 
+@@ -763,10 +772,16 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
+     fprintf(f, "Priv (WIF): p2wpkh:%s\n", pAddr.c_str());
+     break;
+   case TRON_ADDR:
+-    fprintf(f, "Priv (WIF): tron-staging:%s\n", pAddr.c_str());
++    if (suppressTronSecret)
++      fprintf(f, "SensitiveOutput: suppressed\n");
++    else
++      fprintf(f, "Priv (WIF): tron-staging:%s\n", pAddr.c_str());
+     break;
+   }
+-    fprintf(f, "Priv (HEX): 0x%s\n", pAddrHex.c_str());
++    if (suppressTronSecret)
++      fprintf(f, "SensitiveOutput2: suppressed\n");
++    else
++      fprintf(f, "Priv (HEX): 0x%s\n", pAddrHex.c_str());
+ 
+   }
+ 
+diff --git a/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
+index 87ae6f3..719e877 100644
+--- a/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
++++ b/docs/RUNPOD_TRON_GPU_PATTERN_SEARCH_SMOKE.md
+@@ -28,7 +28,7 @@ This is not a performance benchmark.
+ - GPU returns the 20-byte TRON payload body.
+ - CPU reconstructs the TRON Base58Check address and verifies the candidate key.
+ 
+-The current TRON GPU pattern path uses full address construction, then a dedicated fixed-position `prefix_after_t` plus suffix-5 comparison. It is intended as a functional bridge before adding faster Base58 prefix/suffix prefilters.
++The current TRON GPU pattern path uses a dedicated fixed-position `prefix_after_t` plus suffix-5 rule with prefix/suffix prefilters. It is intended as a bounded GPU startup and direction check before proper benchmark-only worker integration.
+ 
+ ## RunPod Build And Smoke
+ 
+@@ -40,7 +40,9 @@ ALLOW_RUNPOD_TRON_GPU_PATTERN_SMOKE=1 CUDA_ARCH=80 scripts/runpod_tron_gpu_patte
+ 
+ `timeout` exit code `124` is acceptable for this smoke if there is no crash before timeout.
+ 
+-The default smoke pattern is `TA*CDEFG`, which is the strict product-rule format. The smoke treats any hit output as a failure because production delivery must go through the Python/age wrapper.
++The default smoke pattern is `TA*CDEFG`, which is the strict product-rule format. The script sets `TRON_SUPPRESS_SECRET_OUTPUT=1` before running VanitySearch so an accidental hit does not print WIF/HEX private key material.
++
++The script prints a best-effort `tron_gpu_pattern_smoke_rate` line if VanitySearch reports Mkey/s before timeout. Treat that line only as a rough startup signal. It is not the final product benchmark and does not prove average/P90 generation time.
+ 
+ ## Safety
+ 
+@@ -48,8 +50,9 @@ The default smoke pattern is `TA*CDEFG`, which is the strict product-rule format
+ - Do not treat this as a speed result.
+ - Do not use customer patterns or customer data.
+ - Do not rely on plaintext output for production.
++- Keep `TRON_SUPPRESS_SECRET_OUTPUT=1` enabled for any bounded smoke.
+ - Production return must still be handled by the Python wrapper and age encryption.
+ 
+ ## Next Gate
+ 
+-After this smoke compiles and runs on RunPod, add optimized GPU prefix-after-T and suffix filters so the hot path does not Base58-encode every candidate unless needed.
++After this smoke compiles and runs on RunPod, add a dedicated benchmark-only mode that reports complete TRON address attempts per second without ever printing private key material.
+diff --git a/scripts/runpod_tron_gpu_pattern_search_smoke.sh b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
+index 1eadcce..2ec8b95 100755
+--- a/scripts/runpod_tron_gpu_pattern_search_smoke.sh
++++ b/scripts/runpod_tron_gpu_pattern_search_smoke.sh
+@@ -11,14 +11,14 @@ CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
+ CUDA_ARCH="${CUDA_ARCH:-80}"
+ CXXCUDA="${CXXCUDA:-/usr/bin/g++}"
+ SMOKE_PATTERN="${SMOKE_PATTERN:-TA*CDEFG}"
+-SMOKE_SECONDS="${SMOKE_SECONDS:-10}"
++SMOKE_SECONDS="${SMOKE_SECONDS:-5}"
+ 
+ echo "== build VanitySearch with GPU support"
+ make gpu=1 CCAP="$CUDA_ARCH" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" all
+ 
+ echo "== run bounded TRON GPU pattern smoke"
+ set +e
+-timeout "$SMOKE_SECONDS"s ./VanitySearch -gpu -t 0 -g 8,128 "$SMOKE_PATTERN" \
++TRON_SUPPRESS_SECRET_OUTPUT=1 timeout "$SMOKE_SECONDS"s ./VanitySearch -gpu -t 0 -g 8,128 "$SMOKE_PATTERN" \
+   > /tmp/tron_gpu_pattern_smoke_stdout.txt \
+   2> /tmp/tron_gpu_pattern_smoke_stderr.txt
+ rc=$?
+@@ -37,4 +37,17 @@ if grep -Eiq "Priv|WIF|HEX|private_key|mnemonic|seed|token|secret" \
+   exit 1
+ fi
+ 
++python3 - <<'PY'
++from pathlib import Path
++import re
++
++text = Path("/tmp/tron_gpu_pattern_smoke_stdout.txt").read_text(errors="ignore")
++matches = re.findall(r"\[([0-9.]+) Mkey/s\]\[GPU ([0-9.]+) Mkey/s\]", text)
++if matches:
++    total, gpu = matches[-1]
++    print(f"tron_gpu_pattern_smoke_rate total_mkey_s={total} gpu_mkey_s={gpu}")
++else:
++    print("tron_gpu_pattern_smoke_rate unavailable")
++PY
++
+ echo "tron_gpu_pattern_smoke_passed"
 -- 
 2.50.1 (Apple Git-155)
 
