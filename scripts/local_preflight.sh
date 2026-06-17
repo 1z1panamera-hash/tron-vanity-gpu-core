@@ -100,6 +100,7 @@ c++ -std=c++17 -O2 tests/verify_batch_point_add.cpp -o /tmp/verify_batch_point_a
 
 echo "== result inspectors"
 python3 scripts/public_repo_audit.py >/tmp/tron_gpu_public_repo_audit.json
+python3 scripts/validate_goal_rule.py >/tmp/tron_gpu_goal_rule.json
 python3 scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10 >/tmp/tron_gpu_capacity_check.json
 python3 scripts/inspect_runpod_result.py examples/runpod_validate_success_sample.json --mode validate_vectors >/tmp/runpod_validate_inspect.json
 python3 scripts/inspect_runpod_result.py examples/runpod_benchmark_success_sample.json --mode benchmark >/tmp/runpod_benchmark_inspect.json

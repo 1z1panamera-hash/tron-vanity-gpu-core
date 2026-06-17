@@ -4,7 +4,11 @@
   "default_rule": {
     "address_format": "TRON full Base58Check address",
     "prefix_len": 2,
-    "suffix_len": 5
+    "suffix_len": 5,
+    "fixed_leading_char": "T",
+    "effective_random_prefix_chars": 1,
+    "effective_random_suffix_chars": 5,
+    "effective_search_space": "58^6"
   },
   "modes": {
     "validate_vectors": {
