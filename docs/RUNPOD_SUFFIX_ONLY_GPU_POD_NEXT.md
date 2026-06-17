@@ -47,7 +47,7 @@ git rev-parse HEAD
 Expected current minimum commit:
 
 ```text
-64c448c91c25914df2803264c6c4a5f3f9a021e7
+58191aed8ed86fa2a1c5d0d805fab8dcd4d7b0a0
 ```
 
 If the commit is older, stop and update the Pod checkout.
