@@ -318,10 +318,10 @@ index 6d00aab..f008147 100644
  
 diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
 new file mode 100644
-index 0000000..101174f
+index 0000000..591b953
 --- /dev/null
 +++ b/GPU/GPUTron.h
-@@ -0,0 +1,400 @@
+@@ -0,0 +1,408 @@
 +/*
 + * TRON address helpers for the VanitySearch GPU adaptation prototype.
 + *
@@ -410,18 +410,26 @@ index 0000000..101174f
 +         static_cast<uint32_t>(bytes[3]);
 +}
 +
-+__device__ __forceinline__ uint64_t tron_mod58p5_append_be32(uint64_t value, uint32_t chunk) {
++__device__ __forceinline__ uint64_t tron_mod58p5_fast_u64(uint64_t value) {
 +  const uint64_t base58_power_5 = 656356768ULL;
++  const uint64_t reciprocal_2p64 = 28104751825ULL;
++  uint64_t quotient = __umul64hi(value, reciprocal_2p64);
++  uint64_t remainder = value - quotient * base58_power_5;
++  if (remainder >= base58_power_5) remainder -= base58_power_5;
++  if (remainder >= base58_power_5) remainder -= base58_power_5;
++  return remainder;
++}
++
++__device__ __forceinline__ uint64_t tron_mod58p5_append_be32(uint64_t value, uint32_t chunk) {
 +  const uint64_t base256_power_4_mod58p5 = 356826688ULL;
-+  return ((value * base256_power_4_mod58p5) + static_cast<uint64_t>(chunk)) %
-+         base58_power_5;
++  return tron_mod58p5_fast_u64(
++      (value * base256_power_4_mod58p5) + static_cast<uint64_t>(chunk));
 +}
 +
 +__device__ __forceinline__ uint64_t tron_payload21_checksum_mod_base58_power5(
 +    const uint8_t payload21[21],
 +    const uint8_t checksum4[4]) {
-+  const uint64_t base58_power_5 = 656356768ULL;
-+  uint64_t value = static_cast<uint64_t>(payload21[0]) % base58_power_5;
++  uint64_t value = static_cast<uint64_t>(payload21[0]);
 +  for (int offset = 1; offset < 21; offset += 4) {
 +    value = tron_mod58p5_append_be32(value, tron_read_be32(payload21 + offset));
 +  }
