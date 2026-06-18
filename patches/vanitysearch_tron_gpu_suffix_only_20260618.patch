@@ -1230,7 +1230,7 @@ index 70b98bd..3259299 100644
  	@rm -f obj/hash/*.o
 -
 diff --git a/SECP256K1.cpp b/SECP256K1.cpp
-index fd36f85..285fb42 100644
+index fd36f85..c294258 100644
 --- a/SECP256K1.cpp
 +++ b/SECP256K1.cpp
 @@ -18,6 +18,7 @@
@@ -1241,7 +1241,24 @@ index fd36f85..285fb42 100644
  #include "Base58.h"
  #include "Bech32.h"
  #include <string.h>
-@@ -727,6 +728,10 @@ std::string Secp256K1::GetAddress(int type, bool compressed,unsigned char *hash1
+@@ -707,6 +708,16 @@ std::vector<std::string> Secp256K1::GetAddress(int type, bool compressed, unsign
+ 
+ }
+ 
++static void tron_sha256_checksum(uint8_t *input, int length, uint8_t *checksum) {
++
++  uint8_t digest1[32];
++  uint8_t digest2[32];
++  sha256(input, length, digest1);
++  sha256(digest1, 32, digest2);
++  memcpy(checksum, digest2, 4);
++
++}
++
+ std::string Secp256K1::GetAddress(int type, bool compressed,unsigned char *hash160) {
+ 
+   unsigned char address[25];
+@@ -727,9 +738,16 @@ std::string Secp256K1::GetAddress(int type, bool compressed,unsigned char *hash1
        return std::string(output);
      }
      break;
@@ -1251,8 +1268,15 @@ index fd36f85..285fb42 100644
 +      break;
    }
    memcpy(address + 1, hash160,20);
-   sha256_checksum(address,21,address+21);
-@@ -765,6 +770,9 @@ std::string Secp256K1::GetAddress(int type, bool compressed, Point &pubKey) {
+-  sha256_checksum(address,21,address+21);
++  if (type == TRON_ADDR)
++    tron_sha256_checksum(address,21,address+21);
++  else
++    sha256_checksum(address,21,address+21);
+ 
+   // Base58
+   return EncodeBase58(address, address + 25);
+@@ -765,6 +783,9 @@ std::string Secp256K1::GetAddress(int type, bool compressed, Point &pubKey) {
      }
      address[0] = 0x05;
      break;
@@ -1262,7 +1286,7 @@ index fd36f85..285fb42 100644
    }
  
    GetHash160(type,compressed,pubKey, address + 1);
-@@ -775,6 +783,25 @@ std::string Secp256K1::GetAddress(int type, bool compressed, Point &pubKey) {
+@@ -775,6 +796,25 @@ std::string Secp256K1::GetAddress(int type, bool compressed, Point &pubKey) {
  
  }
  
@@ -1279,7 +1303,7 @@ index fd36f85..285fb42 100644
 +
 +  address[0] = 0x41;
 +  memcpy(address + 1, digest + 12, 20);
-+  sha256_checksum(address, 21, address + 21);
++  tron_sha256_checksum(address, 21, address + 21);
 +
 +  return EncodeBase58(address, address + 25);
 +
@@ -1288,6 +1312,18 @@ index fd36f85..285fb42 100644
  bool Secp256K1::CheckPudAddress(std::string address) {
  
    std::vector<unsigned char> pubKey;
+@@ -785,7 +825,10 @@ bool Secp256K1::CheckPudAddress(std::string address) {
+ 
+   // Check checksum
+   unsigned char chk[4];
+-  sha256_checksum(pubKey.data(), 21, chk);
++  if (pubKey[0] == 0x41)
++    tron_sha256_checksum(pubKey.data(), 21, chk);
++  else
++    sha256_checksum(pubKey.data(), 21, chk);
+ 
+   return  (pubKey[21] == chk[0]) &&
+           (pubKey[22] == chk[1]) &&
 diff --git a/SECP256k1.h b/SECP256k1.h
 index 8cf4881..e91bc08 100644
 --- a/SECP256k1.h
@@ -1862,7 +1898,7 @@ index 0000000..646d3a0
 +
 +#endif
 diff --git a/main.cpp b/main.cpp
-index f404066..bd89ece 100644
+index f404066..d1d927e 100644
 --- a/main.cpp
 +++ b/main.cpp
 @@ -22,6 +22,7 @@
@@ -1935,11 +1971,11 @@ index f404066..bd89ece 100644
 +  sha256(hseed, 64, (unsigned char *)privKey.bits64);
 +
 +  Int offThread(threadIndex);
-+  offThread.ShiftL(80);
++  offThread.ShiftL(112);
 +  privKey.Add(&offThread);
 +
 +  Int offGpuThread(gpuThreadId);
-+  offGpuThread.ShiftL(112);
++  offGpuThread.ShiftL(80);
 +  privKey.Add(&offGpuThread);
 +
 +  privKey.Add(incr);
