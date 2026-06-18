@@ -1,8 +1,8 @@
 diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index 6c43e94..8b1bc68 100644
+index 6c43e94..c459b36 100644
 --- a/GPU/GPUCompute.h
 +++ b/GPU/GPUCompute.h
-@@ -251,6 +251,150 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
+@@ -251,6 +251,163 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
  
  // -----------------------------------------------------------------------------------------
  
@@ -22,9 +22,22 @@ index 6c43e94..8b1bc68 100644
 +  tron_payload21_from_xy(px, py, payload21);
 +  uint8_t payload25[25];
 +  tron_payload25_from_payload21(payload21, payload25);
++  char address[48];
++  int addressLen = tron_base58_payload25(payload25, address);
++  uint64_t encodedSuffixValue = UINT64_MAX;
++  if (addressLen >= 5) {
++    encodedSuffixValue = 0;
++    for (int i = addressLen - 5; i < addressLen; ++i) {
++      int digit = tron_base58_value(address[i]);
++      if (digit < 0) {
++        encodedSuffixValue = UINT64_MAX;
++        break;
++      }
++      encodedSuffixValue = encodedSuffixValue * 58ULL + static_cast<uint64_t>(digit);
++    }
++  }
 +  bool forcedCandidate = forceFirstCandidate && tid == 0 && incr == (GRP_SIZE / 2);
-+  if (!forcedCandidate &&
-+      !tron_payload25_matches_suffix5(payload25, suffix5Value)) {
++  if (!forcedCandidate && encodedSuffixValue != suffix5Value) {
 +    return;
 +  }
 +
