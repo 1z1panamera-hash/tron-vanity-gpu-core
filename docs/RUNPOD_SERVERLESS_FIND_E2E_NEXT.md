@@ -33,6 +33,12 @@ Before creating or updating a Serverless endpoint:
 3. Run a normal GPU Pod find smoke with an easy test suffix.
 4. Confirm the worker response contains no raw key material markers.
 
+Endpoint build args and runtime environment variables are listed in:
+
+```text
+docs/RUNPOD_SERVERLESS_ENDPOINT_CONFIG.md
+```
+
 Local no-network readiness check before paying for smoke:
 
 ```bash

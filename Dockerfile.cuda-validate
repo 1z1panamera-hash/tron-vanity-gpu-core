@@ -1,6 +1,9 @@
 ARG CUDA_BASE_IMAGE=nvidia/cuda:12.8.1-devel-ubuntu22.04
 FROM ${CUDA_BASE_IMAGE}
 
+ARG CUDA_ARCH=sm_120
+ARG STEP_SIZE=4096
+
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV ALLOW_RUNTIME_NVCC=1
@@ -31,8 +34,8 @@ COPY tests/phase0_test_vectors.json /app/tests/phase0_test_vectors.json
 
 RUN mkdir -p /app/build
 RUN ALLOW_BUILD_VANITYSEARCH_TRON_WORKER=1 \
-    CUDA_ARCH="${CUDA_ARCH:-sm_120}" \
-    STEP_SIZE="${STEP_SIZE:-4096}" \
+    CUDA_ARCH="${CUDA_ARCH}" \
+    STEP_SIZE="${STEP_SIZE}" \
     INSTALL_PATH=/app/build/vanitysearch_tron_worker \
     /app/scripts/build_vanitysearch_tron_worker.sh
 

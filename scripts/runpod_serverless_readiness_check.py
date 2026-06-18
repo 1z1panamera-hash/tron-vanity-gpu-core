@@ -26,6 +26,7 @@ REQUIRED_FILES = [
     "scripts/inspect_serverless_find_e2e.py",
     "scripts/verify_age_encrypted_find_response.py",
     "RUNPOD_FIND_SAMPLE_PAYLOAD.json",
+    "docs/RUNPOD_SERVERLESS_ENDPOINT_CONFIG.md",
 ]
 
 
@@ -68,12 +69,21 @@ def main() -> int:
 
     dockerfile = read("Dockerfile")
     add("nvidia/cuda:12.8.1-devel-ubuntu22.04" in dockerfile, failures, "Dockerfile does not use the expected CUDA devel base image")
+    add("ARG CUDA_ARCH=sm_120" in dockerfile, failures, "Dockerfile does not expose CUDA_ARCH build arg")
+    add("ARG STEP_SIZE=4096" in dockerfile, failures, "Dockerfile does not expose STEP_SIZE build arg")
     add(" age " in dockerfile or "\nage \\" in dockerfile, failures, "Dockerfile does not install age")
     add("COPY patches /app/patches" in dockerfile, failures, "Dockerfile does not copy patches")
     add("COPY scripts/build_vanitysearch_tron_worker.sh" in dockerfile, failures, "Dockerfile does not copy build helper")
     add("ALLOW_BUILD_VANITYSEARCH_TRON_WORKER=1" in dockerfile, failures, "Dockerfile does not build patched VanitySearch worker")
     add("INSTALL_PATH=/app/build/vanitysearch_tron_worker" in dockerfile, failures, "Dockerfile does not install VanitySearch worker at expected path")
     add('CMD ["python3", "-u", "/app/app.py"]' in dockerfile, failures, "Dockerfile CMD is not the RunPod handler entrypoint")
+
+    endpoint_config = read("docs/RUNPOD_SERVERLESS_ENDPOINT_CONFIG.md")
+    add("ALLOW_GPU_FIND=1" in endpoint_config, failures, "endpoint config does not require ALLOW_GPU_FIND=1")
+    add("GPU_WORKER_BACKEND=vanitysearch" in endpoint_config, failures, "endpoint config does not require VanitySearch backend")
+    add("CUDA_ARCH=sm_120" in endpoint_config and "CUDA_ARCH=sm_80" in endpoint_config, failures, "endpoint config does not document CUDA arch build args")
+    add("STEP_SIZE=4096" in endpoint_config, failures, "endpoint config does not document STEP_SIZE build arg")
+    add("RUNPOD_API_KEY" in endpoint_config and "Do not set or store" in endpoint_config, failures, "endpoint config does not warn against storing API keys")
 
     build_script = read("scripts/build_vanitysearch_tron_worker.sh")
     add(EXPECTED_PATCH_SHA in build_script, failures, "build helper does not enforce expected patch sha")

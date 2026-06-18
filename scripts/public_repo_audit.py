@@ -40,6 +40,7 @@ ALLOWED_AUDIT_MARKER_PATHS = {
     "scripts/runpod_serverless_find_e2e.py",
     "scripts/runpod_serverless_readiness_check.py",
     "docs/RUNPOD_SERVERLESS_FIND_E2E_NEXT.md",
+    "docs/RUNPOD_SERVERLESS_ENDPOINT_CONFIG.md",
     "docs/RUNPOD_RESPONSE_INTAKE.md",
 }
 
@@ -63,6 +64,7 @@ REQUIRED_PATHS = [
     "docs/RUNPOD_GPU_POD_NEXT_CHECK.md",
     "docs/RUNPOD_GPU_POD_RESULT_TEMPLATE.md",
     "docs/RUNPOD_SUFFIX_ONLY_GPU_POD_NEXT.md",
+    "docs/RUNPOD_SERVERLESS_ENDPOINT_CONFIG.md",
     "docs/RUNPOD_VANITYSEARCH_GPU_ADDRESS_LAYER_CHECK.md",
     "scripts/inspect_suffix_speed_sweep.py",
     "scripts/inspect_runpod_sequence_result.py",

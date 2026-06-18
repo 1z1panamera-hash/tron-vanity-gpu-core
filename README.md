@@ -112,6 +112,7 @@ The last 5 Base58Check characters depend on checksum, so matching cannot be deci
 - `docs/RUNPOD_BENCHMARK_GATE.md`: benchmark smoke-test gate and sharding rules.
 - `docs/RUNPOD_SUFFIX_ONLY_GPU_POD_NEXT.md`: current suffix-only GPU Pod vector/smoke/benchmark sequence.
 - `docs/RUNPOD_SERVERLESS_FIND_E2E_NEXT.md`: next controlled GPU Pod find smoke plus Serverless cold/warm E2E test checklist.
+- `docs/RUNPOD_SERVERLESS_ENDPOINT_CONFIG.md`: exact Serverless build args, runtime env vars, test recipient handling, and smoke/E2E commands.
 - `docs/RUNPOD_A100_RTX5090_COMPARISON.md`: exact A100 and RTX 5090-class comparison sequence.
 - `docs/RUNPOD_FIRST_TEST_SEQUENCE.md`: RunPod-first validation and benchmark order that avoids using 47.80.70.211 as a test machine.
 - `docs/SERVER_PREFLIGHT_47.md`: mandatory lightweight read-only preflight before any future operation on 47.80.70.211.

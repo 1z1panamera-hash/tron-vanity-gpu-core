@@ -1,0 +1,145 @@
+# RunPod Serverless Endpoint Config
+
+Date: 2026-06-18 Asia/Shanghai
+
+Use this config only for controlled test deployment. Do not use customer data.
+
+## Source
+
+- GitHub repo: `https://github.com/1z1panamera-hash/tron-vanity-gpu-core`
+- Branch: `main`
+- Current readiness commit is printed by:
+
+```bash
+scripts/runpod_serverless_readiness_check.py
+```
+
+## Build
+
+- Dockerfile path: `Dockerfile`
+- Recommended first GPU target: RTX PRO 6000 Blackwell / 5090-class if available.
+- Build args for Blackwell / 5090-class:
+
+```text
+CUDA_ARCH=sm_120
+STEP_SIZE=4096
+```
+
+- Build args for A100 fallback:
+
+```text
+CUDA_ARCH=sm_80
+STEP_SIZE=4096
+```
+
+The speed evidence `1.54328B attempts/s` came from RTX PRO 6000 Blackwell with
+suffix-only last-5 matching. A100 Serverless performance must be measured
+separately and should not be assumed equal.
+
+## Runtime Environment Variables
+
+Required:
+
+```text
+ALLOW_GPU_FIND=1
+GPU_WORKER_BACKEND=vanitysearch
+```
+
+Do not set or store:
+
+```text
+RUNPOD_API_KEY
+TEST_AGE_RECIPIENT
+AGE identity / decrypt key
+customer token
+customer secret
+private key material
+```
+
+`age_recipient` must be supplied in each test request payload. The customer or
+test decrypt identity must stay outside the worker and outside `47.80.70.211`.
+
+## Test Recipient
+
+Generate a local test recipient only on the client machine that will inspect the
+test response:
+
+```bash
+age-keygen -o /tmp/tron_vanity_test_age_identity.txt
+```
+
+Use the printed `age1...` recipient in the RunPod request payload. Keep the
+identity file local and temporary. Never commit it and never copy it to
+`47.80.70.211`.
+
+## Pre-Flight Commands
+
+Run locally before creating/updating the endpoint:
+
+```bash
+scripts/runpod_serverless_readiness_check.py
+scripts/runpod_serverless_find_e2e.py \
+  --dry-run \
+  --endpoint-id "<endpoint-id>" \
+  --age-recipient "<test-age-recipient>" \
+  --suffix CDEFG \
+  --samples 11 \
+  --cold-count 1
+```
+
+Dry-run does not read the RunPod API key and does not call RunPod.
+
+## First Paid Smoke
+
+Only after the endpoint builds successfully:
+
+```bash
+ALLOW_RUNPOD_SERVERLESS_FIND_E2E=1 \
+  scripts/runpod_serverless_find_e2e.py \
+  --endpoint-id "<endpoint-id>" \
+  --age-recipient "<test-age-recipient>" \
+  --suffix CDEFG \
+  --samples 1 \
+  --cold-count 0 \
+  --allow-short-smoke \
+  --out-dir serverless_find_smoke
+```
+
+Inspect:
+
+```bash
+scripts/inspect_runpod_result.py serverless_find_smoke/find_00.json --mode find
+scripts/verify_age_encrypted_find_response.py \
+  serverless_find_smoke/find_00.json \
+  --identity /tmp/tron_vanity_test_age_identity.txt
+```
+
+## Cold/Warm E2E
+
+Run only after the smoke response passes:
+
+```bash
+export RUNPOD_ENDPOINT_ID="<endpoint-id>"
+export RUNPOD_API_KEY="<do-not-save-this-in-files>"
+export TEST_AGE_RECIPIENT="<test-age-recipient>"
+
+ALLOW_RUNPOD_SERVERLESS_FIND_E2E=1 \
+  scripts/runpod_serverless_find_e2e.py \
+  --suffix CDEFG \
+  --samples 11 \
+  --cold-count 1 \
+  --out-dir serverless_find_e2e
+
+scripts/inspect_serverless_find_e2e.py \
+  serverless_find_e2e \
+  --cold-count 1 \
+  --age-identity /tmp/tron_vanity_test_age_identity.txt
+```
+
+Pass target:
+
+- warm average <= 5 seconds
+- warm P90 <= 8 seconds
+- cold start measured separately
+- every response has age ciphertext only
+- no plaintext key material in response files
