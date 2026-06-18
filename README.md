@@ -90,6 +90,7 @@ The last 5 Base58Check characters depend on checksum, so matching cannot be deci
 - `scripts/runpod_gpu_pod_suffix_speed_test.sh`: gated one-command GPU Pod speed test that runs the sweep and immediately inspects the result.
 - `scripts/runpod_gpu_pod_suffix_compare_commits.sh`: gated normal GPU Pod helper for baseline-vs-current suffix speed comparison.
 - `scripts/build_vanitysearch_tron_worker.sh`: gated build helper used by the Serverless Dockerfile to compile the patched VanitySearch TRON worker.
+- `scripts/runpod_serverless_readiness_check.py`: local no-network readiness gate before spending credits on Serverless smoke/E2E.
 - `scripts/runpod_serverless_find_e2e.py`: gated async RunPod Serverless `/run` + `/status` E2E runner for cold/warm find timing.
 - `scripts/verify_age_encrypted_find_response.py`: local test-only verifier for age-encrypted find responses; it does not print decrypted key material.
 - `scripts/inspect_suffix_speed_sweep.py`: local inspector for speed sweep result directories, including `200M/300M` decisions and GPU utilization checks.

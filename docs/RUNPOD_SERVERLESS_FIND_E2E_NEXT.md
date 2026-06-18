@@ -33,6 +33,16 @@ Before creating or updating a Serverless endpoint:
 3. Run a normal GPU Pod find smoke with an easy test suffix.
 4. Confirm the worker response contains no raw key material markers.
 
+Local no-network readiness check before paying for smoke:
+
+```bash
+scripts/runpod_serverless_readiness_check.py
+```
+
+It checks the Dockerfile, patch SHA, suffix-only payload shape, handler gates,
+and local inspection tools. It does not call RunPod, read API keys, build
+Docker, or run a benchmark.
+
 ## Test Payload Shape
 
 Use this shape with a valid test age recipient:

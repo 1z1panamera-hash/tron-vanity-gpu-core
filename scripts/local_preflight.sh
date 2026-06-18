@@ -16,6 +16,7 @@ test -x scripts/runpod_gpu_pod_suffix_speed_test.sh
 test -x scripts/runpod_gpu_pod_suffix_compare_commits.sh
 test -x scripts/build_vanitysearch_tron_worker.sh
 test -x scripts/runpod_serverless_find_e2e.py
+test -x scripts/runpod_serverless_readiness_check.py
 test -x scripts/verify_age_encrypted_find_response.py
 test -x scripts/inspect_suffix_speed_sweep.py
 test -x scripts/inspect_runpod_sequence_result.py
@@ -30,6 +31,7 @@ bash -n scripts/runpod_gpu_pod_suffix_compare_commits.sh
 bash -n scripts/build_vanitysearch_tron_worker.sh
 bash -n scripts/print_runpod_suffix_only_commands.sh
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_serverless_find_e2e.py
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_serverless_readiness_check.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/verify_age_encrypted_find_response.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_runpod_sequence_result.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_suffix_speed_sweep.py
@@ -138,6 +140,7 @@ c++ -std=c++17 -O2 tests/verify_batch_point_add.cpp -o /tmp/verify_batch_point_a
 echo "== result inspectors"
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 tests/verify_find_response_contract.py >/tmp/tron_gpu_find_response_contract.json
 python3 scripts/public_repo_audit.py >/tmp/tron_gpu_public_repo_audit.json
+python3 scripts/runpod_serverless_readiness_check.py >/tmp/runpod_serverless_readiness_check.json
 python3 scripts/validate_goal_rule.py >/tmp/tron_gpu_goal_rule.json
 python3 scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10 >/tmp/tron_gpu_capacity_check.json
 python3 scripts/inspect_runpod_result.py examples/runpod_validate_success_sample.json --mode validate_vectors >/tmp/runpod_validate_inspect.json
