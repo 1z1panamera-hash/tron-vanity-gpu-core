@@ -26,7 +26,9 @@ def utc_ms() -> int:
     return int(time.time() * 1000)
 
 
-def require_enabled() -> None:
+def require_enabled(dry_run: bool) -> None:
+    if dry_run:
+        return
     if os.environ.get("ALLOW_RUNPOD_SERVERLESS_FIND_E2E") != "1":
         raise SystemExit(
             "refusing_to_run_without_ALLOW_RUNPOD_SERVERLESS_FIND_E2E=1\n"
@@ -166,15 +168,34 @@ def main() -> int:
     parser.add_argument("--poll-interval-seconds", type=float, default=1.0)
     parser.add_argument("--max-wait-seconds", type=float, default=180.0)
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
+    parser.add_argument("--dry-run", action="store_true", help="Validate inputs and print payload without calling RunPod")
     args = parser.parse_args()
 
-    require_enabled()
+    require_enabled(args.dry_run)
     args.endpoint_id = env_or_arg(args.endpoint_id, "RUNPOD_ENDPOINT_ID", "RunPod endpoint id")
-    api_key = env_or_arg(None, args.api_key_env, "RunPod API key")
+    api_key = "" if args.dry_run else env_or_arg(None, args.api_key_env, "RunPod API key")
     args.suffix = validate_suffix(args.suffix)
     args.age_recipient = validate_age_recipient(args.age_recipient)
     if args.samples < args.cold_count + 10:
         raise SystemExit("samples must include cold-count plus at least 10 warm samples")
+
+    if args.dry_run:
+        print(json.dumps({
+            "mode": "runpod_serverless_find_e2e_dry_run",
+            "would_call_runpod": False,
+            "endpoint_id": args.endpoint_id,
+            "api_base": args.api_base,
+            "samples": args.samples,
+            "cold_count": args.cold_count,
+            "out_dir": args.out_dir,
+            "payload": build_payload(args),
+            "notes": [
+                "Dry run does not read the RunPod API key.",
+                "Dry run does not call RunPod.",
+                "Dry run does not write response files.",
+            ],
+        }, indent=2, sort_keys=True))
+        return 0
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

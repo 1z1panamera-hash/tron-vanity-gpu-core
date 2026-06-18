@@ -108,6 +108,20 @@ scripts/inspect_runpod_result.py runpod_find_response.json --mode find
 
 After the Serverless endpoint exists and a valid test age recipient is available, the repository has a gated async runner:
 
+Dry-run first. This validates inputs and prints the payload without reading the RunPod API key, calling RunPod, or writing response files:
+
+```bash
+scripts/runpod_serverless_find_e2e.py \
+  --dry-run \
+  --endpoint-id "<endpoint-id>" \
+  --age-recipient "<test-age-recipient>" \
+  --suffix CDEFG \
+  --samples 11 \
+  --cold-count 1
+```
+
+Then run the paid E2E only after the dry-run payload is correct:
+
 ```bash
 export RUNPOD_ENDPOINT_ID="<endpoint-id>"
 export RUNPOD_API_KEY="<do-not-save-this-in-files>"

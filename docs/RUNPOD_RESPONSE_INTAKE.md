@@ -82,6 +82,16 @@ scripts/inspect_serverless_find_e2e.py serverless_find_e2e --cold-count 1
 If using the gated E2E runner, it saves the repeated find responses for you:
 
 ```bash
+scripts/runpod_serverless_find_e2e.py \
+  --dry-run \
+  --endpoint-id "$RUNPOD_ENDPOINT_ID" \
+  --age-recipient "$TEST_AGE_RECIPIENT" \
+  --suffix CDEFG \
+  --samples 11 \
+  --cold-count 1
+```
+
+```bash
 ALLOW_RUNPOD_SERVERLESS_FIND_E2E=1 \
   scripts/runpod_serverless_find_e2e.py \
   --endpoint-id "$RUNPOD_ENDPOINT_ID" \

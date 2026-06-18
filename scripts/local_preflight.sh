@@ -222,6 +222,23 @@ assert data["warm_count"] == 10
 assert data["warm_average_seconds"] <= 5.0
 assert data["warm_p90_seconds"] <= 8.0
 PY
+scripts/runpod_serverless_find_e2e.py \
+    --dry-run \
+    --endpoint-id test-endpoint \
+    --age-recipient age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq \
+    --samples 11 \
+    --cold-count 1 \
+    >/tmp/runpod_serverless_find_e2e_dry_run.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+data = json.loads(Path("/tmp/runpod_serverless_find_e2e_dry_run.json").read_text())
+assert data["mode"] == "runpod_serverless_find_e2e_dry_run"
+assert data["would_call_runpod"] is False
+assert data["payload"]["input"]["mode"] == "find"
+assert data["payload"]["input"]["suffix"] == "CDEFG"
+PY
 speed_sweep_dir="/tmp/tron_gpu_suffix_speed_sweep_inspect_sample_$$"
 mkdir -p "$speed_sweep_dir"
 cleanup_speed_sweep_dir() {
