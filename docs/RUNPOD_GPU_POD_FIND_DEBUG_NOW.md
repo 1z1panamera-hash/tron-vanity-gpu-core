@@ -6,6 +6,7 @@ Do not run this on `47.80.70.211`.
 
 Current priority:
 
+- Sample the actual GPU candidate address stream without returning key material.
 - Run a short real benchmark.
 - Derive a fixed-seed target suffix from a known candidate.
 - Run a fixed-seed must-hit GPU find.
@@ -28,6 +29,8 @@ nvidia-smi
 ALLOW_RUNPOD_FIND_DEBUG=1 \
 CUDA_ARCH=sm_120 \
 STEP_SIZE=4096 \
+SAMPLE_SECONDS=2 \
+SAMPLE_MAX=16 \
 BENCHMARK_SECONDS=3 \
 FIND_SECONDS=5 \
 scripts/runpod_gpu_pod_find_debug.sh
@@ -39,6 +42,8 @@ For A100, use:
 ALLOW_RUNPOD_FIND_DEBUG=1 \
 CUDA_ARCH=sm_80 \
 STEP_SIZE=4096 \
+SAMPLE_SECONDS=2 \
+SAMPLE_MAX=16 \
 BENCHMARK_SECONDS=3 \
 FIND_SECONDS=5 \
 scripts/runpod_gpu_pod_find_debug.sh
@@ -46,6 +51,7 @@ scripts/runpod_gpu_pod_find_debug.sh
 
 Expected result files:
 
+- `runpod_results/find_debug_<RUN_ID>/gpu_sample_summary.json`
 - `runpod_results/find_debug_<RUN_ID>/benchmark_summary.json`
 - `runpod_results/find_debug_<RUN_ID>/fixed_seed_probe.json`
 - `runpod_results/find_debug_<RUN_ID>/find_debug_summary.json`
@@ -53,6 +59,7 @@ Expected result files:
 Pass criteria:
 
 - vector gate passes;
+- GPU sample summary has `passed=true`, `sample_count > 0`, and multiple real address suffixes;
 - benchmark summary contains a positive `candidate_attempts_per_second_estimate`;
 - fixed seed find summary has `passed=true`;
 - `matched=true`;
@@ -61,7 +68,7 @@ Pass criteria:
 
 If fixed seed find fails:
 
+- first inspect `gpu_sample_summary.json` to confirm the GPU is producing valid TRON addresses;
 - inspect `find_debug_summary.json`;
 - check `debug_lines` for GPU `th_id`, `incr`, `endo`, `mode`, and reconstructed address;
 - do not continue Serverless testing until this path is fixed.
-

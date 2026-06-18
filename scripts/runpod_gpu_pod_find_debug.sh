@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_suffix_only_20260618.patch"
-EXPECTED_PATCH_SHA="c7887ffe073cb59fb63b81740b17a7611ea95a7b01545a148c35e0fc5d91731c"
+EXPECTED_PATCH_SHA="85aa5ab1eb2139fe0e3d762156b24d0ff742b56d3a7d111e0cc21f0420b261e6"
 
 if [ "${ALLOW_RUNPOD_FIND_DEBUG:-0}" != "1" ]; then
   echo "refusing_to_run_without_ALLOW_RUNPOD_FIND_DEBUG=1" >&2
@@ -40,6 +40,8 @@ BENCHMARK_GRID="${BENCHMARK_GRID:-128,128}"
 BENCHMARK_PATTERN="${BENCHMARK_PATTERN:-T*CDEFG}"
 FIND_SECONDS="${FIND_SECONDS:-5}"
 FIND_GRID="${FIND_GRID:-1,128}"
+SAMPLE_SECONDS="${SAMPLE_SECONDS:-2}"
+SAMPLE_MAX="${SAMPLE_MAX:-16}"
 FIND_DEBUG_SEED="${FIND_DEBUG_SEED:-codex-fixed-find-debug-20260618}"
 PROBE_THREAD_INDEX="${PROBE_THREAD_INDEX:-0}"
 PROBE_GPU_THREAD_ID="${PROBE_GPU_THREAD_ID:-0}"
@@ -57,7 +59,7 @@ if [ $((STEP_SIZE % 1024)) -ne 0 ]; then
   exit 1
 fi
 
-for value_name in BENCHMARK_SECONDS FIND_SECONDS PROBE_THREAD_INDEX PROBE_GPU_THREAD_ID PROBE_GROUP_SIZE PROBE_INCR; do
+for value_name in BENCHMARK_SECONDS FIND_SECONDS SAMPLE_SECONDS SAMPLE_MAX PROBE_THREAD_INDEX PROBE_GPU_THREAD_ID PROBE_GROUP_SIZE PROBE_INCR; do
   value="${!value_name}"
   case "$value" in
     ''|*[!0-9]*)
@@ -72,6 +74,14 @@ if [ "$BENCHMARK_SECONDS" -lt 1 ] || [ "$BENCHMARK_SECONDS" -gt 15 ]; then
 fi
 if [ "$FIND_SECONDS" -lt 1 ] || [ "$FIND_SECONDS" -gt 15 ]; then
   echo "FIND_SECONDS must be between 1 and 15" >&2
+  exit 1
+fi
+if [ "$SAMPLE_SECONDS" -lt 1 ] || [ "$SAMPLE_SECONDS" -gt 5 ]; then
+  echo "SAMPLE_SECONDS must be between 1 and 5" >&2
+  exit 1
+fi
+if [ "$SAMPLE_MAX" -lt 1 ] || [ "$SAMPLE_MAX" -gt 32 ]; then
+  echo "SAMPLE_MAX must be between 1 and 32" >&2
   exit 1
 fi
 if ! [[ "$BENCHMARK_PATTERN" =~ ^T\*[1-9A-HJ-NP-Za-km-z]{5}$ ]]; then
@@ -94,6 +104,8 @@ echo "benchmark_seconds=$BENCHMARK_SECONDS"
 echo "benchmark_grid=$BENCHMARK_GRID"
 echo "find_seconds=$FIND_SECONDS"
 echo "find_grid=$FIND_GRID"
+echo "sample_seconds=$SAMPLE_SECONDS"
+echo "sample_max=$SAMPLE_MAX"
 echo "result_dir=$RESULT_DIR"
 
 if command -v nvidia-smi >/dev/null 2>&1; then
@@ -126,6 +138,75 @@ echo "== build VanitySearch STEP_SIZE=$STEP_SIZE"
 make clean >/dev/null 2>&1 || true
 make gpu=1 CCAP="$CCAP" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" STEP_SIZE="$STEP_SIZE" all \
   2>&1 | tee "$RESULT_DIR/build.stdout.txt"
+
+echo "== GPU candidate sample"
+sample_stdout="$RESULT_DIR/gpu_sample.stdout.txt"
+sample_stderr="$RESULT_DIR/gpu_sample.stderr.txt"
+set +e
+env TRON_SUPPRESS_SECRET_OUTPUT=1 TRON_DEBUG_FIND_RECHECK=1 TRON_DEBUG_SAMPLE_CANDIDATES=1 TRON_DEBUG_SAMPLE_MAX="$SAMPLE_MAX" \
+  timeout "${SAMPLE_SECONDS}s" \
+  ./VanitySearch -gpu -t 0 -g "$FIND_GRID" -s "$FIND_DEBUG_SEED" "$BENCHMARK_PATTERN" \
+  >"$sample_stdout" 2>"$sample_stderr"
+sample_rc=$?
+set -e
+if [ "$sample_rc" -ne 0 ] && [ "$sample_rc" -ne 124 ]; then
+  echo "GPU sample failed rc=$sample_rc" >&2
+  tail -120 "$sample_stdout" >&2 || true
+  tail -120 "$sample_stderr" >&2 || true
+  exit 1
+fi
+
+python3 - "$sample_stdout" "$sample_stderr" "$sample_rc" "$SAMPLE_SECONDS" "$FIND_GRID" "$SAMPLE_MAX" "$RESULT_DIR/gpu_sample_summary.json" <<'PY'
+from pathlib import Path
+import json
+import re
+import sys
+
+stdout_path, stderr_path, rc, seconds, grid, sample_max, out_path = sys.argv[1:]
+stdout = Path(stdout_path).read_text(errors="ignore")
+stderr = Path(stderr_path).read_text(errors="ignore")
+sample_re = re.compile(
+    r"^tron_debug_gpu_sample th_id=(\d+) incr=(-?\d+) endo=(\d+) mode=(\d+) address=(T[1-9A-HJ-NP-Za-km-z]+) suffix5=([1-9A-HJ-NP-Za-km-z]{5})$"
+)
+samples = []
+for line in stdout.splitlines():
+    match = sample_re.match(line)
+    if not match:
+        continue
+    address = match.group(5)
+    suffix = match.group(6)
+    samples.append({
+        "th_id": int(match.group(1)),
+        "incr": int(match.group(2)),
+        "endo": int(match.group(3)),
+        "mode": int(match.group(4)),
+        "address": address,
+        "suffix5": suffix,
+        "address_suffix_ok": address.endswith(suffix),
+    })
+
+summary = {
+    "mode": "gpu_candidate_sample",
+    "passed": bool(samples) and all(item["address_suffix_ok"] for item in samples),
+    "return_code": int(rc),
+    "timeout_reached": int(rc) == 124,
+    "duration_seconds_limit": int(seconds),
+    "gpu_grid": grid,
+    "sample_max": int(sample_max),
+    "sample_count": len(samples),
+    "samples": samples[: int(sample_max)],
+    "unique_suffix_count": len({item["suffix5"] for item in samples}),
+    "stderr_tail": stderr[-1000:],
+    "notes": [
+        "Samples are GPU-generated addresses only; no private key value is printed or stored.",
+        "This proves what the GPU candidate stream is actually producing before suffix filtering is trusted.",
+    ],
+}
+Path(out_path).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+print(json.dumps(summary, sort_keys=True))
+if not summary["passed"]:
+    raise SystemExit(1)
+PY
 
 echo "== short benchmark"
 benchmark_stdout="$RESULT_DIR/benchmark.stdout.txt"
