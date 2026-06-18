@@ -2,7 +2,7 @@ diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
 index 6c43e94..c459b36 100644
 --- a/GPU/GPUCompute.h
 +++ b/GPU/GPUCompute.h
-@@ -251,6 +251,157 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
+@@ -251,6 +251,159 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
  
  // -----------------------------------------------------------------------------------------
  
@@ -146,6 +146,8 @@ index 6c43e94..c459b36 100644
 +    ModSub256(py, _2Gnx, px);
 +    _ModMult(py, _s);
 +    ModSub256(py, _2Gny);
++    Load256(sx, px);
++    Load256(sy, py);
 +
 +  }
 +
