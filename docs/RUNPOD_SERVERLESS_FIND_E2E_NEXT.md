@@ -120,7 +120,27 @@ scripts/runpod_serverless_find_e2e.py \
   --cold-count 1
 ```
 
-Then run the paid E2E only after the dry-run payload is correct:
+Then run one paid smoke request only after the dry-run payload is correct:
+
+```bash
+ALLOW_RUNPOD_SERVERLESS_FIND_E2E=1 \
+  scripts/runpod_serverless_find_e2e.py \
+  --endpoint-id "<endpoint-id>" \
+  --age-recipient "<test-age-recipient>" \
+  --suffix CDEFG \
+  --samples 1 \
+  --cold-count 0 \
+  --allow-short-smoke \
+  --out-dir serverless_find_smoke
+```
+
+Inspect the smoke response:
+
+```bash
+scripts/inspect_runpod_result.py serverless_find_smoke/find_00.json --mode find
+```
+
+Only after smoke passes, run the full paid cold/warm E2E:
 
 ```bash
 export RUNPOD_ENDPOINT_ID="<endpoint-id>"

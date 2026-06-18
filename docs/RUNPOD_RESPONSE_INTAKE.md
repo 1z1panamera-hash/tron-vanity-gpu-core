@@ -103,3 +103,21 @@ ALLOW_RUNPOD_SERVERLESS_FIND_E2E=1 \
 ```
 
 `RUNPOD_API_KEY` must be set in the environment for that command. Do not write the key into any repository file.
+
+For the first paid smoke, use one sample only and inspect it as a single find response:
+
+```bash
+ALLOW_RUNPOD_SERVERLESS_FIND_E2E=1 \
+  scripts/runpod_serverless_find_e2e.py \
+  --endpoint-id "$RUNPOD_ENDPOINT_ID" \
+  --age-recipient "$TEST_AGE_RECIPIENT" \
+  --suffix CDEFG \
+  --samples 1 \
+  --cold-count 0 \
+  --allow-short-smoke \
+  --out-dir serverless_find_smoke
+
+scripts/inspect_runpod_result.py serverless_find_smoke/find_00.json --mode find
+```
+
+Short smoke is not P90 evidence. It only proves the endpoint, CUDA worker, JSON hit path, and age envelope return are wired.

@@ -238,6 +238,26 @@ assert data["mode"] == "runpod_serverless_find_e2e_dry_run"
 assert data["would_call_runpod"] is False
 assert data["payload"]["input"]["mode"] == "find"
 assert data["payload"]["input"]["suffix"] == "CDEFG"
+assert data["allow_short_smoke"] is False
+PY
+scripts/runpod_serverless_find_e2e.py \
+    --dry-run \
+    --allow-short-smoke \
+    --endpoint-id test-endpoint \
+    --age-recipient age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq \
+    --samples 1 \
+    --cold-count 0 \
+    >/tmp/runpod_serverless_find_smoke_dry_run.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+data = json.loads(Path("/tmp/runpod_serverless_find_smoke_dry_run.json").read_text())
+assert data["mode"] == "runpod_serverless_find_e2e_dry_run"
+assert data["would_call_runpod"] is False
+assert data["samples"] == 1
+assert data["cold_count"] == 0
+assert data["allow_short_smoke"] is True
 PY
 speed_sweep_dir="/tmp/tron_gpu_suffix_speed_sweep_inspect_sample_$$"
 mkdir -p "$speed_sweep_dir"

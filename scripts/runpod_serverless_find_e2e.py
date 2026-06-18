@@ -169,6 +169,7 @@ def main() -> int:
     parser.add_argument("--max-wait-seconds", type=float, default=180.0)
     parser.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
     parser.add_argument("--dry-run", action="store_true", help="Validate inputs and print payload without calling RunPod")
+    parser.add_argument("--allow-short-smoke", action="store_true", help="Allow fewer than 10 warm samples for a first smoke test")
     args = parser.parse_args()
 
     require_enabled(args.dry_run)
@@ -176,7 +177,11 @@ def main() -> int:
     api_key = "" if args.dry_run else env_or_arg(None, args.api_key_env, "RunPod API key")
     args.suffix = validate_suffix(args.suffix)
     args.age_recipient = validate_age_recipient(args.age_recipient)
-    if args.samples < args.cold_count + 10:
+    if args.samples < 1:
+        raise SystemExit("samples must be at least 1")
+    if args.cold_count < 0 or args.cold_count > args.samples:
+        raise SystemExit("cold-count must be between 0 and samples")
+    if args.samples < args.cold_count + 10 and not args.allow_short_smoke:
         raise SystemExit("samples must include cold-count plus at least 10 warm samples")
 
     if args.dry_run:
@@ -187,12 +192,14 @@ def main() -> int:
             "api_base": args.api_base,
             "samples": args.samples,
             "cold_count": args.cold_count,
+            "allow_short_smoke": args.allow_short_smoke,
             "out_dir": args.out_dir,
             "payload": build_payload(args),
             "notes": [
                 "Dry run does not read the RunPod API key.",
                 "Dry run does not call RunPod.",
                 "Dry run does not write response files.",
+                "Short smoke mode is not final P90 evidence.",
             ],
         }, indent=2, sort_keys=True))
         return 0
@@ -205,12 +212,14 @@ def main() -> int:
         "suffix": args.suffix,
         "samples": args.samples,
         "cold_count": args.cold_count,
+        "allow_short_smoke": args.allow_short_smoke,
         "duration_seconds": args.duration_seconds,
         "gpu_grid": args.gpu_grid,
         "notes": [
             "API key is read only from the selected environment variable and is not written to disk.",
             "Use only test age recipients and no customer data.",
             "Inspect outputs with scripts/inspect_serverless_find_e2e.py.",
+            "Short smoke mode is not final P90 evidence.",
         ],
     }
     write_json(out_dir / "manifest.json", manifest)
@@ -228,10 +237,15 @@ def main() -> int:
         }, sort_keys=True))
         sys.stdout.flush()
 
+    inspect_command = (
+        f"scripts/inspect_serverless_find_e2e.py {out_dir} --cold-count {args.cold_count}"
+        if args.samples >= args.cold_count + 10
+        else f"scripts/inspect_runpod_result.py {out_dir / 'find_00.json'} --mode find"
+    )
     print(json.dumps({
         "mode": "runpod_serverless_find_e2e_complete",
         "out_dir": str(out_dir),
-        "inspect_command": f"scripts/inspect_serverless_find_e2e.py {out_dir} --cold-count {args.cold_count}",
+        "inspect_command": inspect_command,
     }, sort_keys=True))
     return 0
 
