@@ -268,6 +268,20 @@ rm -f "$force_stdout_raw"
 printf '%s\n' "raw force-first stdout erased after sanitized summary" \
   >"$RESULT_DIR/force_first_raw_stdout_erased.txt"
 
+suffix="$(python3 - "$RESULT_DIR/force_first_summary.json" <<'PY'
+from pathlib import Path
+import json
+import sys
+
+data = json.loads(Path(sys.argv[1]).read_text())
+address = data.get("matched_address")
+if not isinstance(address, str) or len(address) < 5:
+    raise SystemExit("force-first summary missing matched_address")
+print(address[-5:])
+PY
+)"
+echo "force_first_candidate_suffix=$suffix"
+
 echo "== fixed seed must-hit GPU find"
 find_stdout_raw="$RESULT_DIR/find_raw.stdout.txt"
 find_stderr_raw="$RESULT_DIR/find_raw.stderr.txt"
