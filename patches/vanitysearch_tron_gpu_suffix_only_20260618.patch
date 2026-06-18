@@ -1,8 +1,8 @@
 diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index 6c43e94..cb1ab7a 100644
+index 6c43e94..3572ba9 100644
 --- a/GPU/GPUCompute.h
 +++ b/GPU/GPUCompute.h
-@@ -251,6 +251,146 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
+@@ -251,6 +251,149 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
  
  // -----------------------------------------------------------------------------------------
  
@@ -12,6 +12,7 @@ index 6c43e94..cb1ab7a 100644
 +    int32_t incr,
 +    int32_t endo,
 +    uint64_t suffix5Value,
++    bool forceFirstCandidate,
 +    uint32_t maxFound,
 +    uint32_t *out) {
 +
@@ -20,7 +21,9 @@ index 6c43e94..cb1ab7a 100644
 +
 +  tron_payload21_from_xy(px, py, payload21);
 +  uint32_t checksum4_be32 = tron_checksum4_be32(payload21);
-+  if (!tron_payload21_checksum_word_matches_suffix5(payload21, checksum4_be32, suffix5Value)) {
++  bool forcedCandidate = forceFirstCandidate && tid == 0 && incr == (GRP_SIZE / 2);
++  if (!forcedCandidate &&
++      !tron_payload21_checksum_word_matches_suffix5(payload21, checksum4_be32, suffix5Value)) {
 +    return;
 +  }
 +
@@ -33,10 +36,10 @@ index 6c43e94..cb1ab7a 100644
 +  }
 +}
 +
-+#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, suffix5Value, maxFound, out)
++#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, suffix5Value, forceFirstCandidate, maxFound, out)
 +
 +__device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, uint64_t suffix5Value,
-+                                       uint32_t maxFound, uint32_t *out) {
++                                       bool forceFirstCandidate, uint32_t maxFound, uint32_t *out) {
 +
 +  uint64_t dx[GRP_SIZE/2+1][4];
 +  uint64_t px[4];
@@ -150,10 +153,19 @@ index 6c43e94..cb1ab7a 100644
                              prefix_t *sPrefix, uint32_t *lookup32, uint32_t maxFound, uint32_t *out) {
  
 diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
-index ccb113c..735e401 100644
+index ccb113c..5746ac7 100644
 --- a/GPU/GPUEngine.cu
 +++ b/GPU/GPUEngine.cu
-@@ -33,11 +33,33 @@
+@@ -25,6 +25,8 @@
+ #include <cuda_runtime.h>
+ 
+ #include <stdint.h>
++#include <stdlib.h>
++#include <string.h>
+ #include "../hash/sha256.h"
+ #include "../hash/ripemd160.h"
+ #include "../Timer.h"
+@@ -33,11 +35,33 @@
  #include "GPUMath.h"
  #include "GPUHash.h"
  #include "GPUBase58.h"
@@ -187,23 +199,23 @@ index ccb113c..735e401 100644
  __global__ void comp_keys(uint32_t mode,prefix_t *prefix, uint32_t *lookup32, uint64_t *keys, uint32_t maxFound, uint32_t *found) {
  
    int xPtr = (blockIdx.x*blockDim.x) * 8;
-@@ -78,6 +100,15 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
+@@ -78,6 +102,15 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
  
  }
  
-+__global__ void comp_keys_tron_pattern(uint64_t suffix5Value, uint64_t *keys, uint32_t maxFound,
-+                                       uint32_t *found) {
++__global__ void comp_keys_tron_pattern(uint64_t suffix5Value, bool forceFirstCandidate,
++                                       uint64_t *keys, uint32_t maxFound, uint32_t *found) {
 +
 +  int xPtr = (blockIdx.x*blockDim.x) * 8;
 +  int yPtr = xPtr + 4 * blockDim.x;
-+  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, suffix5Value, maxFound, found);
++  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, suffix5Value, forceFirstCandidate, maxFound, found);
 +
 +}
 +
  //#define FULLCHECK
  #ifdef FULLCHECK
  
-@@ -284,6 +315,10 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
+@@ -284,6 +317,10 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
    initialised = true;
    pattern = "";
    hasPattern = false;
@@ -214,7 +226,7 @@ index ccb113c..735e401 100644
    inputPrefixLookUp = NULL;
  
  }
-@@ -404,6 +439,32 @@ void GPUEngine::SetPattern(const char *pattern) {
+@@ -404,6 +441,32 @@ void GPUEngine::SetPattern(const char *pattern) {
  
  }
  
@@ -247,7 +259,7 @@ index ccb113c..735e401 100644
  void GPUEngine::SetPrefix(std::vector<LPREFIX> prefixes, uint32_t totalPrefix) {
  
    // Allocate memory for the second level of lookup tables
-@@ -459,7 +520,16 @@ bool GPUEngine::callKernel() {
+@@ -459,7 +522,19 @@ bool GPUEngine::callKernel() {
    cudaMemset(outputPrefix,0,4);
  
    // Call the kernel (Perform STEP_SIZE keys per thread)
@@ -258,14 +270,17 @@ index ccb113c..735e401 100644
 +      printf("GPUEngine: TRON currently requires suffix-only wildcard pattern mode, for example T*CDEFG\n");
 +      return false;
 +    }
++    bool forceFirstCandidate =
++      getenv("TRON_DEBUG_FORCE_FIRST_CANDIDATE") != NULL &&
++      strcmp(getenv("TRON_DEBUG_FORCE_FIRST_CANDIDATE"), "1") == 0;
 +    comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
-+      (tronSuffixValue, inputKey, maxFound, outputPrefix);
++      (tronSuffixValue, forceFirstCandidate, inputKey, maxFound, outputPrefix);
 +
 +  } else if (searchType == P2SH) {
  
      if (hasPattern) {
        comp_keys_p2sh_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
-@@ -840,5 +910,3 @@ bool GPUEngine::Check(Secp256K1 *secp) {
+@@ -840,5 +915,3 @@ bool GPUEngine::Check(Secp256K1 *secp) {
    return ok;
  
  }

@@ -692,6 +692,7 @@ def run_vanitysearch_fixed_seed_find_debug(
     suffix: str,
     duration_seconds: int,
     gpu_grid: str,
+    force_first_candidate: bool = False,
 ) -> Dict[str, Any]:
     if not VANITYSEARCH_BINARY_PATH.exists():
         return {
@@ -708,6 +709,8 @@ def run_vanitysearch_fixed_seed_find_debug(
     env["TRON_JSON_HIT_OUTPUT"] = "1"
     env["TRON_SUPPRESS_SECRET_OUTPUT"] = "1"
     env["TRON_DEBUG_FIND_RECHECK"] = "1"
+    if force_first_candidate:
+        env["TRON_DEBUG_FORCE_FIRST_CANDIDATE"] = "1"
     timeout_bin = shutil.which("timeout")
     command = [
         str(VANITYSEARCH_BINARY_PATH),
@@ -1190,6 +1193,7 @@ def handle_find_debug(payload: Dict[str, Any]) -> Dict[str, Any]:
     duration_seconds = int(payload.get("duration_seconds", 5))
     duration_seconds = max(1, min(duration_seconds, 15))
     gpu_grid = str(payload.get("gpu_grid", "1,128"))
+    force_first_candidate = bool(payload.get("force_first_candidate", False))
 
     started = time.perf_counter()
     probe = run_vanitysearch_gpu_candidate_probe(
@@ -1215,6 +1219,7 @@ def handle_find_debug(payload: Dict[str, Any]) -> Dict[str, Any]:
         suffix=str(probe["suffix5"]),
         duration_seconds=duration_seconds,
         gpu_grid=gpu_grid,
+        force_first_candidate=force_first_candidate,
     )
     elapsed = time.perf_counter() - started
     passed = bool(
@@ -1237,6 +1242,7 @@ def handle_find_debug(payload: Dict[str, Any]) -> Dict[str, Any]:
         "find_debug": find_debug,
         "elapsed_seconds": elapsed,
         "gpu_grid": gpu_grid,
+        "force_first_candidate": force_first_candidate,
         "notes": [
             "Test-only fixed seed diagnostic; do not use as production flow.",
             "No internal key value is returned by this debug response.",
