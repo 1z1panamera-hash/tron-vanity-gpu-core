@@ -541,11 +541,16 @@ def parse_vanitysearch_find_stdout(stdout: str, suffix: str) -> Dict[str, Any]:
             raise ValueError("patched VanitySearch returned an invalid matched_address")
         if not isinstance(private_key_hex, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", private_key_hex):
             raise ValueError("patched VanitySearch returned an invalid internal key value")
-        return {
+        parsed = {
             "matched": True,
             "matched_address": matched_address,
             "private_key_hex": private_key_hex.lower(),
         }
+        for key in ("hit_attempt_index", "search_seconds", "attempts_per_second"):
+            value = candidate.get(key)
+            if isinstance(value, (int, float)) and value >= 0:
+                parsed[key] = value
+        return parsed
     return {"matched": False}
 
 
@@ -580,6 +585,46 @@ def summarize_vanitysearch_find_stdout(stdout: str, suffix: str) -> Dict[str, An
         "malformed_hit_count": malformed_hit_count,
         "speed_summary": parse_vanitysearch_speed(stdout),
     }
+
+
+def vanitysearch_find_observability(
+    gpu_result: Dict[str, Any],
+    safe_diagnostics: Dict[str, Any],
+    timings: Dict[str, Any],
+) -> Dict[str, Any]:
+    speed_summary = safe_diagnostics.get("speed_summary") if isinstance(safe_diagnostics, dict) else {}
+    if not isinstance(speed_summary, dict):
+        speed_summary = {}
+    subprocess_seconds = timings.get("binary_subprocess_seconds")
+    if not isinstance(subprocess_seconds, (int, float)) or subprocess_seconds < 0:
+        subprocess_seconds = timings.get("find_internal_seconds")
+    if not isinstance(subprocess_seconds, (int, float)) or subprocess_seconds < 0:
+        subprocess_seconds = None
+
+    result: Dict[str, Any] = {
+        "json_hit_count": safe_diagnostics.get("json_hit_count") if isinstance(safe_diagnostics, dict) else None,
+        "suffix_hit_count": safe_diagnostics.get("suffix_hit_count") if isinstance(safe_diagnostics, dict) else None,
+        "has_speed_sample": bool(speed_summary.get("passed")),
+        "binary_subprocess_seconds": subprocess_seconds,
+    }
+    if isinstance(gpu_result.get("hit_attempt_index"), (int, float)):
+        result["hit_attempt_index"] = gpu_result.get("hit_attempt_index")
+        result["hit_attempt_source"] = "worker_reported"
+    if isinstance(gpu_result.get("search_seconds"), (int, float)):
+        result["search_seconds"] = gpu_result.get("search_seconds")
+    if isinstance(gpu_result.get("attempts_per_second"), (int, float)):
+        result["attempts_per_second"] = gpu_result.get("attempts_per_second")
+
+    speed = speed_summary.get("candidate_attempts_per_second_estimate")
+    if isinstance(speed, (int, float)) and speed > 0:
+        result["candidate_attempts_per_second_estimate"] = speed
+        if subprocess_seconds is not None:
+            result["estimated_attempts_before_result"] = int(speed * subprocess_seconds)
+            result["estimated_attempt_source"] = "last_vanitysearch_speed_sample_times_subprocess_seconds"
+    else:
+        result["estimated_attempt_source"] = "no_vanitysearch_speed_sample"
+
+    return {key: value for key, value in result.items() if value is not None}
 
 
 def run_vanitysearch_find_internal(
@@ -1189,6 +1234,9 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
         elapsed = time.perf_counter() - started
         binary_timings = binary_status.get("timings", {}) if isinstance(binary_status.get("timings"), dict) else {}
         gpu_result = binary_status.get("parsed", {})
+        safe_diagnostics = binary_status.get("safe_diagnostics", {})
+        if not isinstance(safe_diagnostics, dict):
+            safe_diagnostics = {}
         base_timings = {
             "gpu_grid_select_seconds": rounded_seconds(grid_seconds),
             "binary_subprocess_seconds": binary_timings.get("binary_subprocess_seconds"),
@@ -1197,6 +1245,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
             "age_encrypt_seconds": 0.0,
             "find_total_seconds": None,
         }
+        search_observability = vanitysearch_find_observability(gpu_result, safe_diagnostics, base_timings)
 
         if not binary_status.get("ready") or binary_status.get("error"):
             base_timings["find_total_seconds"] = rounded_seconds(elapsed_since(find_total_started))
@@ -1209,6 +1258,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "match_rule": match_rule,
                 "elapsed_seconds": elapsed,
                 "timings": base_timings,
+                "search_observability": search_observability,
                 "gpu_binary": {
                     "ready": binary_status.get("ready"),
                     "returncode": binary_status.get("returncode"),
@@ -1239,7 +1289,8 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
                     "binary": binary_status.get("binary"),
                     "test_force_first_candidate": test_force_first_candidate,
                 },
-                "safe_diagnostics": binary_status.get("safe_diagnostics", {}),
+                "safe_diagnostics": safe_diagnostics,
+                "search_observability": search_observability,
                 "notes": [
                     "No match found within this bounded RunPod invocation.",
                     "No sensitive material is returned.",
@@ -1250,6 +1301,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
         encrypted_private_key = encrypt_private_key_with_age(gpu_result.get("private_key_hex"), age_recipient)
         base_timings["age_encrypt_seconds"] = rounded_seconds(elapsed_since(age_started))
         base_timings["find_total_seconds"] = rounded_seconds(elapsed_since(find_total_started))
+        search_observability = vanitysearch_find_observability(gpu_result, safe_diagnostics, base_timings)
         return {
             "mode": "find",
             "allowed": True,
@@ -1261,6 +1313,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
             "match_rule": match_rule,
             "elapsed_seconds": elapsed,
             "timings": base_timings,
+            "search_observability": search_observability,
             "gpu_grid": gpu_grid,
             "test_force_first_candidate": test_force_first_candidate,
             "notes": [

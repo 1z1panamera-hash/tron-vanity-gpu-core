@@ -117,6 +117,22 @@ sample_timing = {
     "find_total_seconds": 1.03,
 }
 assert "private_key" not in str(sample_timing).lower()
+observability = app.vanitysearch_find_observability(
+    {"matched": True, "hit_attempt_index": 123},
+    {
+        "json_hit_count": 1,
+        "suffix_hit_count": 1,
+        "speed_summary": {
+            "passed": True,
+            "candidate_attempts_per_second_estimate": 1000.0,
+        },
+    },
+    {"binary_subprocess_seconds": 2.5},
+)
+assert observability["hit_attempt_index"] == 123
+assert observability["estimated_attempts_before_result"] == 2500
+assert observability["estimated_attempt_source"] == "last_vanitysearch_speed_sample_times_subprocess_seconds"
+assert "private_key" not in str(observability).lower()
 print("wrapper_gate_ok")
 PY
 
