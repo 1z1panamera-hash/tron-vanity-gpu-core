@@ -78,3 +78,18 @@ Inspect find evidence with:
 scripts/inspect_runpod_result.py runpod_find_response.json --mode find
 scripts/inspect_serverless_find_e2e.py serverless_find_e2e --cold-count 1
 ```
+
+If using the gated E2E runner, it saves the repeated find responses for you:
+
+```bash
+ALLOW_RUNPOD_SERVERLESS_FIND_E2E=1 \
+  scripts/runpod_serverless_find_e2e.py \
+  --endpoint-id "$RUNPOD_ENDPOINT_ID" \
+  --suffix CDEFG \
+  --age-recipient "$TEST_AGE_RECIPIENT" \
+  --samples 11 \
+  --cold-count 1 \
+  --out-dir serverless_find_e2e
+```
+
+`RUNPOD_API_KEY` must be set in the environment for that command. Do not write the key into any repository file.

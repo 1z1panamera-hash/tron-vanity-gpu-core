@@ -104,6 +104,25 @@ Inspect it locally:
 scripts/inspect_runpod_result.py runpod_find_response.json --mode find
 ```
 
+## Optional Runner
+
+After the Serverless endpoint exists and a valid test age recipient is available, the repository has a gated async runner:
+
+```bash
+export RUNPOD_ENDPOINT_ID="<endpoint-id>"
+export RUNPOD_API_KEY="<do-not-save-this-in-files>"
+export TEST_AGE_RECIPIENT="<test-age-recipient>"
+
+ALLOW_RUNPOD_SERVERLESS_FIND_E2E=1 \
+  scripts/runpod_serverless_find_e2e.py \
+  --suffix CDEFG \
+  --samples 11 \
+  --cold-count 1 \
+  --out-dir serverless_find_e2e
+```
+
+The runner uses RunPod async `/run` and polls `/status/<job_id>`. It does not use `/runsync`. It writes response JSON files under `serverless_find_e2e/`, which is ignored by git. The API key is read only from the environment and is not written to disk.
+
 For repeated Serverless timing, save one cold response and at least ten warm responses:
 
 ```text

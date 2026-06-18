@@ -37,6 +37,9 @@ ALLOWED_PRIVATE_KEY_PATHS = {
 
 ALLOWED_AUDIT_MARKER_PATHS = {
     "scripts/public_repo_audit.py",
+    "scripts/runpod_serverless_find_e2e.py",
+    "docs/RUNPOD_SERVERLESS_FIND_E2E_NEXT.md",
+    "docs/RUNPOD_RESPONSE_INTAKE.md",
 }
 
 REQUIRED_PATHS = [
@@ -70,6 +73,7 @@ REQUIRED_PATHS = [
     "scripts/runpod_gpu_pod_suffix_speed_test.sh",
     "scripts/runpod_gpu_pod_suffix_compare_commits.sh",
     "scripts/runpod_gpu_pod_sequence.sh",
+    "scripts/runpod_serverless_find_e2e.py",
     "scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh",
     "tests/verify_find_response_contract.py",
 ]

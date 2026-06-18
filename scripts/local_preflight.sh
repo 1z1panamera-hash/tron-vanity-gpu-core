@@ -15,6 +15,7 @@ test -x scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 test -x scripts/runpod_gpu_pod_suffix_speed_test.sh
 test -x scripts/runpod_gpu_pod_suffix_compare_commits.sh
 test -x scripts/build_vanitysearch_tron_worker.sh
+test -x scripts/runpod_serverless_find_e2e.py
 test -x scripts/inspect_suffix_speed_sweep.py
 test -x scripts/inspect_runpod_sequence_result.py
 test -x scripts/inspect_serverless_find_e2e.py
@@ -27,6 +28,7 @@ bash -n scripts/runpod_gpu_pod_suffix_speed_test.sh
 bash -n scripts/runpod_gpu_pod_suffix_compare_commits.sh
 bash -n scripts/build_vanitysearch_tron_worker.sh
 bash -n scripts/print_runpod_suffix_only_commands.sh
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_serverless_find_e2e.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_runpod_sequence_result.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_suffix_speed_sweep.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_serverless_find_e2e.py
@@ -407,6 +409,14 @@ rc=$?
 set -e
 if [ "$rc" -ne 2 ]; then
     echo "expected VanitySearch build script to refuse without env gate rc=2, got rc=$rc" >&2
+    exit 1
+fi
+set +e
+scripts/runpod_serverless_find_e2e.py >/tmp/runpod_serverless_find_e2e_gate_stdout.txt 2>/tmp/runpod_serverless_find_e2e_gate_stderr.txt
+rc=$?
+set -e
+if [ "$rc" -ne 1 ]; then
+    echo "expected Serverless find E2E runner to refuse without env gate rc=1, got rc=$rc" >&2
     exit 1
 fi
 
