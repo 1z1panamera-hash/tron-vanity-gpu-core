@@ -1,5 +1,5 @@
 diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
-index 6c43e94..c459b36 100644
+index 6c43e94..6a33926 100644
 --- a/GPU/GPUCompute.h
 +++ b/GPU/GPUCompute.h
 @@ -251,6 +251,159 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
@@ -163,7 +163,7 @@ index 6c43e94..c459b36 100644
                              prefix_t *sPrefix, uint32_t *lookup32, uint32_t maxFound, uint32_t *out) {
  
 diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
-index ccb113c..5746ac7 100644
+index ccb113c..96b05ff 100644
 --- a/GPU/GPUEngine.cu
 +++ b/GPU/GPUEngine.cu
 @@ -25,6 +25,8 @@
@@ -227,7 +227,7 @@ index ccb113c..5746ac7 100644
  //#define FULLCHECK
  #ifdef FULLCHECK
  
-@@ -284,6 +317,10 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
+@@ -284,6 +319,10 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
    initialised = true;
    pattern = "";
    hasPattern = false;
@@ -238,7 +238,7 @@ index ccb113c..5746ac7 100644
    inputPrefixLookUp = NULL;
  
  }
-@@ -404,6 +441,32 @@ void GPUEngine::SetPattern(const char *pattern) {
+@@ -404,6 +443,32 @@ void GPUEngine::SetPattern(const char *pattern) {
  
  }
  
@@ -271,7 +271,7 @@ index ccb113c..5746ac7 100644
  void GPUEngine::SetPrefix(std::vector<LPREFIX> prefixes, uint32_t totalPrefix) {
  
    // Allocate memory for the second level of lookup tables
-@@ -459,7 +522,22 @@ bool GPUEngine::callKernel() {
+@@ -459,7 +524,22 @@ bool GPUEngine::callKernel() {
    cudaMemset(outputPrefix,0,4);
  
    // Call the kernel (Perform STEP_SIZE keys per thread)
@@ -295,7 +295,7 @@ index ccb113c..5746ac7 100644
  
      if (hasPattern) {
        comp_keys_p2sh_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
-@@ -840,5 +915,3 @@ bool GPUEngine::Check(Secp256K1 *secp) {
+@@ -840,5 +920,3 @@ bool GPUEngine::Check(Secp256K1 *secp) {
    return ok;
  
  }
@@ -1346,7 +1346,7 @@ index 8cf4881..e91bc08 100644
    std::string GetPublicKeyHex(bool compressed, Point &p);
    Point ParsePublicKeyHex(std::string str, bool &isCompressed);
 diff --git a/Vanity.cpp b/Vanity.cpp
-index e7ad0d7..b0e9337 100644
+index e7ad0d7..25da135 100644
 --- a/Vanity.cpp
 +++ b/Vanity.cpp
 @@ -27,6 +27,7 @@
@@ -1474,7 +1474,16 @@ index e7ad0d7..b0e9337 100644
    } else {
  
      // P2PKH/P2SH
-@@ -687,14 +752,44 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
+@@ -666,7 +731,7 @@ string VanitySearch::GetExpectedTime(double keyRate,double keyCount) {
+ 
+ // ----------------------------------------------------------------------------
+ 
+-void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
++void VanitySearch::output(string addr,string pAddr,string pAddrHex,string pubKeyHex) {
+ 
+ #ifdef WIN64
+    WaitForSingleObject(ghMutex,INFINITE);
+@@ -687,14 +752,45 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
      }
    }
  
@@ -1485,8 +1494,9 @@ index e7ad0d7..b0e9337 100644
 +
 +  if (tronJsonHitOutput) {
 +    fprintf(f,
-+            "{\"mode\":\"tron_find\",\"matched\":true,\"matched_address\":\"%s\",\"private_key_hex\":\"%s\"}\n",
++            "{\"mode\":\"tron_find\",\"matched\":true,\"matched_address\":\"%s\",\"public_key_uncompressed_hex\":\"%s\",\"private_key_hex\":\"%s\"}\n",
 +            addr.c_str(),
++            pubKeyHex.c_str(),
 +            pAddrHex.c_str());
 +
 +    if(needToClose)
@@ -1520,7 +1530,7 @@ index e7ad0d7..b0e9337 100644
  
    } else {
  
-@@ -705,11 +800,20 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
+@@ -705,11 +801,20 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
      case P2SH:
        fprintf(f, "Priv (WIF): p2wpkh-p2sh:%s\n", pAddr.c_str());
        break;
@@ -1546,7 +1556,16 @@ index e7ad0d7..b0e9337 100644
  
    }
  
-@@ -1468,7 +1572,7 @@ void VanitySearch::FindKeyCPU(TH_PARAM *ph) {
+@@ -821,7 +926,7 @@ bool VanitySearch::checkPrivKey(string addr, Int &key, int32_t incr, int endomor
+ 
+   }
+ 
+-  output(addr, secp->GetPrivAddress(mode ,k), k.GetBase16());
++  output(addr, secp->GetPrivAddress(mode ,k), k.GetBase16(), secp->GetPublicKeyHex(false, p));
+ 
+   return true;
+ 
+@@ -1468,7 +1573,7 @@ void VanitySearch::FindKeyCPU(TH_PARAM *ph) {
      }
  
      key.Add((uint64_t)CPU_GRP_SIZE);
@@ -1555,7 +1574,7 @@ index e7ad0d7..b0e9337 100644
  
    }
  
-@@ -1528,7 +1632,9 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
+@@ -1528,7 +1633,9 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
      g.SetPrefix(usedPrefixL,nbPrefix);
    } else {
      if(hasPattern)
@@ -1566,7 +1585,7 @@ index e7ad0d7..b0e9337 100644
      else
        g.SetPrefix(usedPrefix);
    }
-@@ -1550,11 +1656,62 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
+@@ -1550,11 +1657,62 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
  
      // Call kernel
      ok = g.Launch(found);
@@ -1630,7 +1649,7 @@ index e7ad0d7..b0e9337 100644
  
      }
  
-@@ -1562,7 +1694,8 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
+@@ -1562,7 +1720,8 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
        for (int i = 0; i < nbThread; i++) {
          keys[i].Add((uint64_t)STEP_SIZE);
        }
@@ -1640,6 +1659,19 @@ index e7ad0d7..b0e9337 100644
      }
  
    }
+diff --git a/Vanity.h b/Vanity.h
+index b7e6e07..2976eff 100644
+--- a/Vanity.h
++++ b/Vanity.h
+@@ -89,7 +89,7 @@ private:
+                     Int &key, int endomorphism, bool mode);
+   void checkAddresses(bool compressed, Int key, int i, Point p1);
+   void checkAddressesSSE(bool compressed, Int key, int i, Point p1, Point p2, Point p3, Point p4);
+-  void output(std::string addr, std::string pAddr, std::string pAddrHex);
++  void output(std::string addr, std::string pAddr, std::string pAddrHex, std::string pubKeyHex);
+   bool isAlive(TH_PARAM *p);
+   bool isSingularPrefix(std::string pref);
+   bool hasStarted(TH_PARAM *p);
 diff --git a/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md b/docs/RUNPOD_TRON_GPU_ADDRESS_LAYER_CHECK.md
 new file mode 100644
 index 0000000..5906f06

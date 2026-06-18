@@ -530,6 +530,7 @@ def parse_vanitysearch_find_stdout(stdout: str, suffix: str) -> Dict[str, Any]:
 
         matched_address = candidate.get("matched_address")
         private_key_hex = candidate.get("private_key_hex")
+        public_key_uncompressed_hex = candidate.get("public_key_uncompressed_hex")
         if candidate.get("matched") is not True:
             continue
         if (
@@ -541,11 +542,18 @@ def parse_vanitysearch_find_stdout(stdout: str, suffix: str) -> Dict[str, Any]:
             raise ValueError("patched VanitySearch returned an invalid matched_address")
         if not isinstance(private_key_hex, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", private_key_hex):
             raise ValueError("patched VanitySearch returned an invalid internal key value")
+        if public_key_uncompressed_hex is not None and (
+            not isinstance(public_key_uncompressed_hex, str)
+            or not re.fullmatch(r"04[0-9a-fA-F]{128}", public_key_uncompressed_hex)
+        ):
+            raise ValueError("patched VanitySearch returned an invalid public_key_uncompressed_hex")
         parsed = {
             "matched": True,
             "matched_address": matched_address,
             "private_key_hex": private_key_hex.lower(),
         }
+        if public_key_uncompressed_hex:
+            parsed["public_key_uncompressed_hex"] = public_key_uncompressed_hex.lower()
         for key in ("hit_attempt_index", "search_seconds", "attempts_per_second"):
             value = candidate.get(key)
             if isinstance(value, (int, float)) and value >= 0:
@@ -1313,6 +1321,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
             "gpu_worker_backend": gpu_backend,
             "gpu_name": gpu_name,
             "matched_address": gpu_result.get("matched_address"),
+            "public_key_uncompressed_hex": gpu_result.get("public_key_uncompressed_hex"),
             "encrypted_private_key": encrypted_private_key,
             "match_rule": match_rule,
             "elapsed_seconds": elapsed,
@@ -1409,6 +1418,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
         "allowed": True,
         "matched": True,
         "matched_address": matched_address,
+        "public_key_uncompressed_hex": gpu_result.get("public_key_uncompressed_hex"),
         "encrypted_private_key": encrypted_private_key,
         "match_rule": match_rule,
         "elapsed_seconds": elapsed,

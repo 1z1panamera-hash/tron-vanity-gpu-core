@@ -63,6 +63,10 @@ def main() -> int:
     original_find = os.environ.get("ALLOW_GPU_FIND")
     original_backend = os.environ.get("GPU_WORKER_BACKEND")
     private_key_hex = "0" * 63 + "1"
+    public_key_uncompressed_hex = (
+        "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"
+    )
     responses: list[dict[str, Any]] = []
 
     with tempfile.TemporaryDirectory(prefix="tron-find-contract-") as tmp:
@@ -74,13 +78,13 @@ def main() -> int:
             fake_gpu,
             "#!/usr/bin/env python3\n"
             "import json\n"
-            f"print(json.dumps({{'mode':'find','matched':True,'matched_address':'TA11111111111111111111111111CDEFG','private_key_hex':'{private_key_hex}','attempts':1,'gpu_name':'FAKE_GPU'}}))\n",
+            f"print(json.dumps({{'mode':'find','matched':True,'matched_address':'TA11111111111111111111111111CDEFG','private_key_hex':'{private_key_hex}','public_key_uncompressed_hex':'{public_key_uncompressed_hex}','attempts':1,'gpu_name':'FAKE_GPU'}}))\n",
         )
         write_executable(
             fake_vanitysearch,
             "#!/usr/bin/env python3\n"
             "import json\n"
-            f"print(json.dumps({{'mode':'tron_find','matched':True,'matched_address':'TA11111111111111111111111111CDEFG','private_key_hex':'{private_key_hex}'}}))\n",
+            f"print(json.dumps({{'mode':'tron_find','matched':True,'matched_address':'TA11111111111111111111111111CDEFG','private_key_hex':'{private_key_hex}','public_key_uncompressed_hex':'{public_key_uncompressed_hex}'}}))\n",
         )
         write_executable(
             fake_age,
@@ -135,6 +139,8 @@ def main() -> int:
         encrypted = response.get("encrypted_private_key")
         if not isinstance(encrypted, str) or not encrypted.startswith("-----BEGIN AGE ENCRYPTED FILE-----"):
             failures.append(f"{backend}: missing age ciphertext")
+        if response.get("public_key_uncompressed_hex") != public_key_uncompressed_hex:
+            failures.append(f"{backend}: missing public_key_uncompressed_hex")
         failures.extend(f"{backend}: {failure}" for failure in collect_forbidden_markers(response))
 
     print(
