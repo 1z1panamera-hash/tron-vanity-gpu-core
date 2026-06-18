@@ -120,4 +120,16 @@ ALLOW_RUNPOD_SERVERLESS_FIND_E2E=1 \
 scripts/inspect_runpod_result.py serverless_find_smoke/find_00.json --mode find
 ```
 
+Optional local age-envelope check for test identities only:
+
+```bash
+scripts/verify_age_encrypted_find_response.py \
+  serverless_find_smoke/find_00.json \
+  --identity "<local-test-age-identity-file>"
+```
+
+The verifier confirms that the returned age armor decrypts to the expected
+payload shape, but it does not print decrypted key material. Never store a
+customer age identity in this repo or on `47.80.70.211`.
+
 Short smoke is not P90 evidence. It only proves the endpoint, CUDA worker, JSON hit path, and age envelope return are wired.

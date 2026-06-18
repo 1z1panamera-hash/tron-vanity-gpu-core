@@ -74,6 +74,7 @@ REQUIRED_PATHS = [
     "scripts/runpod_gpu_pod_suffix_compare_commits.sh",
     "scripts/runpod_gpu_pod_sequence.sh",
     "scripts/runpod_serverless_find_e2e.py",
+    "scripts/verify_age_encrypted_find_response.py",
     "scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh",
     "tests/verify_find_response_contract.py",
 ]

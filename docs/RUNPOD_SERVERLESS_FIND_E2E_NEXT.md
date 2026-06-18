@@ -140,6 +140,19 @@ Inspect the smoke response:
 scripts/inspect_runpod_result.py serverless_find_smoke/find_00.json --mode find
 ```
 
+If the response used a local test age recipient and you still have the matching
+test identity file, verify the age envelope without printing the decrypted
+payload:
+
+```bash
+scripts/verify_age_encrypted_find_response.py \
+  serverless_find_smoke/find_00.json \
+  --identity "<local-test-age-identity-file>"
+```
+
+Use only a test identity for this check. Do not save customer age identity
+material in this repository or on `47.80.70.211`.
+
 Only after smoke passes, run the full paid cold/warm E2E:
 
 ```bash

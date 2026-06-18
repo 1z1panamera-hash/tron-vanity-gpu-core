@@ -16,6 +16,7 @@ test -x scripts/runpod_gpu_pod_suffix_speed_test.sh
 test -x scripts/runpod_gpu_pod_suffix_compare_commits.sh
 test -x scripts/build_vanitysearch_tron_worker.sh
 test -x scripts/runpod_serverless_find_e2e.py
+test -x scripts/verify_age_encrypted_find_response.py
 test -x scripts/inspect_suffix_speed_sweep.py
 test -x scripts/inspect_runpod_sequence_result.py
 test -x scripts/inspect_serverless_find_e2e.py
@@ -29,6 +30,7 @@ bash -n scripts/runpod_gpu_pod_suffix_compare_commits.sh
 bash -n scripts/build_vanitysearch_tron_worker.sh
 bash -n scripts/print_runpod_suffix_only_commands.sh
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_serverless_find_e2e.py
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/verify_age_encrypted_find_response.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_runpod_sequence_result.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_suffix_speed_sweep.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_serverless_find_e2e.py
@@ -141,6 +143,47 @@ python3 scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10 
 python3 scripts/inspect_runpod_result.py examples/runpod_validate_success_sample.json --mode validate_vectors >/tmp/runpod_validate_inspect.json
 python3 scripts/inspect_runpod_result.py examples/runpod_benchmark_success_sample.json --mode benchmark >/tmp/runpod_benchmark_inspect.json
 python3 scripts/inspect_runpod_result.py examples/runpod_find_success_sample.json --mode find >/tmp/runpod_find_inspect.json
+age_verify_dir="/tmp/tron_gpu_age_verify_$$"
+mkdir -p "$age_verify_dir"
+cat >"$age_verify_dir/age" <<'SH'
+#!/usr/bin/env bash
+printf '%064d\n' 1
+SH
+chmod +x "$age_verify_dir/age"
+printf '%s\n' "AGE-SECRET-KEY-TEST-ONLY" >"$age_verify_dir/test_identity.txt"
+python3 scripts/verify_age_encrypted_find_response.py \
+    examples/runpod_find_success_sample.json \
+    --identity "$age_verify_dir/test_identity.txt" \
+    --age-binary "$age_verify_dir/age" \
+    >/tmp/age_find_response_verify.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+data = json.loads(Path("/tmp/age_find_response_verify.json").read_text())
+assert data["passed"] is True, data["failures"]
+assert data["age_decrypt_passed"] is True
+text = Path("/tmp/age_find_response_verify.json").read_text()
+assert "0000000000000000000000000000000000000000000000000000000000000001" not in text
+PY
+cat >"$age_verify_dir/age_bad" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' not-a-hex-secret
+SH
+chmod +x "$age_verify_dir/age_bad"
+set +e
+python3 scripts/verify_age_encrypted_find_response.py \
+    examples/runpod_find_success_sample.json \
+    --identity "$age_verify_dir/test_identity.txt" \
+    --age-binary "$age_verify_dir/age_bad" \
+    >/tmp/age_find_response_bad_verify.json
+rc=$?
+set -e
+rm -rf "$age_verify_dir"
+if [ "$rc" -eq 0 ]; then
+    echo "expected bad age decrypt verifier to fail" >&2
+    exit 1
+fi
 python3 scripts/inspect_vanitysearch_benchmark.py examples/vanitysearch_bounded_benchmark_sample.txt >/tmp/vanitysearch_benchmark_inspect.json
 bad_find_file="/tmp/tron_gpu_bad_find_response_$$.json"
 cat >"$bad_find_file" <<'JSON'
