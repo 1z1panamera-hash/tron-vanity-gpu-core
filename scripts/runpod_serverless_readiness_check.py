@@ -23,6 +23,7 @@ REQUIRED_FILES = [
     "scripts/build_vanitysearch_tron_worker.sh",
     "scripts/runpod_serverless_find_e2e.py",
     "scripts/prepare_runpod_smoke_test_materials.py",
+    "scripts/generate_test_age_identity.py",
     "scripts/inspect_runpod_result.py",
     "scripts/inspect_serverless_find_e2e.py",
     "scripts/verify_age_encrypted_find_response.py",
@@ -118,9 +119,12 @@ def main() -> int:
 
     smoke_materials = read("scripts/prepare_runpod_smoke_test_materials.py")
     add("age-keygen" in smoke_materials, failures, "smoke material helper does not use age-keygen")
+    add("python-age-keygen" in smoke_materials, failures, "smoke material helper does not expose built-in age test key generation")
     add("--age-recipient" in smoke_materials, failures, "smoke material helper cannot reuse an existing age recipient")
     add("out-dir must be under /tmp" in smoke_materials, failures, "smoke material helper does not keep identity under /tmp")
     add("smoke_payload.json" in smoke_materials, failures, "smoke material helper does not write a smoke payload")
+    generated_age = read("scripts/generate_test_age_identity.py")
+    add("def x25519" in generated_age and "def bech32_encode" in generated_age, failures, "built-in age identity generator is missing X25519/Bech32 helpers")
 
     batch_inspector = read("scripts/inspect_serverless_find_e2e.py")
     add("--age-identity" in batch_inspector, failures, "batch E2E inspector cannot verify age envelopes")

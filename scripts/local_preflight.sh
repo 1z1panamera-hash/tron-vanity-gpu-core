@@ -18,6 +18,7 @@ test -x scripts/build_vanitysearch_tron_worker.sh
 test -x scripts/runpod_serverless_find_e2e.py
 test -x scripts/runpod_serverless_readiness_check.py
 test -x scripts/prepare_runpod_smoke_test_materials.py
+test -x scripts/generate_test_age_identity.py
 test -x scripts/verify_age_encrypted_find_response.py
 test -x scripts/inspect_suffix_speed_sweep.py
 test -x scripts/inspect_runpod_sequence_result.py
@@ -34,6 +35,7 @@ bash -n scripts/print_runpod_suffix_only_commands.sh
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_serverless_find_e2e.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_serverless_readiness_check.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/prepare_runpod_smoke_test_materials.py
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/generate_test_age_identity.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/verify_age_encrypted_find_response.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_runpod_sequence_result.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_suffix_speed_sweep.py
@@ -144,6 +146,23 @@ PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3
 python3 scripts/public_repo_audit.py >/tmp/tron_gpu_public_repo_audit.json
 python3 scripts/runpod_serverless_readiness_check.py >/tmp/runpod_serverless_readiness_check.json
 python3 scripts/validate_goal_rule.py >/tmp/tron_gpu_goal_rule.json
+python3 scripts/generate_test_age_identity.py \
+    --identity "/tmp/tron_gpu_generated_age_identity_$$.txt" \
+    >/tmp/generated_test_age_identity.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+data = json.loads(Path("/tmp/generated_test_age_identity.json").read_text())
+assert data["passed"] is True
+assert data["recipient"].startswith("age1")
+identity = Path(data["identity_path"])
+assert identity.exists()
+assert str(identity).startswith("/tmp/")
+text = Path("/tmp/generated_test_age_identity.json").read_text()
+assert "AGE-SECRET-KEY-" not in text
+identity.unlink()
+PY
 smoke_material_dir="/tmp/tron_gpu_smoke_materials_$$"
 fake_age_keygen="$smoke_material_dir/fake_age_keygen"
 mkdir -p "$smoke_material_dir"
@@ -177,6 +196,21 @@ assert "prefix_after_t" not in payload["input"]
 identity = Path(data["identity_path"])
 assert identity.exists()
 assert str(identity).startswith("/tmp/")
+PY
+python3 scripts/prepare_runpod_smoke_test_materials.py \
+    --out-dir "$smoke_material_dir/out_python_keygen" \
+    --python-age-keygen \
+    >/tmp/runpod_smoke_materials_python_keygen_check.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+data = json.loads(Path("/tmp/runpod_smoke_materials_python_keygen_check.json").read_text())
+assert data["passed"] is True
+assert data["identity_written"] is True
+assert data["recipient"].startswith("age1")
+assert Path(data["identity_path"]).exists()
+assert "AGE-SECRET-KEY-" not in Path("/tmp/runpod_smoke_materials_python_keygen_check.json").read_text()
 PY
 python3 scripts/prepare_runpod_smoke_test_materials.py \
     --out-dir "$smoke_material_dir/out_existing_recipient" \

@@ -9,8 +9,12 @@ import os
 import re
 import stat
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Dict
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import generate_test_age_identity  # noqa: E402
 
 
 BASE58 = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
@@ -57,6 +61,15 @@ def run_age_keygen(age_keygen_binary: str, identity_path: Path) -> str:
     return parse_recipient(proc.stdout + "\n" + proc.stderr)
 
 
+def run_python_age_keygen(identity_path: Path, force: bool = False) -> str:
+    if identity_path.exists() and not force:
+        raise FileExistsError(f"refusing to overwrite existing identity file: {identity_path}")
+    identity, recipient = generate_test_age_identity.generate_identity()
+    identity_path.write_text(identity + "\n", encoding="utf-8")
+    os.chmod(identity_path, stat.S_IRUSR | stat.S_IWUSR)
+    return recipient
+
+
 def build_payload(args: argparse.Namespace, recipient: str) -> Dict[str, Any]:
     return {
         "input": {
@@ -93,6 +106,7 @@ def main() -> int:
     parser.add_argument("--endpoint-id", default="<endpoint-id>")
     parser.add_argument("--age-recipient", default="", help="existing test age recipient; skips age-keygen")
     parser.add_argument("--age-keygen-binary", default="age-keygen")
+    parser.add_argument("--python-age-keygen", action="store_true", help="use built-in test-only age key generation")
     args = parser.parse_args()
 
     args.suffix = validate_suffix(args.suffix)
@@ -105,8 +119,14 @@ def main() -> int:
     if args.age_recipient:
         recipient = validate_age_recipient(args.age_recipient)
         identity_written = False
+    elif args.python_age_keygen:
+        recipient = run_python_age_keygen(identity_path)
+        identity_written = True
     else:
-        recipient = run_age_keygen(args.age_keygen_binary, identity_path)
+        try:
+            recipient = run_age_keygen(args.age_keygen_binary, identity_path)
+        except FileNotFoundError:
+            recipient = run_python_age_keygen(identity_path)
         identity_written = True
     payload = build_payload(args, recipient)
 
@@ -157,6 +177,7 @@ def main() -> int:
             "This script does not call RunPod.",
             "The recipient is public test material; the identity file is local-only and must not be committed.",
             "If --age-recipient is supplied, no identity file is written and decrypt verification needs the matching identity from elsewhere.",
+            "If age-keygen is unavailable, this helper falls back to built-in test-only X25519 age identity generation.",
             "Delete the out_dir after the smoke/E2E inspection is done.",
         ],
     }

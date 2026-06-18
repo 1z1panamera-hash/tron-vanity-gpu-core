@@ -86,6 +86,16 @@ scripts/prepare_runpod_smoke_test_materials.py \
   --age-recipient "<test-age-recipient>"
 ```
 
+If neither `age-keygen` nor a recipient is available, generate test-only age
+material with the built-in helper:
+
+```bash
+scripts/prepare_runpod_smoke_test_materials.py \
+  --out-dir /tmp/tron_vanity_runpod_smoke \
+  --endpoint-id "<endpoint-id>" \
+  --python-age-keygen
+```
+
 Use the printed `age1...` recipient in the RunPod request payload. Keep the
 identity file local and temporary. Never commit it and never copy it to
 `47.80.70.211`.
