@@ -106,6 +106,17 @@ grid, _ = app.vanitysearch_gpu_grid_from_payload({"gpu_grid": "32,128"})
 assert grid == "32,128"
 os.environ.pop("GPU_NAME", None)
 app.GPU_NAME_CACHE = None
+assert app.rounded_seconds(1.23456789) == 1.234568
+assert app.elapsed_since(__import__("time").perf_counter()) >= 0.0
+sample_timing = {
+    "gpu_grid_select_seconds": 0.001,
+    "binary_subprocess_seconds": 1.0,
+    "stdout_parse_seconds": 0.002,
+    "find_internal_seconds": 1.002,
+    "age_encrypt_seconds": 0.02,
+    "find_total_seconds": 1.03,
+}
+assert "private_key" not in str(sample_timing).lower()
 print("wrapper_gate_ok")
 PY
 

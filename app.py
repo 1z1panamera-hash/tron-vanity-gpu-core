@@ -40,6 +40,14 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def elapsed_since(started: float) -> float:
+    return time.perf_counter() - started
+
+
+def rounded_seconds(value: float) -> float:
+    return round(float(value), 6)
+
+
 def load_phase0_vectors() -> List[Dict[str, Any]]:
     data = json.loads(TEST_VECTOR_PATH.read_text(encoding="utf-8"))
     vectors = data.get("vectors", [])
@@ -582,6 +590,7 @@ def run_vanitysearch_find_internal(
     test_seed: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run patched VanitySearch find mode and keep raw stdout internal-only."""
+    subprocess_started = time.perf_counter()
     if not VANITYSEARCH_BINARY_PATH.exists():
         return {
             "ready": False,
@@ -589,6 +598,11 @@ def run_vanitysearch_find_internal(
             "error": "patched VanitySearch TRON worker is not built yet.",
             "binary": str(VANITYSEARCH_BINARY_PATH),
             "parsed": {},
+            "timings": {
+                "binary_subprocess_seconds": 0.0,
+                "stdout_parse_seconds": 0.0,
+                "find_internal_seconds": rounded_seconds(elapsed_since(subprocess_started)),
+            },
         }
     if not re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{5}", suffix):
         raise ValueError("suffix must be exactly 5 Base58 characters")
@@ -635,6 +649,7 @@ def run_vanitysearch_find_internal(
             env=env,
         )
     except subprocess.TimeoutExpired:
+        subprocess_seconds = elapsed_since(subprocess_started)
         return {
             "ready": True,
             "returncode": None,
@@ -652,10 +667,18 @@ def run_vanitysearch_find_internal(
                     "samples": 0,
                 },
             },
+            "timings": {
+                "binary_subprocess_seconds": rounded_seconds(subprocess_seconds),
+                "stdout_parse_seconds": 0.0,
+                "find_internal_seconds": rounded_seconds(subprocess_seconds),
+            },
         }
 
+    subprocess_seconds = elapsed_since(subprocess_started)
+    parse_started = time.perf_counter()
     parsed = parse_vanitysearch_find_stdout(result.stdout, suffix)
     safe_diagnostics = summarize_vanitysearch_find_stdout(result.stdout, suffix)
+    parse_seconds = elapsed_since(parse_started)
     unsafe_marker_seen = bool(
         re.search(r"Priv \(|WIF|mnemonic|seed|token|secret", result.stdout + result.stderr, re.IGNORECASE)
     )
@@ -671,6 +694,11 @@ def run_vanitysearch_find_internal(
             "binary": str(VANITYSEARCH_BINARY_PATH),
             "forbidden_markers": sorted(set(forbidden_output_markers(result.stdout) + forbidden_output_markers(result.stderr))),
             "parsed": {},
+            "timings": {
+                "binary_subprocess_seconds": rounded_seconds(subprocess_seconds),
+                "stdout_parse_seconds": rounded_seconds(parse_seconds),
+                "find_internal_seconds": rounded_seconds(elapsed_since(subprocess_started)),
+            },
         }
 
     return {
@@ -681,6 +709,11 @@ def run_vanitysearch_find_internal(
         "unsafe_test_output_allowed": unsafe_test_output_allowed(),
         "parsed": parsed,
         "safe_diagnostics": safe_diagnostics,
+        "timings": {
+            "binary_subprocess_seconds": rounded_seconds(subprocess_seconds),
+            "stdout_parse_seconds": rounded_seconds(parse_seconds),
+            "find_internal_seconds": rounded_seconds(elapsed_since(subprocess_started)),
+        },
     }
 
 
@@ -1138,7 +1171,10 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("start_counter must be non-negative")
 
     if gpu_backend == "vanitysearch":
+        find_total_started = time.perf_counter()
+        grid_started = time.perf_counter()
         gpu_grid, gpu_name = vanitysearch_gpu_grid_from_payload(payload)
+        grid_seconds = elapsed_since(grid_started)
         test_force_first_candidate = bool(payload.get("test_force_first_candidate", False))
         test_seed_value = payload.get("test_seed")
         test_seed = str(test_seed_value) if test_seed_value is not None else None
@@ -1151,9 +1187,19 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
             test_seed=test_seed,
         )
         elapsed = time.perf_counter() - started
+        binary_timings = binary_status.get("timings", {}) if isinstance(binary_status.get("timings"), dict) else {}
         gpu_result = binary_status.get("parsed", {})
+        base_timings = {
+            "gpu_grid_select_seconds": rounded_seconds(grid_seconds),
+            "binary_subprocess_seconds": binary_timings.get("binary_subprocess_seconds"),
+            "stdout_parse_seconds": binary_timings.get("stdout_parse_seconds"),
+            "find_internal_seconds": binary_timings.get("find_internal_seconds"),
+            "age_encrypt_seconds": 0.0,
+            "find_total_seconds": None,
+        }
 
         if not binary_status.get("ready") or binary_status.get("error"):
+            base_timings["find_total_seconds"] = rounded_seconds(elapsed_since(find_total_started))
             return {
                 "mode": "find",
                 "allowed": True,
@@ -1162,6 +1208,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "gpu_name": gpu_name,
                 "match_rule": match_rule,
                 "elapsed_seconds": elapsed,
+                "timings": base_timings,
                 "gpu_binary": {
                     "ready": binary_status.get("ready"),
                     "returncode": binary_status.get("returncode"),
@@ -1174,6 +1221,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
             }
 
         if not gpu_result.get("matched"):
+            base_timings["find_total_seconds"] = rounded_seconds(elapsed_since(find_total_started))
             return {
                 "mode": "find",
                 "allowed": True,
@@ -1182,6 +1230,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "gpu_name": gpu_name,
                 "match_rule": match_rule,
                 "elapsed_seconds": elapsed,
+                "timings": base_timings,
                 "gpu_grid": gpu_grid,
                 "gpu_binary": {
                     "ready": binary_status.get("ready"),
@@ -1197,7 +1246,10 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
                 ],
             }
 
+        age_started = time.perf_counter()
         encrypted_private_key = encrypt_private_key_with_age(gpu_result.get("private_key_hex"), age_recipient)
+        base_timings["age_encrypt_seconds"] = rounded_seconds(elapsed_since(age_started))
+        base_timings["find_total_seconds"] = rounded_seconds(elapsed_since(find_total_started))
         return {
             "mode": "find",
             "allowed": True,
@@ -1208,6 +1260,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
             "encrypted_private_key": encrypted_private_key,
             "match_rule": match_rule,
             "elapsed_seconds": elapsed,
+            "timings": base_timings,
             "gpu_grid": gpu_grid,
             "test_force_first_candidate": test_force_first_candidate,
             "notes": [
