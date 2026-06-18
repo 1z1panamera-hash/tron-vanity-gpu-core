@@ -70,7 +70,12 @@ done
 
 git apply "$PATCH_PATH"
 
-CUDA_ARCH="$CUDA_ARCH_INPUT" scripts/runpod_verify_tron_gpu_address_layer.sh
+if [ "${RUN_VANITYSEARCH_GPU_VECTOR_CHECK:-0}" = "1" ]; then
+  CUDA_ARCH="$CUDA_ARCH_INPUT" scripts/runpod_verify_tron_gpu_address_layer.sh
+else
+  echo "skipping_gpu_vector_check_during_build"
+  echo "Set RUN_VANITYSEARCH_GPU_VECTOR_CHECK=1 only in an approved GPU runtime, not during Serverless image build."
+fi
 
 make gpu=1 CCAP="$CCAP" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" STEP_SIZE="$STEP_SIZE" all
 cp ./VanitySearch "$INSTALL_PATH"
