@@ -2,7 +2,7 @@ diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
 index 6c43e94..c459b36 100644
 --- a/GPU/GPUCompute.h
 +++ b/GPU/GPUCompute.h
-@@ -251,6 +251,149 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
+@@ -251,6 +251,153 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
  
  // -----------------------------------------------------------------------------------------
  
@@ -73,6 +73,7 @@ index 6c43e94..c459b36 100644
 +
 +    for(i = 0; i < HSIZE; i++) {
 +
++      __syncthreads();
 +      Load256(px, sx);
 +      Load256(py, sy);
 +      ModSub256(dy, Gy[i], py);
@@ -89,6 +90,7 @@ index 6c43e94..c459b36 100644
 +
 +      CHECK_TRON_PATTERN(GRP_SIZE / 2 + (i + 1));
 +
++      __syncthreads();
 +      Load256(px, sx);
 +      ModSub256(dy,pyn,Gy[i]);
 +
@@ -106,6 +108,7 @@ index 6c43e94..c459b36 100644
 +
 +    }
 +
++    __syncthreads();
 +    Load256(px, sx);
 +    Load256(py, sy);
 +    ModNeg256(dy, Gy[i]);
@@ -125,6 +128,7 @@ index 6c43e94..c459b36 100644
 +
 +    i++;
 +
++    __syncthreads();
 +    Load256(px, sx);
 +    Load256(py, sy);
 +    ModSub256(dy, _2Gny, py);
