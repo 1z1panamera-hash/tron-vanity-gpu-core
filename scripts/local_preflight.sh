@@ -178,6 +178,21 @@ identity = Path(data["identity_path"])
 assert identity.exists()
 assert str(identity).startswith("/tmp/")
 PY
+python3 scripts/prepare_runpod_smoke_test_materials.py \
+    --out-dir "$smoke_material_dir/out_existing_recipient" \
+    --age-recipient age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq \
+    >/tmp/runpod_smoke_materials_existing_recipient_check.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+data = json.loads(Path("/tmp/runpod_smoke_materials_existing_recipient_check.json").read_text())
+assert data["passed"] is True
+assert data["identity_written"] is False
+assert data["identity_path"] is None
+payload = json.loads(Path(data["payload_path"]).read_text())
+assert payload["input"]["age_recipient"] == data["recipient"]
+PY
 rm -rf "$smoke_material_dir"
 python3 scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10 >/tmp/tron_gpu_capacity_check.json
 python3 scripts/inspect_runpod_result.py examples/runpod_validate_success_sample.json --mode validate_vectors >/tmp/runpod_validate_inspect.json

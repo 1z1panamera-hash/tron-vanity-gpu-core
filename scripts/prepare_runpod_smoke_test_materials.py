@@ -14,6 +14,7 @@ from typing import Any, Dict
 
 
 BASE58 = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
+AGE_RECIPIENT_RE = re.compile(r"^age1[023456789acdefghjklmnpqrstuvwxyz]{20,}$")
 DEFAULT_OUT_DIR = Path("/tmp/tron_vanity_runpod_smoke")
 DEFAULT_SUFFIX = "CDEFG"
 DEFAULT_DURATION_SECONDS = 15
@@ -32,6 +33,12 @@ def parse_recipient(output: str) -> str:
     if not match:
         raise RuntimeError("age-keygen did not print a recipient")
     return match.group(0)
+
+
+def validate_age_recipient(recipient: str) -> str:
+    if not AGE_RECIPIENT_RE.match(recipient):
+        raise SystemExit("age recipient must start with age1 and use age recipient characters")
+    return recipient
 
 
 def run_age_keygen(age_keygen_binary: str, identity_path: Path) -> str:
@@ -84,6 +91,7 @@ def main() -> int:
     parser.add_argument("--execution-timeout-ms", type=int, default=300_000)
     parser.add_argument("--ttl-ms", type=int, default=900_000)
     parser.add_argument("--endpoint-id", default="<endpoint-id>")
+    parser.add_argument("--age-recipient", default="", help="existing test age recipient; skips age-keygen")
     parser.add_argument("--age-keygen-binary", default="age-keygen")
     args = parser.parse_args()
 
@@ -94,7 +102,12 @@ def main() -> int:
         raise SystemExit("out-dir must be under /tmp so test identity material is not kept in the repo")
 
     identity_path = out_dir / "test_age_identity.txt"
-    recipient = run_age_keygen(args.age_keygen_binary, identity_path)
+    if args.age_recipient:
+        recipient = validate_age_recipient(args.age_recipient)
+        identity_written = False
+    else:
+        recipient = run_age_keygen(args.age_keygen_binary, identity_path)
+        identity_written = True
     payload = build_payload(args, recipient)
 
     payload_path = out_dir / "smoke_payload.json"
@@ -135,13 +148,15 @@ def main() -> int:
         "passed": True,
         "out_dir": str(out_dir),
         "recipient": recipient,
-        "identity_path": str(identity_path),
+        "identity_path": str(identity_path) if identity_written else None,
+        "identity_written": identity_written,
         "payload_path": str(payload_path),
         "dry_run_command_path": str(dry_run_path),
         "paid_smoke_command_path": str(smoke_path),
         "notes": [
             "This script does not call RunPod.",
             "The recipient is public test material; the identity file is local-only and must not be committed.",
+            "If --age-recipient is supplied, no identity file is written and decrypt verification needs the matching identity from elsewhere.",
             "Delete the out_dir after the smoke/E2E inspection is done.",
         ],
     }

@@ -118,6 +118,7 @@ def main() -> int:
 
     smoke_materials = read("scripts/prepare_runpod_smoke_test_materials.py")
     add("age-keygen" in smoke_materials, failures, "smoke material helper does not use age-keygen")
+    add("--age-recipient" in smoke_materials, failures, "smoke material helper cannot reuse an existing age recipient")
     add("out-dir must be under /tmp" in smoke_materials, failures, "smoke material helper does not keep identity under /tmp")
     add("smoke_payload.json" in smoke_materials, failures, "smoke material helper does not write a smoke payload")
 
