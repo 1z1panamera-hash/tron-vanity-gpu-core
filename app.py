@@ -483,6 +483,7 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
     pattern = f"T*{suffix}"
     env = os.environ.copy()
     env["TRON_JSON_HIT_OUTPUT"] = "1"
+    env["TRON_SUPPRESS_SECRET_OUTPUT"] = "1"
     command = [
         str(VANITYSEARCH_BINARY_PATH),
         "-gpu",
