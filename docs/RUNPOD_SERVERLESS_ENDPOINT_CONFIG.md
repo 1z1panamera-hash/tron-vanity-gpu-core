@@ -47,6 +47,28 @@ The speed evidence `1.54328B attempts/s` came from RTX PRO 6000 Blackwell with
 suffix-only last-5 matching. A100 Serverless performance must be measured
 separately and should not be assumed equal.
 
+## Current Endpoint Fallback Config
+
+Updated: 2026-06-19 Asia/Shanghai.
+
+Endpoint `mf8hnwrsf293e1` is configured with multiple GPU types for fallback:
+
+- 96 GB Pro
+- 24 GB
+- 24 GB Pro
+
+Scale settings observed after rollout:
+
+- Active workers: 0
+- Max workers: 3
+- GPU count: 1
+- Idle timeout: 5 seconds
+- Auto scaling: Queue delay, scale up after 4 seconds
+
+This keeps zero baseline spend while allowing RunPod to choose from more than
+one GPU type when the primary type has limited capacity. Active workers were
+not enabled.
+
 ## Runtime Environment Variables
 
 Required:
