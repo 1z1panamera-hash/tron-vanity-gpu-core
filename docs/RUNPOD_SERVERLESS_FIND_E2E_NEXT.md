@@ -187,6 +187,19 @@ Inspect the batch:
 scripts/inspect_serverless_find_e2e.py serverless_find_e2e --cold-count 1
 ```
 
+If every response used the same local test recipient and the matching test
+identity is still available locally, include age envelope verification:
+
+```bash
+scripts/inspect_serverless_find_e2e.py \
+  serverless_find_e2e \
+  --cold-count 1 \
+  --age-identity "<local-test-age-identity-file>"
+```
+
+The batch inspector reports how many envelopes were checked and passed. It does
+not print decrypted key material.
+
 ## Do Not Claim Complete Until
 
 - Serverless build succeeds from the current repo.

@@ -253,7 +253,21 @@ for index, latency in enumerate(latencies):
     item["request_latency_seconds"] = latency
     (out / f"find_{index:02d}.json").write_text(json.dumps(item, indent=2) + "\n")
 PY
-python3 scripts/inspect_serverless_find_e2e.py "$serverless_find_dir" --cold-count 1 >/tmp/serverless_find_e2e_inspect.json
+batch_age_verify_dir="/tmp/tron_gpu_batch_age_verify_$$"
+mkdir -p "$batch_age_verify_dir"
+cat >"$batch_age_verify_dir/age" <<'SH'
+#!/usr/bin/env bash
+printf '%064d\n' 1
+SH
+chmod +x "$batch_age_verify_dir/age"
+printf '%s\n' "AGE-SECRET-KEY-TEST-ONLY" >"$batch_age_verify_dir/test_identity.txt"
+python3 scripts/inspect_serverless_find_e2e.py \
+    "$serverless_find_dir" \
+    --cold-count 1 \
+    --age-identity "$batch_age_verify_dir/test_identity.txt" \
+    --age-binary "$batch_age_verify_dir/age" \
+    >/tmp/serverless_find_e2e_inspect.json
+rm -rf "$batch_age_verify_dir"
 python3 - <<'PY'
 import json
 from pathlib import Path
@@ -264,6 +278,9 @@ assert data["cold_count"] == 1
 assert data["warm_count"] == 10
 assert data["warm_average_seconds"] <= 5.0
 assert data["warm_p90_seconds"] <= 8.0
+assert data["age_decrypt_checked_count"] == 11
+assert data["age_decrypt_passed_count"] == 11
+assert "0000000000000000000000000000000000000000000000000000000000000001" not in Path("/tmp/serverless_find_e2e_inspect.json").read_text()
 PY
 scripts/runpod_serverless_find_e2e.py \
     --dry-run \

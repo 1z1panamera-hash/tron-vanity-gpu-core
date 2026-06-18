@@ -14,6 +14,7 @@ from typing import Any, Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNPOD_INSPECTOR_PATH = ROOT / "scripts" / "inspect_runpod_result.py"
+AGE_VERIFIER_PATH = ROOT / "scripts" / "verify_age_encrypted_find_response.py"
 TARGET_AVG_SECONDS = 5.0
 TARGET_P90_SECONDS = 8.0
 IGNORED_DIRECTORY_JSON_NAMES = {
@@ -32,7 +33,17 @@ def load_runpod_inspector() -> Any:
     return module
 
 
+def load_age_verifier() -> Any:
+    spec = importlib.util.spec_from_file_location("verify_age_encrypted_find_response", AGE_VERIFIER_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("could not load verify_age_encrypted_find_response.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 RUNPOD_INSPECTOR = load_runpod_inspector()
+AGE_VERIFIER = load_age_verifier()
 
 
 def load_json(path: Path) -> Dict[str, Any]:
@@ -94,7 +105,7 @@ def latency_seconds(data: Dict[str, Any], output: Dict[str, Any]) -> float | Non
     return as_float(output.get("elapsed_seconds"))
 
 
-def inspect_one(path: Path) -> Dict[str, Any]:
+def inspect_one(path: Path, age_identity: Path | None, age_binary: str) -> Dict[str, Any]:
     data = load_json(path)
     forbidden = RUNPOD_INSPECTOR.find_forbidden(data)
     output = RUNPOD_INSPECTOR.unwrap_runpod(data)
@@ -102,6 +113,22 @@ def inspect_one(path: Path) -> Dict[str, Any]:
     if forbidden:
         failures.append("forbidden keys found: " + ", ".join(forbidden))
         passed = False
+
+    age_decrypt_passed = None
+    if age_identity is not None:
+        age_decrypt_passed = False
+        if passed:
+            try:
+                decrypted = AGE_VERIFIER.decrypt_age(
+                    output["encrypted_private_key"],
+                    age_identity,
+                    age_binary,
+                )
+                AGE_VERIFIER.require_hex_payload(decrypted)
+                age_decrypt_passed = True
+            except Exception as exc:
+                failures.append(f"age envelope verification failed: {exc}")
+                passed = False
 
     worker_elapsed = as_float(output.get("elapsed_seconds"))
     request_latency = latency_seconds(data, output)
@@ -115,6 +142,7 @@ def inspect_one(path: Path) -> Dict[str, Any]:
         "suffix": summary.get("suffix"),
         "gpu_worker_backend": summary.get("gpu_worker_backend"),
         "has_age_ciphertext": summary.get("has_age_ciphertext"),
+        "age_decrypt_passed": age_decrypt_passed,
     }
 
 
@@ -126,6 +154,15 @@ def summarize(samples: List[Dict[str, Any]], cold_count: int) -> Dict[str, Any]:
     failed_samples = [sample for sample in samples if not sample["passed"]]
     if failed_samples:
         failures.append(f"{len(failed_samples)} sample(s) failed find response inspection")
+
+    age_checked_samples = [
+        sample for sample in samples if sample.get("age_decrypt_passed") is not None
+    ]
+    age_failed_samples = [
+        sample for sample in age_checked_samples if sample.get("age_decrypt_passed") is not True
+    ]
+    if age_failed_samples:
+        failures.append(f"{len(age_failed_samples)} sample(s) failed age envelope verification")
 
     latencies = [
         sample["request_latency_seconds"]
@@ -167,6 +204,8 @@ def summarize(samples: List[Dict[str, Any]], cold_count: int) -> Dict[str, Any]:
         "cold_latency_seconds": cold_latencies,
         "warm_average_seconds": warm_avg,
         "warm_p90_seconds": warm_p90,
+        "age_decrypt_checked_count": len(age_checked_samples),
+        "age_decrypt_passed_count": len(age_checked_samples) - len(age_failed_samples),
         "target_warm_average_seconds": TARGET_AVG_SECONDS,
         "target_warm_p90_seconds": TARGET_P90_SECONDS,
         "samples": samples,
@@ -174,6 +213,7 @@ def summarize(samples: List[Dict[str, Any]], cold_count: int) -> Dict[str, Any]:
             "This inspector reads saved local JSON only.",
             "Use request_latency_seconds when available; otherwise it falls back to RunPod executionTime or worker elapsed_seconds.",
             "Cold start is reported separately and is not included in warm average/P90.",
+            "If --age-identity is provided, age ciphertext is decrypted locally only to validate shape; decrypted key material is never printed.",
         ],
     }
 
@@ -182,10 +222,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Inspect repeated Serverless find responses.")
     parser.add_argument("paths", nargs="+", help="JSON response files or directories containing JSON files")
     parser.add_argument("--cold-count", type=int, default=1, help="Number of leading samples to treat as cold start")
+    parser.add_argument("--age-identity", help="optional local test age identity for decrypt-shape verification")
+    parser.add_argument("--age-binary", default="age", help="age binary path, default: age")
     args = parser.parse_args()
 
     paths = candidate_paths(args.paths)
-    samples = [inspect_one(path) for path in paths]
+    age_identity = Path(args.age_identity) if args.age_identity else None
+    samples = [inspect_one(path, age_identity, args.age_binary) for path in paths]
     result = summarize(samples, max(0, args.cold_count))
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["passed"] else 1
