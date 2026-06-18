@@ -176,6 +176,11 @@ import sys
 from pathlib import Path
 
 out = Path(sys.argv[1])
+(out / "manifest.json").write_text(json.dumps({
+    "mode": "runpod_serverless_find_e2e_manifest",
+    "samples": 11,
+    "cold_count": 1,
+}) + "\n")
 base = {
     "status": "COMPLETED",
     "output": {

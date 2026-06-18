@@ -16,6 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNPOD_INSPECTOR_PATH = ROOT / "scripts" / "inspect_runpod_result.py"
 TARGET_AVG_SECONDS = 5.0
 TARGET_P90_SECONDS = 8.0
+IGNORED_DIRECTORY_JSON_NAMES = {
+    "manifest.json",
+    "runpod_find_inspect.json",
+    "serverless_find_e2e_inspect.json",
+}
 
 
 def load_runpod_inspector() -> Any:
@@ -44,7 +49,11 @@ def candidate_paths(paths: List[str]) -> List[Path]:
         if path.is_dir():
             for child in sorted(path.glob("*.json")):
                 name = child.name.lower()
-                if name.endswith("_inspect.json") or name.endswith("_summary.json"):
+                if (
+                    name in IGNORED_DIRECTORY_JSON_NAMES
+                    or name.endswith("_inspect.json")
+                    or name.endswith("_summary.json")
+                ):
                     continue
                 out.append(child)
         else:
