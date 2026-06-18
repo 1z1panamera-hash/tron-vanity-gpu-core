@@ -513,7 +513,12 @@ def summarize_vanitysearch_find_stdout(stdout: str, suffix: str) -> Dict[str, An
     }
 
 
-def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid: str) -> Dict[str, Any]:
+def run_vanitysearch_find_internal(
+    suffix: str,
+    duration_seconds: int,
+    gpu_grid: str,
+    test_force_first_candidate: bool = False,
+) -> Dict[str, Any]:
     """Run patched VanitySearch find mode and keep raw stdout internal-only."""
     if not VANITYSEARCH_BINARY_PATH.exists():
         return {
@@ -534,6 +539,11 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
     env["TRON_SUPPRESS_SECRET_OUTPUT"] = "1"
     if unsafe_test_output_allowed():
         env["TRON_DEBUG_FIND_RECHECK"] = "1"
+    seed_args: List[str] = []
+    if test_force_first_candidate:
+        env["TRON_DEBUG_FORCE_FIRST_CANDIDATE"] = "1"
+        env["TRON_DEBUG_FIND_RECHECK"] = "1"
+        seed_args = ["-s", "codex-fixed-find-debug-20260618"]
     command = [
         str(VANITYSEARCH_BINARY_PATH),
         "-gpu",
@@ -542,6 +552,7 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
         "0",
         "-g",
         gpu_grid,
+        *seed_args,
         pattern,
     ]
     timeout_bin = shutil.which("timeout")
@@ -1057,8 +1068,14 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     if gpu_backend == "vanitysearch":
         gpu_grid = str(payload.get("gpu_grid", "128,128"))
+        test_force_first_candidate = bool(payload.get("test_force_first_candidate", False))
         started = time.perf_counter()
-        binary_status = run_vanitysearch_find_internal(match_rule["suffix"], duration_seconds, gpu_grid)
+        binary_status = run_vanitysearch_find_internal(
+            match_rule["suffix"],
+            duration_seconds,
+            gpu_grid,
+            test_force_first_candidate=test_force_first_candidate,
+        )
         elapsed = time.perf_counter() - started
         gpu_result = binary_status.get("parsed", {})
 
@@ -1095,6 +1112,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
                     "returncode": binary_status.get("returncode"),
                     "timeout": binary_status.get("timeout"),
                     "binary": binary_status.get("binary"),
+                    "test_force_first_candidate": test_force_first_candidate,
                 },
                 "safe_diagnostics": binary_status.get("safe_diagnostics", {}),
                 "notes": [
@@ -1114,6 +1132,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
             "match_rule": match_rule,
             "elapsed_seconds": elapsed,
             "gpu_grid": gpu_grid,
+            "test_force_first_candidate": test_force_first_candidate,
             "notes": [
                 "Sensitive material was encrypted with the customer age recipient before returning.",
                 "Response intentionally omits raw key material and credential material.",
