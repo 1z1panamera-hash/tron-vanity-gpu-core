@@ -57,7 +57,7 @@ if [ $((STEP_SIZE % 1024)) -ne 0 ]; then
   exit 1
 fi
 
-for value_name in BENCHMARK_SECONDS FIND_SECONDS PROBE_OFFSET; do
+for value_name in BENCHMARK_SECONDS FIND_SECONDS PROBE_THREAD_INDEX PROBE_GPU_THREAD_ID PROBE_GROUP_SIZE PROBE_INCR; do
   value="${!value_name}"
   case "$value" in
     ''|*[!0-9]*)
@@ -193,6 +193,80 @@ print(suffix)
 PY
 )"
 echo "fixed_seed_probe_suffix=$suffix"
+
+echo "== forced first-candidate GPU find sanity"
+force_stdout_raw="$RESULT_DIR/force_first_raw.stdout.txt"
+force_stderr_raw="$RESULT_DIR/force_first_raw.stderr.txt"
+set +e
+env TRON_JSON_HIT_OUTPUT=1 TRON_SUPPRESS_SECRET_OUTPUT=1 TRON_DEBUG_FIND_RECHECK=1 TRON_DEBUG_FORCE_FIRST_CANDIDATE=1 \
+  timeout "${FIND_SECONDS}s" \
+  ./VanitySearch -gpu -stop -t 0 -g "$FIND_GRID" -s "$FIND_DEBUG_SEED" "T*$suffix" \
+  >"$force_stdout_raw" 2>"$force_stderr_raw"
+force_rc=$?
+set -e
+if [ "$force_rc" -ne 0 ] && [ "$force_rc" -ne 124 ]; then
+  echo "force-first find failed rc=$force_rc" >&2
+  tail -120 "$force_stdout_raw" >&2 || true
+  tail -120 "$force_stderr_raw" >&2 || true
+  exit 1
+fi
+
+python3 - "$force_stdout_raw" "$force_stderr_raw" "$force_rc" "$FIND_SECONDS" "$FIND_GRID" "$suffix" "$RESULT_DIR/force_first_summary.json" <<'PY'
+from pathlib import Path
+import json
+import sys
+
+stdout_path, stderr_path, rc, seconds, grid, suffix, out_path = sys.argv[1:]
+stdout = Path(stdout_path).read_text(errors="ignore")
+stderr = Path(stderr_path).read_text(errors="ignore")
+decoder = json.JSONDecoder()
+hits = []
+for index, char in enumerate(stdout):
+    if char != "{":
+        continue
+    try:
+        candidate, _ = decoder.raw_decode(stdout[index:])
+    except json.JSONDecodeError:
+        continue
+    if isinstance(candidate, dict) and candidate.get("mode") == "tron_find":
+        hits.append(candidate)
+
+last = hits[-1] if hits else {}
+matched_address = last.get("matched_address") if isinstance(last.get("matched_address"), str) else None
+debug_lines = [
+    line for line in stdout.splitlines()
+    if line.startswith("tron_debug_") or line.startswith("Warning, wrong private key generated")
+]
+summary = {
+    "mode": "force_first_candidate_find_sanity",
+    "passed": bool(hits and matched_address),
+    "return_code": int(rc),
+    "timeout_reached": int(rc) == 124,
+    "duration_seconds_limit": int(seconds),
+    "gpu_grid": grid,
+    "target_suffix": suffix,
+    "json_hit_count": len(hits),
+    "matched": last.get("matched") is True,
+    "matched_address": matched_address,
+    "matched_suffix_ok": bool(matched_address and matched_address.endswith(suffix)),
+    "debug_lines": debug_lines[-40:],
+    "stderr_tail": stderr[-1000:],
+    "notes": [
+        "This forced path intentionally proves GPU writeback and CPU recheck plumbing only.",
+        "The forced address is not expected to match the target suffix.",
+        "Raw stdout may contain an internal test-only key value; do not paste it into chat.",
+        "The summary intentionally omits any internal key value.",
+    ],
+}
+Path(out_path).write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+print(json.dumps(summary, sort_keys=True))
+if not summary["passed"]:
+    raise SystemExit(1)
+PY
+
+rm -f "$force_stdout_raw"
+printf '%s\n' "raw force-first stdout erased after sanitized summary" \
+  >"$RESULT_DIR/force_first_raw_stdout_erased.txt"
 
 echo "== fixed seed must-hit GPU find"
 find_stdout_raw="$RESULT_DIR/find_raw.stdout.txt"
