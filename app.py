@@ -681,8 +681,12 @@ def run_vanitysearch_find_internal(
         *seed_args,
         pattern,
     ]
-    timeout_bin = shutil.which("timeout")
+    timeout_mode = os.environ.get("VANITYSEARCH_FIND_TIMEOUT_MODE", "python").strip().lower()
+    if timeout_mode not in {"python", "gnu"}:
+        raise ValueError("VANITYSEARCH_FIND_TIMEOUT_MODE must be python or gnu")
+    timeout_bin = shutil.which("timeout") if timeout_mode == "gnu" else None
     effective_command = [timeout_bin, f"{duration_seconds}s", *command] if timeout_bin else command
+    subprocess_timeout = duration_seconds + 20 if timeout_bin else duration_seconds
 
     try:
         result = subprocess.run(
@@ -690,7 +694,7 @@ def run_vanitysearch_find_internal(
             check=False,
             capture_output=True,
             text=True,
-            timeout=duration_seconds + 20,
+            timeout=subprocess_timeout,
             env=env,
         )
     except subprocess.TimeoutExpired:

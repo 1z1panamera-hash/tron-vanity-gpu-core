@@ -94,6 +94,8 @@ assert app.contains_forbidden_output_marker("TRON_SUPPRESS_SECRET_OUTPUT=1") is 
 assert app.contains_forbidden_output_marker("Priv (HEX): 0xabc") is True
 assert app.selected_gpu_backend() in {"self", "vanitysearch"}
 assert app.default_vanitysearch_gpu_grid("RTX PRO 6000") == "128,128"
+assert app.run_vanitysearch_find_internal.__name__ == "run_vanitysearch_find_internal"
+assert os.environ.get("VANITYSEARCH_FIND_TIMEOUT_MODE", "python") == "python"
 os.environ["VANITYSEARCH_GPU_GRID_PRO6000"] = "64,128"
 assert app.default_vanitysearch_gpu_grid("RTX PRO 6000") == "64,128"
 os.environ.pop("VANITYSEARCH_GPU_GRID_PRO6000", None)

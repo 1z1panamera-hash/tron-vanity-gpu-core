@@ -106,6 +106,8 @@ def main() -> int:
     add("TRON_JSON_HIT_OUTPUT" in app, failures, "app.py does not request internal JSON hit output")
     add("encrypt_private_key_with_age" in app, failures, "app.py does not call age encryption path")
     add("VANITYSEARCH_BINARY_PATH = ROOT / \"build\" / \"vanitysearch_tron_worker\"" in app, failures, "app.py does not point to the built VanitySearch worker")
+    add("VANITYSEARCH_FIND_TIMEOUT_MODE" in app and '"python"' in app, failures, "app.py does not default find timeout control to Python")
+    add('timeout_mode not in {"python", "gnu"}' in app, failures, "app.py does not validate find timeout mode")
 
     payload = load_payload("RUNPOD_FIND_SAMPLE_PAYLOAD.json")
     input_payload = payload.get("input", {})

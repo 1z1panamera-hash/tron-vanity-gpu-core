@@ -63,7 +63,7 @@ Scale settings observed after rollout:
 - Max workers: 3
 - GPU count: 1
 - Idle timeout: 5 seconds
-- Auto scaling: Queue delay, scale up after 4 seconds
+- Auto scaling: Queue delay, scale up after 1 second
 
 This keeps zero baseline spend while allowing RunPod to choose from more than
 one GPU type when the primary type has limited capacity. Active workers were
@@ -82,6 +82,18 @@ Required:
 ALLOW_GPU_FIND=1
 GPU_WORKER_BACKEND=vanitysearch
 ```
+
+Optional:
+
+```text
+VANITYSEARCH_FIND_TIMEOUT_MODE=python
+```
+
+`VANITYSEARCH_FIND_TIMEOUT_MODE=python` is the default. It lets the Python
+handler enforce the bounded find timeout directly, avoiding an extra GNU
+`timeout` wrapper process for every request. Set it to `gnu` only as a rollback
+switch if the Python timeout path behaves unexpectedly in a specific RunPod
+image.
 
 Do not set or store:
 
