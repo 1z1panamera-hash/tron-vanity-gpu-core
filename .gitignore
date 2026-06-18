@@ -17,3 +17,4 @@ runpod_*_response.json
 runpod_*_inspect.json
 runpod_results/
 serverless_find_e2e/
+serverless_find_smoke/

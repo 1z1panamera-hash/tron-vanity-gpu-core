@@ -22,6 +22,7 @@ REQUIRED_FILES = [
     "patches/vanitysearch_tron_gpu_suffix_only_20260618.patch",
     "scripts/build_vanitysearch_tron_worker.sh",
     "scripts/runpod_serverless_find_e2e.py",
+    "scripts/prepare_runpod_smoke_test_materials.py",
     "scripts/inspect_runpod_result.py",
     "scripts/inspect_serverless_find_e2e.py",
     "scripts/verify_age_encrypted_find_response.py",
@@ -114,6 +115,11 @@ def main() -> int:
     add("/run" in runner and "/status/" in runner, failures, "Serverless E2E runner does not use async run/status flow")
     add("--allow-short-smoke" in runner, failures, "Serverless E2E runner lacks short smoke mode")
     add("samples must include cold-count plus at least 10 warm samples" in runner, failures, "Serverless E2E runner does not enforce warm sample count")
+
+    smoke_materials = read("scripts/prepare_runpod_smoke_test_materials.py")
+    add("age-keygen" in smoke_materials, failures, "smoke material helper does not use age-keygen")
+    add("out-dir must be under /tmp" in smoke_materials, failures, "smoke material helper does not keep identity under /tmp")
+    add("smoke_payload.json" in smoke_materials, failures, "smoke material helper does not write a smoke payload")
 
     batch_inspector = read("scripts/inspect_serverless_find_e2e.py")
     add("--age-identity" in batch_inspector, failures, "batch E2E inspector cannot verify age envelopes")

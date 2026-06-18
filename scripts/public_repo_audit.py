@@ -69,6 +69,7 @@ REQUIRED_PATHS = [
     "scripts/inspect_suffix_speed_sweep.py",
     "scripts/inspect_runpod_sequence_result.py",
     "scripts/inspect_serverless_find_e2e.py",
+    "scripts/prepare_runpod_smoke_test_materials.py",
     "patches/vanitysearch_tron_gpu_suffix_only_20260618.patch",
     "scripts/inspect_vanitysearch_benchmark.py",
     "scripts/print_runpod_suffix_only_commands.sh",

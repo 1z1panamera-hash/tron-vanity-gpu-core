@@ -68,6 +68,14 @@ test response:
 age-keygen -o /tmp/tron_vanity_test_age_identity.txt
 ```
 
+Or generate the temporary test recipient and smoke payload together:
+
+```bash
+scripts/prepare_runpod_smoke_test_materials.py \
+  --out-dir /tmp/tron_vanity_runpod_smoke \
+  --endpoint-id "<endpoint-id>"
+```
+
 Use the printed `age1...` recipient in the RunPod request payload. Keep the
 identity file local and temporary. Never commit it and never copy it to
 `47.80.70.211`.
