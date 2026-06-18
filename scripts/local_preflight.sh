@@ -14,6 +14,7 @@ test -x scripts/runpod_gpu_pod_sequence.sh
 test -x scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 test -x scripts/runpod_gpu_pod_suffix_speed_test.sh
 test -x scripts/runpod_gpu_pod_suffix_autotune.sh
+test -x scripts/runpod_fixed_pod_autotune_e2e.py
 test -x scripts/runpod_gpu_pod_find_debug.sh
 test -x scripts/runpod_gpu_pod_suffix_compare_commits.sh
 test -x scripts/build_vanitysearch_tron_worker.sh
@@ -37,6 +38,7 @@ bash -n scripts/runpod_gpu_pod_suffix_compare_commits.sh
 bash -n scripts/build_vanitysearch_tron_worker.sh
 bash -n scripts/print_runpod_suffix_only_commands.sh
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_serverless_find_e2e.py
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_fixed_pod_autotune_e2e.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_serverless_readiness_check.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/prepare_runpod_smoke_test_materials.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/generate_test_age_identity.py
@@ -609,6 +611,23 @@ rc=$?
 set -e
 if [ "$rc" -ne 2 ]; then
     echo "expected RunPod suffix autotune script to refuse without env gate rc=2, got rc=$rc" >&2
+    exit 1
+fi
+scripts/runpod_fixed_pod_autotune_e2e.py --dry-run >/tmp/runpod_fixed_pod_autotune_dry_run.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+data = json.loads(Path("/tmp/runpod_fixed_pod_autotune_dry_run.json").read_text())
+assert data["would_call_runpod"] is False
+assert data["gpu_priority"][0] == "NVIDIA RTX PRO 6000 Blackwell Server Edition"
+assert data["cleanup"] == "stop-and-delete"
+PY
+set +e
+scripts/runpod_fixed_pod_autotune_e2e.py >/tmp/runpod_fixed_pod_autotune_gate_stdout.txt 2>/tmp/runpod_fixed_pod_autotune_gate_stderr.txt
+rc=$?
+set -e
+if [ "$rc" -ne 1 ]; then
+    echo "expected fixed Pod autotune e2e script to refuse without env gate rc=1, got rc=$rc" >&2
     exit 1
 fi
 set +e

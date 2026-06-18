@@ -59,12 +59,20 @@ ALLOW_RUNPOD_SUFFIX_SPEED_TEST=1 CUDA_ARCH=$CUDA_ARCH_VALUE BENCHMARK_SECONDS=3 
 ALLOW_RUNPOD_SUFFIX_AUTOTUNE=1 BENCHMARK_SECONDS=3 \\
   scripts/runpod_gpu_pod_suffix_autotune.sh
 
-## 8. Optional profiler sweep, only after a short speed sweep is clean
+## 8. Full fixed Pod automation: create Pod, run autotune, fetch result, delete Pod
+# Requires RUNPOD_API_KEY in the environment. It refuses to run unless the
+# explicit spend gate is set.
+scripts/runpod_fixed_pod_autotune_e2e.py --dry-run
+
+ALLOW_RUNPOD_FIXED_POD_AUTOTUNE=1 \\
+  scripts/runpod_fixed_pod_autotune_e2e.py
+
+## 9. Optional profiler sweep, only after a short speed sweep is clean
 ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=$CUDA_ARCH_VALUE BENCHMARK_SECONDS=3 \\
 RUN_NSYS=1 PROFILE_STEP_SIZE=4096 PROFILE_GRID=64,128 PROFILE_SECONDS=5 \\
   scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 
-## 9. Decision
+## 10. Decision
 # If decision = optimize_cuda_before_serverless:
 #   stop Serverless work and continue CUDA optimization.
 #
