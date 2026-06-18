@@ -1,0 +1,30 @@
+{
+  "id": "sample-find-success",
+  "status": "COMPLETED",
+  "executionTime": 900,
+  "request_latency_seconds": 1.2,
+  "output": {
+    "mode": "find",
+    "allowed": true,
+    "matched": true,
+    "gpu_worker_backend": "vanitysearch",
+    "matched_address": "TA11111111111111111111111111CDEFG",
+    "encrypted_private_key": "-----BEGIN AGE ENCRYPTED FILE-----\nYWdlLWVuY3J5cHRlZC10ZXN0LWNpcGhlcnRleHQ=\n-----END AGE ENCRYPTED FILE-----",
+    "match_rule": {
+      "target_address": "T888888888888888888888888888CDEFG",
+      "prefix_len": 0,
+      "suffix_len": 5,
+      "suffix": "CDEFG",
+      "effective_random_chars": 5,
+      "search_space": 656356768,
+      "rule": "TRON suffix-only last 5 Base58 characters"
+    },
+    "elapsed_seconds": 0.7,
+    "gpu_grid": "128,128",
+    "started_at": "2026-06-18T00:00:00+00:00",
+    "finished_at": "2026-06-18T00:00:01+00:00",
+    "notes": [
+      "Sample response only; not a real RunPod result."
+    ]
+  }
+}

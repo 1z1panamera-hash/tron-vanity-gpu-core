@@ -95,6 +95,61 @@ Current suffix-only note: the hot path must still compute checksum correctly bef
 
 Current RunPod gate note: `scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh` parses the vector JSON and must print `tron_gpu_vector_fields_verified` before any smoke or bounded benchmark output is considered usable.
 
+## Find Response
+
+After a controlled `mode=find` test returns, save the full RunPod response JSON locally, for example:
+
+```text
+runpod_find_response.json
+```
+
+Then run:
+
+```bash
+scripts/inspect_runpod_result.py runpod_find_response.json --mode find
+```
+
+The inspector checks:
+
+- response mode is `find`,
+- `matched = true`,
+- `matched_address` is a reasonable TRON Base58 address,
+- `matched_address` ends with the requested 5-character suffix,
+- `match_rule.prefix_len = 0`,
+- `match_rule.suffix_len = 5`,
+- `match_rule.search_space = 58^5`,
+- `encrypted_private_key` is age armor,
+- no forbidden raw key or credential fields are present.
+
+If this fails, do not continue to repeated Serverless tests.
+
+## Serverless Find E2E Batch
+
+For cold/warm timing proof, save one cold response and at least ten warm responses under a local ignored directory:
+
+```text
+serverless_find_e2e/find_00.json
+serverless_find_e2e/find_01.json
+...
+serverless_find_e2e/find_10.json
+```
+
+If possible, include top-level `request_latency_seconds` in each saved JSON. If that field is missing, the inspector falls back to RunPod `executionTime` or worker `elapsed_seconds`.
+
+Inspect the batch:
+
+```bash
+scripts/inspect_serverless_find_e2e.py serverless_find_e2e --cold-count 1
+```
+
+Required pass conditions:
+
+- every sample passes the single find response inspector,
+- at least 10 warm samples exist,
+- warm average <= 5 seconds,
+- warm P90 <= 8 seconds,
+- cold start is reported separately.
+
 ## GPU Pod Sequence Result Directory
 
 If the normal GPU Pod test was run through:

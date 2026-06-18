@@ -90,11 +90,44 @@ Record:
 - warm P90,
 - cold start latency.
 
+## Save And Inspect
+
+Save the first controlled find response as:
+
+```text
+runpod_find_response.json
+```
+
+Inspect it locally:
+
+```bash
+scripts/inspect_runpod_result.py runpod_find_response.json --mode find
+```
+
+For repeated Serverless timing, save one cold response and at least ten warm responses:
+
+```text
+serverless_find_e2e/find_00.json
+serverless_find_e2e/find_01.json
+...
+serverless_find_e2e/find_10.json
+```
+
+Add top-level `request_latency_seconds` to each saved JSON when measuring from the client side. If that is unavailable, the inspector falls back to RunPod `executionTime` or worker `elapsed_seconds`.
+
+Inspect the batch:
+
+```bash
+scripts/inspect_serverless_find_e2e.py serverless_find_e2e --cold-count 1
+```
+
 ## Do Not Claim Complete Until
 
 - Serverless build succeeds from the current repo.
 - The image contains the updated patch SHA.
 - A GPU Pod find smoke proves the internal JSON hit path works.
 - Serverless returns age ciphertext only.
+- `scripts/inspect_runpod_result.py ... --mode find` passes.
+- `scripts/inspect_serverless_find_e2e.py ... --cold-count 1` passes.
 - Repeated warm calls meet average <= 5s and P90 <= 8s.
 - Cold start behavior is measured and reported separately.

@@ -17,6 +17,7 @@ test -x scripts/runpod_gpu_pod_suffix_compare_commits.sh
 test -x scripts/build_vanitysearch_tron_worker.sh
 test -x scripts/inspect_suffix_speed_sweep.py
 test -x scripts/inspect_runpod_sequence_result.py
+test -x scripts/inspect_serverless_find_e2e.py
 test -x scripts/print_runpod_suffix_only_commands.sh
 test -x scripts/inspect_vanitysearch_benchmark.py
 bash -n scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
@@ -28,6 +29,7 @@ bash -n scripts/build_vanitysearch_tron_worker.sh
 bash -n scripts/print_runpod_suffix_only_commands.sh
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_runpod_sequence_result.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_suffix_speed_sweep.py
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/inspect_serverless_find_e2e.py
 
 echo "== json"
 python3 - <<'PY'
@@ -136,7 +138,83 @@ python3 scripts/validate_goal_rule.py >/tmp/tron_gpu_goal_rule.json
 python3 scripts/capacity_math.py --addresses-per-second 1000000000 --seconds 10 >/tmp/tron_gpu_capacity_check.json
 python3 scripts/inspect_runpod_result.py examples/runpod_validate_success_sample.json --mode validate_vectors >/tmp/runpod_validate_inspect.json
 python3 scripts/inspect_runpod_result.py examples/runpod_benchmark_success_sample.json --mode benchmark >/tmp/runpod_benchmark_inspect.json
+python3 scripts/inspect_runpod_result.py examples/runpod_find_success_sample.json --mode find >/tmp/runpod_find_inspect.json
 python3 scripts/inspect_vanitysearch_benchmark.py examples/vanitysearch_bounded_benchmark_sample.txt >/tmp/vanitysearch_benchmark_inspect.json
+bad_find_file="/tmp/tron_gpu_bad_find_response_$$.json"
+cat >"$bad_find_file" <<'JSON'
+{
+  "output": {
+    "mode": "find",
+    "matched": true,
+    "matched_address": "TA11111111111111111111111111CDEFG",
+    "encrypted_private_key": "-----BEGIN AGE ENCRYPTED FILE-----\nYWdlLWVuY3J5cHRlZC10ZXN0LWNpcGhlcnRleHQ=\n-----END AGE ENCRYPTED FILE-----",
+    "private_key_hex": "0000000000000000000000000000000000000000000000000000000000000001",
+    "match_rule": {"prefix_len": 0, "suffix_len": 5, "suffix": "CDEFG", "search_space": 656356768}
+  }
+}
+JSON
+set +e
+python3 scripts/inspect_runpod_result.py "$bad_find_file" --mode find >/tmp/runpod_bad_find_inspect.json
+rc=$?
+set -e
+rm -f "$bad_find_file"
+if [ "$rc" -eq 0 ]; then
+    echo "expected bad find response inspection to fail" >&2
+    exit 1
+fi
+serverless_find_dir="/tmp/tron_gpu_serverless_find_e2e_$$"
+mkdir -p "$serverless_find_dir"
+cleanup_serverless_find_dir() {
+    rm -f "$serverless_find_dir"/*.json
+    rmdir "$serverless_find_dir" 2>/dev/null || true
+}
+python3 - "$serverless_find_dir" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+out = Path(sys.argv[1])
+base = {
+    "status": "COMPLETED",
+    "output": {
+        "mode": "find",
+        "allowed": True,
+        "matched": True,
+        "gpu_worker_backend": "vanitysearch",
+        "matched_address": "TA11111111111111111111111111CDEFG",
+        "encrypted_private_key": "-----BEGIN AGE ENCRYPTED FILE-----\nYWdlLWVuY3J5cHRlZC10ZXN0LWNpcGhlcnRleHQ=\n-----END AGE ENCRYPTED FILE-----",
+        "match_rule": {
+            "target_address": "T888888888888888888888888888CDEFG",
+            "prefix_len": 0,
+            "suffix_len": 5,
+            "suffix": "CDEFG",
+            "effective_random_chars": 5,
+            "search_space": 656356768,
+            "rule": "TRON suffix-only last 5 Base58 characters",
+        },
+        "elapsed_seconds": 0.7,
+        "gpu_grid": "128,128",
+    },
+}
+latencies = [7.2, 1.4, 1.3, 1.2, 1.6, 1.5, 1.7, 1.8, 1.1, 1.4, 1.6]
+for index, latency in enumerate(latencies):
+    item = dict(base)
+    item["id"] = f"sample-{index:02d}"
+    item["request_latency_seconds"] = latency
+    (out / f"find_{index:02d}.json").write_text(json.dumps(item, indent=2) + "\n")
+PY
+python3 scripts/inspect_serverless_find_e2e.py "$serverless_find_dir" --cold-count 1 >/tmp/serverless_find_e2e_inspect.json
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+data = json.loads(Path("/tmp/serverless_find_e2e_inspect.json").read_text())
+assert data["passed"] is True, data["failures"]
+assert data["cold_count"] == 1
+assert data["warm_count"] == 10
+assert data["warm_average_seconds"] <= 5.0
+assert data["warm_p90_seconds"] <= 8.0
+PY
 speed_sweep_dir="/tmp/tron_gpu_suffix_speed_sweep_inspect_sample_$$"
 mkdir -p "$speed_sweep_dir"
 cleanup_speed_sweep_dir() {
@@ -238,6 +316,7 @@ cleanup_sequence_dir() {
     rmdir "$sequence_dir" 2>/dev/null || true
 }
 cleanup_result_inspector_dirs() {
+    cleanup_serverless_find_dir
     cleanup_speed_sweep_dir
     cleanup_sequence_dir
 }

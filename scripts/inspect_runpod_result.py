@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterable, List, Tuple
 
 FORBIDDEN_KEYS = {
     "private_key",
+    "private_key_hex",
     "privateKey",
     "mnemonic",
     "seed",
@@ -17,6 +18,7 @@ FORBIDDEN_KEYS = {
     "api_key",
     "apiKey",
 }
+BASE58_ALPHABET = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 
 SEARCH_SPACE = 58 ** 5
 ENGINEERING_MIN_ATTEMPTS_PER_SECOND = 200_000_000.0
@@ -168,10 +170,59 @@ def inspect_benchmark(result: Dict[str, Any]) -> Tuple[bool, List[str], Dict[str
     }
 
 
+def inspect_find(result: Dict[str, Any]) -> Tuple[bool, List[str], Dict[str, Any]]:
+    failures: List[str] = []
+    if result.get("mode") != "find":
+        failures.append("mode is not find")
+    if result.get("matched") is not True:
+        failures.append("matched is not true")
+
+    address = result.get("matched_address")
+    if (
+        not isinstance(address, str)
+        or not address.startswith("T")
+        or not 26 <= len(address) <= 40
+        or any(ch not in BASE58_ALPHABET for ch in address)
+    ):
+        failures.append("matched_address is not a reasonable TRON Base58 address")
+
+    match_rule = result.get("match_rule")
+    suffix = None
+    if isinstance(match_rule, dict):
+        suffix = match_rule.get("suffix")
+        if match_rule.get("prefix_len") != 0:
+            failures.append("match_rule.prefix_len is not 0")
+        if match_rule.get("suffix_len") != 5:
+            failures.append("match_rule.suffix_len is not 5")
+        if match_rule.get("search_space") != SEARCH_SPACE:
+            failures.append("match_rule.search_space is not 58^5")
+    else:
+        failures.append("match_rule is missing or not an object")
+    if not isinstance(suffix, str) or len(suffix) != 5:
+        failures.append("match_rule.suffix is not exactly 5 chars")
+    elif isinstance(address, str) and not address.endswith(suffix):
+        failures.append("matched_address does not end with requested suffix")
+
+    encrypted = result.get("encrypted_private_key")
+    if not isinstance(encrypted, str) or not encrypted.startswith("-----BEGIN AGE ENCRYPTED FILE-----"):
+        failures.append("encrypted_private_key is missing or is not age armor")
+
+    return len(failures) == 0, failures, {
+        "mode": result.get("mode"),
+        "matched": result.get("matched"),
+        "matched_address": address,
+        "suffix": suffix,
+        "gpu_worker_backend": result.get("gpu_worker_backend"),
+        "elapsed_seconds": result.get("elapsed_seconds"),
+        "has_age_ciphertext": isinstance(encrypted, str) and encrypted.startswith("-----BEGIN AGE ENCRYPTED FILE-----"),
+        "response_keys": sorted(result.keys()),
+    }
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Inspect RunPod validate/benchmark JSON response.")
+    parser = argparse.ArgumentParser(description="Inspect RunPod validate/benchmark/find JSON response.")
     parser.add_argument("path", help="JSON file path, or '-' for stdin")
-    parser.add_argument("--mode", choices=["auto", "validate_vectors", "benchmark"], default="auto")
+    parser.add_argument("--mode", choices=["auto", "validate_vectors", "benchmark", "find"], default="auto")
     args = parser.parse_args()
 
     data = load_json(args.path)
@@ -183,6 +234,8 @@ def main() -> int:
         passed, failures, summary = inspect_validate(result)
     elif mode == "benchmark":
         passed, failures, summary = inspect_benchmark(result)
+    elif mode == "find":
+        passed, failures, summary = inspect_find(result)
     else:
         passed, failures, summary = False, [f"unsupported or missing mode: {mode!r}"], {"mode": mode}
 

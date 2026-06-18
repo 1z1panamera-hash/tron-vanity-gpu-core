@@ -83,7 +83,8 @@ The last 5 Base58Check characters depend on checksum, so matching cannot be deci
 - `scripts/local_preflight.sh`: local no-server, no-RunPod preflight before pushing to GitHub.
 - `scripts/public_repo_audit.py`: local audit before exposing the repository to GitHub/RunPod.
 - `scripts/prepare_github_push.sh`: dry-run-first helper for setting GitHub remote and pushing only after explicit confirmation.
-- `scripts/inspect_runpod_result.py`: local JSON inspector for RunPod validate/benchmark responses.
+- `scripts/inspect_runpod_result.py`: local JSON inspector for RunPod validate/benchmark/find responses.
+- `scripts/inspect_serverless_find_e2e.py`: local inspector for repeated Serverless find responses, including cold/warm timing and warm P90.
 - `scripts/capacity_math.py`: local worker-count/probability calculator for measured complete TRON address speed.
 - `scripts/runpod_gpu_pod_suffix_speed_sweep.sh`: gated normal RunPod GPU Pod speed sweep/profiler helper for suffix-only optimization.
 - `scripts/runpod_gpu_pod_suffix_speed_test.sh`: gated one-command GPU Pod speed test that runs the sweep and immediately inspects the result.

@@ -59,6 +59,22 @@ After validation passes, save later benchmark responses as:
 runpod_benchmark_smoke_response.json
 runpod_a100_10s_response.json
 runpod_rtx5090_10s_response.json
+runpod_find_response.json
 ```
 
 These files are ignored by git. They are local evidence files, not repository artifacts.
+
+For repeated Serverless find timing, save local evidence under:
+
+```text
+serverless_find_e2e/
+```
+
+This directory is also ignored by git.
+
+Inspect find evidence with:
+
+```bash
+scripts/inspect_runpod_result.py runpod_find_response.json --mode find
+scripts/inspect_serverless_find_e2e.py serverless_find_e2e --cold-count 1
+```
