@@ -76,6 +76,7 @@ REQUIRED_PATHS = [
     "scripts/print_runpod_suffix_only_commands.sh",
     "scripts/runpod_gpu_pod_suffix_speed_sweep.sh",
     "scripts/runpod_gpu_pod_suffix_speed_test.sh",
+    "scripts/runpod_gpu_pod_find_debug.sh",
     "scripts/runpod_gpu_pod_suffix_compare_commits.sh",
     "scripts/runpod_gpu_pod_sequence.sh",
     "scripts/runpod_serverless_find_e2e.py",

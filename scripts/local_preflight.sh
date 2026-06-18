@@ -13,6 +13,7 @@ test -x scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
 test -x scripts/runpod_gpu_pod_sequence.sh
 test -x scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 test -x scripts/runpod_gpu_pod_suffix_speed_test.sh
+test -x scripts/runpod_gpu_pod_find_debug.sh
 test -x scripts/runpod_gpu_pod_suffix_compare_commits.sh
 test -x scripts/build_vanitysearch_tron_worker.sh
 test -x scripts/runpod_serverless_find_e2e.py
@@ -29,6 +30,7 @@ bash -n scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
 bash -n scripts/runpod_gpu_pod_sequence.sh
 bash -n scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 bash -n scripts/runpod_gpu_pod_suffix_speed_test.sh
+bash -n scripts/runpod_gpu_pod_find_debug.sh
 bash -n scripts/runpod_gpu_pod_suffix_compare_commits.sh
 bash -n scripts/build_vanitysearch_tron_worker.sh
 bash -n scripts/print_runpod_suffix_only_commands.sh
@@ -557,7 +559,7 @@ from hashlib import sha256
 from pathlib import Path
 
 patch = Path("patches/vanitysearch_tron_gpu_suffix_only_20260618.patch")
-expected = "0ccd4433368dda9aad7516228254332cc2c1a385ad5dedc6757727b08da6886a"
+expected = "4508971abdd4a9b8e195a824b68d111be48096d3e04409031816ac71863a576d"
 actual = sha256(patch.read_bytes()).hexdigest()
 assert actual == expected, actual
 print("vanitysearch_patch_sha_ok")
@@ -584,6 +586,14 @@ rc=$?
 set -e
 if [ "$rc" -ne 2 ]; then
     echo "expected RunPod suffix speed test script to refuse without env gate rc=2, got rc=$rc" >&2
+    exit 1
+fi
+set +e
+scripts/runpod_gpu_pod_find_debug.sh >/tmp/runpod_find_debug_gate_stdout.txt 2>/tmp/runpod_find_debug_gate_stderr.txt
+rc=$?
+set -e
+if [ "$rc" -ne 2 ]; then
+    echo "expected RunPod find debug script to refuse without env gate rc=2, got rc=$rc" >&2
     exit 1
 fi
 set +e

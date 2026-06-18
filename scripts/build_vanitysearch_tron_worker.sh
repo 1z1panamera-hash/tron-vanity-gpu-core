@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_suffix_only_20260618.patch"
-EXPECTED_PATCH_SHA="0ccd4433368dda9aad7516228254332cc2c1a385ad5dedc6757727b08da6886a"
+EXPECTED_PATCH_SHA="4508971abdd4a9b8e195a824b68d111be48096d3e04409031816ac71863a576d"
 
 if [ "${ALLOW_BUILD_VANITYSEARCH_TRON_WORKER:-0}" != "1" ]; then
   echo "refusing_to_build_without_ALLOW_BUILD_VANITYSEARCH_TRON_WORKER=1" >&2

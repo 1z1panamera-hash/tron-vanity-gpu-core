@@ -335,6 +335,10 @@ def forbidden_output_markers(text: str) -> List[str]:
     return [marker for marker in SENSITIVE_MARKERS if re.search(re.escape(marker), stripped, re.IGNORECASE)]
 
 
+def unsafe_test_output_allowed() -> bool:
+    return os.environ.get("ALLOW_UNSAFE_TEST_OUTPUT") == "1"
+
+
 def parse_vanitysearch_speed(stdout: str) -> Dict[str, Any]:
     matches = VANITYSEARCH_SPEED_RE.findall(stdout)
     if not matches:
@@ -418,7 +422,10 @@ def run_vanitysearch_benchmark(suffix: str, duration_seconds: int, gpu_grid: str
             "binary": str(VANITYSEARCH_BINARY_PATH),
             "stderr_tail": stderr[-2000:],
         }
-    if contains_forbidden_output_marker(stdout) or contains_forbidden_output_marker(stderr):
+    if (
+        not unsafe_test_output_allowed()
+        and (contains_forbidden_output_marker(stdout) or contains_forbidden_output_marker(stderr))
+    ):
         return {
             "ready": True,
             "returncode": returncode,
@@ -435,6 +442,7 @@ def run_vanitysearch_benchmark(suffix: str, duration_seconds: int, gpu_grid: str
         "binary": str(VANITYSEARCH_BINARY_PATH),
         "pattern": pattern,
         "gpu_grid": gpu_grid,
+        "unsafe_test_output_allowed": unsafe_test_output_allowed(),
     })
     return parsed
 
@@ -491,6 +499,8 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
     env = os.environ.copy()
     env["TRON_JSON_HIT_OUTPUT"] = "1"
     env["TRON_SUPPRESS_SECRET_OUTPUT"] = "1"
+    if unsafe_test_output_allowed():
+        env["TRON_DEBUG_FIND_RECHECK"] = "1"
     command = [
         str(VANITYSEARCH_BINARY_PATH),
         "-gpu",
@@ -522,7 +532,10 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
             "parsed": {"matched": False},
         }
 
-    if re.search(r"Priv \(|WIF|mnemonic|seed|token|secret", result.stdout + result.stderr, re.IGNORECASE):
+    if (
+        not unsafe_test_output_allowed()
+        and re.search(r"Priv \(|WIF|mnemonic|seed|token|secret", result.stdout + result.stderr, re.IGNORECASE)
+    ):
         return {
             "ready": True,
             "returncode": result.returncode,
@@ -538,6 +551,7 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
         "returncode": result.returncode,
         "timeout": result.returncode == 124,
         "binary": str(VANITYSEARCH_BINARY_PATH),
+        "unsafe_test_output_allowed": unsafe_test_output_allowed(),
         "parsed": parsed,
     }
 

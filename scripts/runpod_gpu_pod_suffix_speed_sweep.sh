@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_suffix_only_20260618.patch"
-EXPECTED_PATCH_SHA="0ccd4433368dda9aad7516228254332cc2c1a385ad5dedc6757727b08da6886a"
+EXPECTED_PATCH_SHA="4508971abdd4a9b8e195a824b68d111be48096d3e04409031816ac71863a576d"
 
 if [ "${ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP:-0}" != "1" ]; then
   echo "refusing_to_run_without_ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1" >&2
@@ -116,6 +116,7 @@ echo "sweep_step_sizes=$SWEEP_STEP_SIZES"
 echo "sweep_grids=$SWEEP_GRIDS"
 echo "profile_step_size=$PROFILE_STEP_SIZE"
 echo "result_dir=$RESULT_DIR"
+echo "unsafe_test_output_allowed=${ALLOW_UNSAFE_TEST_OUTPUT:-0}"
 echo "engineering_min_attempts_per_second=200000000"
 echo "engineering_preferred_attempts_per_second=300000000"
 
@@ -191,7 +192,8 @@ run_benchmark_grid() {
     exit 1
   fi
 
-  if sed 's/TRON_SUPPRESS_SECRET_OUTPUT//g' "$stdout_file" "$stderr_file" \
+  if [ "${ALLOW_UNSAFE_TEST_OUTPUT:-0}" != "1" ] && \
+    sed 's/TRON_SUPPRESS_SECRET_OUTPUT//g' "$stdout_file" "$stderr_file" \
       | grep -Eiq "Priv|WIF|HEX|private_key|mnemonic|seed|token|secret"; then
     echo "unexpected sensitive marker or hit output in benchmark grid=$grid" >&2
     exit 1
