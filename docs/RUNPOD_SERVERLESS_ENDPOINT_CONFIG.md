@@ -69,6 +69,11 @@ This keeps zero baseline spend while allowing RunPod to choose from more than
 one GPU type when the primary type has limited capacity. Active workers were
 not enabled.
 
+This fallback setup is for availability, not guaranteed maximum speed. If
+Serverless cold start or allocation delay is unacceptable, use a normal fixed
+GPU Pod and run `scripts/runpod_gpu_pod_suffix_autotune.sh` so the worker is
+compiled for the exact GPU class.
+
 ## Runtime Environment Variables
 
 Required:

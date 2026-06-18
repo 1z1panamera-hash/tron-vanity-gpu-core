@@ -33,6 +33,7 @@ RESULT_DIR="${RESULT_DIR:-$ROOT/runpod_results/suffix_speed_sweep_$RUN_ID}"
 CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
 CUDA_ARCH_INPUT="${CUDA_ARCH:-sm_80}"
 CCAP="${CUDA_ARCH_INPUT#sm_}"
+CUDA_ARCHS_INPUT="${CUDA_ARCHS:-}"
 CXXCUDA="${CXXCUDA:-/usr/bin/g++}"
 BENCHMARK_PATTERN="${BENCHMARK_PATTERN:-T*CDEFG}"
 BENCHMARK_SECONDS="${BENCHMARK_SECONDS:-3}"
@@ -109,6 +110,7 @@ start_gpu_util_sampler() {
 echo "== suffix speed sweep"
 echo "repo_commit=$(git -C "$ROOT" rev-parse HEAD)"
 echo "cuda_arch=$CUDA_ARCH_INPUT"
+echo "cuda_archs=${CUDA_ARCHS_INPUT:-single:${CUDA_ARCH_INPUT}}"
 echo "ccap=$CCAP"
 echo "benchmark_seconds=$BENCHMARK_SECONDS"
 echo "benchmark_pattern=$BENCHMARK_PATTERN"
@@ -136,6 +138,26 @@ done
 echo "== apply TRON suffix-only patch"
 git apply "$PATCH_PATH"
 
+NVCC_GENCODE_FLAGS=""
+if [ -n "$CUDA_ARCHS_INPUT" ]; then
+  IFS=',' read -r -a cuda_archs <<< "$CUDA_ARCHS_INPUT"
+  for arch in "${cuda_archs[@]}"; do
+    arch="${arch//[[:space:]]/}"
+    if [[ ! "$arch" =~ ^sm_[0-9]+$ ]]; then
+      echo "CUDA_ARCHS entries must look like sm_80,sm_86,sm_89,sm_120: $arch" >&2
+      exit 1
+    fi
+    ccap_multi="${arch#sm_}"
+    NVCC_GENCODE_FLAGS+=" -gencode=arch=compute_${ccap_multi},code=sm_${ccap_multi}"
+  done
+  last_index=$((${#cuda_archs[@]} - 1))
+  last_arch="${cuda_archs[$last_index]//[[:space:]]/}"
+  last_ccap="${last_arch#sm_}"
+  NVCC_GENCODE_FLAGS+=" -gencode=arch=compute_${last_ccap},code=compute_${last_ccap}"
+  sed -i 's|-gencode=arch=compute_$(ccap),code=sm_$(ccap) -gencode=arch=compute_$(ccap),code=compute_$(ccap)|$(NVCC_GENCODE_FLAGS)|g' Makefile
+  echo "nvcc_gencode_flags=$NVCC_GENCODE_FLAGS"
+fi
+
 echo "== vector gate"
 CUDA_ARCH="$CUDA_ARCH_INPUT" scripts/runpod_verify_tron_gpu_address_layer.sh \
   | tee "$RESULT_DIR/vector_gate.stdout.txt"
@@ -160,7 +182,7 @@ build_step_size() {
   fi
   echo "== build VanitySearch STEP_SIZE=$step_size"
   make clean >/dev/null 2>&1 || true
-  make gpu=1 CCAP="$CCAP" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" STEP_SIZE="$step_size" all \
+  make gpu=1 CCAP="$CCAP" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" STEP_SIZE="$step_size" NVCC_GENCODE_FLAGS="$NVCC_GENCODE_FLAGS" all \
     2>&1 | tee "$RESULT_DIR/build_step_${step_size}.stdout.txt"
   CURRENT_STEP_SIZE="$step_size"
 }

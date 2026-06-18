@@ -51,12 +51,20 @@ scripts/inspect_runpod_sequence_result.py "\$latest_result_dir"
 ALLOW_RUNPOD_SUFFIX_SPEED_TEST=1 CUDA_ARCH=$CUDA_ARCH_VALUE BENCHMARK_SECONDS=3 \\
   scripts/runpod_gpu_pod_suffix_speed_test.sh
 
-## 7. Optional profiler sweep, only after a short speed sweep is clean
+## 7. Fixed GPU Pod autotune: recommended for high-end available cards first
+# This detects the GPU with nvidia-smi, chooses the native CUDA arch, uses a
+# single-architecture build, and sweeps grid/STEP_SIZE values suitable for that
+# GPU class. Prefer RTX PRO 6000 / Blackwell / H100 / H200 / A100 when
+# consumer 3090 / 4090 / 5090 inventory is unstable.
+ALLOW_RUNPOD_SUFFIX_AUTOTUNE=1 BENCHMARK_SECONDS=3 \\
+  scripts/runpod_gpu_pod_suffix_autotune.sh
+
+## 8. Optional profiler sweep, only after a short speed sweep is clean
 ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1 CUDA_ARCH=$CUDA_ARCH_VALUE BENCHMARK_SECONDS=3 \\
 RUN_NSYS=1 PROFILE_STEP_SIZE=4096 PROFILE_GRID=64,128 PROFILE_SECONDS=5 \\
   scripts/runpod_gpu_pod_suffix_speed_sweep.sh
 
-## 8. Decision
+## 9. Decision
 # If decision = optimize_cuda_before_serverless:
 #   stop Serverless work and continue CUDA optimization.
 #

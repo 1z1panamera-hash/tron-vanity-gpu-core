@@ -73,6 +73,22 @@ ALLOW_RUNPOD_SUFFIX_SPEED_TEST=1 CUDA_ARCH=sm_80 BENCHMARK_SECONDS=3 \
   scripts/runpod_gpu_pod_suffix_speed_test.sh
 ```
 
+For a fixed GPU Pod, especially high-end cards such as RTX PRO 6000 /
+Blackwell, H100, H200, or A100, prefer the autotune wrapper:
+
+```bash
+ALLOW_RUNPOD_SUFFIX_AUTOTUNE=1 BENCHMARK_SECONDS=3 \
+  scripts/runpod_gpu_pod_suffix_autotune.sh
+```
+
+This detects the actual GPU with `nvidia-smi`, chooses the native CUDA
+architecture, compiles a single-architecture binary, sweeps grid and STEP_SIZE,
+and writes `speed_sweep_inspect.json`.
+
+Consumer cards such as RTX 3090 / 4090 / 5090 are useful when available, but
+they should not be treated as the primary capacity plan if inventory is unstable.
+Use high-end cards first when availability matters.
+
 The lower-level speed sweep remains available if you want to run the sweep without automatic inspection:
 
 ```bash
