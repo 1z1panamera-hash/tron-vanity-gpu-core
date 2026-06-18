@@ -480,6 +480,39 @@ def parse_vanitysearch_find_stdout(stdout: str, suffix: str) -> Dict[str, Any]:
     return {"matched": False}
 
 
+def summarize_vanitysearch_find_stdout(stdout: str, suffix: str) -> Dict[str, Any]:
+    """Return key-safe diagnostics about VanitySearch find stdout."""
+    decoder = json.JSONDecoder()
+    json_hit_count = 0
+    suffix_hit_count = 0
+    last_address_suffix = None
+    malformed_hit_count = 0
+    for index, char in enumerate(stdout):
+        if char != "{":
+            continue
+        try:
+            candidate, _ = decoder.raw_decode(stdout[index:])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(candidate, dict) or candidate.get("mode") != "tron_find":
+            continue
+        json_hit_count += 1
+        matched_address = candidate.get("matched_address")
+        if isinstance(matched_address, str) and matched_address.startswith("T"):
+            last_address_suffix = matched_address[-DEFAULT_SUFFIX_LEN:]
+            if matched_address.endswith(suffix):
+                suffix_hit_count += 1
+        else:
+            malformed_hit_count += 1
+    return {
+        "json_hit_count": json_hit_count,
+        "suffix_hit_count": suffix_hit_count,
+        "last_address_suffix": last_address_suffix,
+        "malformed_hit_count": malformed_hit_count,
+        "speed_summary": parse_vanitysearch_speed(stdout),
+    }
+
+
 def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid: str) -> Dict[str, Any]:
     """Run patched VanitySearch find mode and keep raw stdout internal-only."""
     if not VANITYSEARCH_BINARY_PATH.exists():
@@ -530,6 +563,17 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
             "timeout": True,
             "binary": str(VANITYSEARCH_BINARY_PATH),
             "parsed": {"matched": False},
+            "safe_diagnostics": {
+                "json_hit_count": 0,
+                "suffix_hit_count": 0,
+                "last_address_suffix": None,
+                "malformed_hit_count": 0,
+                "speed_summary": {
+                    "passed": False,
+                    "error": "process timeout before stdout summary was available",
+                    "samples": 0,
+                },
+            },
         }
 
     if (
@@ -546,6 +590,7 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
         }
 
     parsed = parse_vanitysearch_find_stdout(result.stdout, suffix)
+    safe_diagnostics = summarize_vanitysearch_find_stdout(result.stdout, suffix)
     return {
         "ready": True,
         "returncode": result.returncode,
@@ -553,6 +598,7 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
         "binary": str(VANITYSEARCH_BINARY_PATH),
         "unsafe_test_output_allowed": unsafe_test_output_allowed(),
         "parsed": parsed,
+        "safe_diagnostics": safe_diagnostics,
     }
 
 
@@ -1040,6 +1086,13 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "match_rule": match_rule,
                 "elapsed_seconds": elapsed,
                 "gpu_grid": gpu_grid,
+                "gpu_binary": {
+                    "ready": binary_status.get("ready"),
+                    "returncode": binary_status.get("returncode"),
+                    "timeout": binary_status.get("timeout"),
+                    "binary": binary_status.get("binary"),
+                },
+                "safe_diagnostics": binary_status.get("safe_diagnostics", {}),
                 "notes": [
                     "No match found within this bounded RunPod invocation.",
                     "No sensitive material is returned.",
@@ -1226,10 +1279,16 @@ def handle_find_debug(payload: Dict[str, Any]) -> Dict[str, Any]:
         find_debug.get("matched")
         and find_debug.get("matched_address") == probe.get("address")
     )
+    force_first_sanity_passed = bool(
+        force_first_candidate
+        and find_debug.get("json_hit_count")
+        and isinstance(find_debug.get("matched_address"), str)
+    )
     return {
         "mode": "find_debug",
         "allowed": True,
         "passed": passed,
+        "force_first_sanity_passed": force_first_sanity_passed,
         "probe": {
             "address": probe.get("address"),
             "suffix5": probe.get("suffix5"),
@@ -1246,6 +1305,7 @@ def handle_find_debug(payload: Dict[str, Any]) -> Dict[str, Any]:
         "notes": [
             "Test-only fixed seed diagnostic; do not use as production flow.",
             "No internal key value is returned by this debug response.",
+            "force_first_sanity_passed only verifies GPU hit writeback and CPU address reconstruction.",
             "If passed=false, debug_lines identify whether GPU hit writeback or CPU recheck failed.",
         ],
     }
