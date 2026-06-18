@@ -13,6 +13,20 @@ PAYLOADS = [
     "RUNPOD_RTX5090_BENCHMARK_10S_PAYLOAD.json",
     "RUNPOD_FIND_SAMPLE_PAYLOAD.json",
 ]
+CURRENT_DOCS = [
+    "docs/BUILD_AND_RUNPOD_GATE.md",
+    "docs/FINAL_GOAL_ACCEPTANCE_GATE.md",
+    "docs/RUNPOD_SERVERLESS_FIND_E2E_NEXT.md",
+    "docs/SERVERLESS_MIGRATION_GAP_AFTER_SUFFIX_SPEED.md",
+]
+FORBIDDEN_CURRENT_DOC_MARKERS = [
+    '"prefix_len": 2',
+    "prefix_len = 2",
+    "prefix_after_t + suffix5",
+    "Suffix-only hot path and benchmark gate still need to be updated and retested",
+    "Run a low-cost x86 Linux RunPod Pod check",
+    "tron_cpu_vectors_passed",
+]
 EXPECTED_SEARCH_SPACE = 58 ** 5
 EXPECTED_PREFIX_LEN = 0
 EXPECTED_SUFFIX_LEN = 5
@@ -56,6 +70,12 @@ def main() -> int:
             failures.append(f"{rel}: suffix must be exactly 5 characters")
         if "prefix_len" in input_payload or "suffix_len" in input_payload:
             failures.append(f"{rel}: product payload must use suffix, not prefix_len/suffix_len")
+
+    for rel in CURRENT_DOCS:
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        for marker in FORBIDDEN_CURRENT_DOC_MARKERS:
+            if marker in text:
+                failures.append(f"{rel}: stale product-rule marker found: {marker}")
 
     result = {
         "mode": "validate_goal_rule",

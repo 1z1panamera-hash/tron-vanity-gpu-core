@@ -51,18 +51,21 @@ Current evidence:
 
 - In-house CUDA scaffold validates TRON math but is far too slow.
 - VanitySearch upstream A100 Bitcoin baseline reached billion-class key/s, proving the architecture class is promising.
-- VanitySearch TRON GPU path has passed a prior prefix+suffix bounded GPU Pod test, but that result is historical and not the suffix-only target.
-- Suffix-only hot path and benchmark gate still need to be updated and retested on RunPod GPU Pod.
+- Patched VanitySearch TRON suffix-only path passed the normal RunPod GPU Pod speed gate on NVIDIA RTX PRO 6000 Blackwell Server Edition.
+- Best observed suffix-only speed: about `1.54328B complete TRON attempts/s`.
+- For `58^5`, that estimates mean match time around `0.43s` and P90 around `0.98s` before Serverless overhead.
 - Python wrapper has a gated `find` mode contract.
-- CUDA/C++ `--find` now has a staging implementation for wrapper integration, but it is not yet RunPod-compiled or performance-validated.
-- The current `--find` implementation uses the deterministic staging candidate schedule, not the final high-performance/randomized production core.
+- Patched VanitySearch can emit one internal TRON JSON hit for `find`, and `app.py` age-encrypts it before returning.
+- Serverless build, smoke, and cold/warm E2E timing are not complete yet.
 - Find-mode safety contract is documented in `docs/AGE_ENCRYPTED_FIND_MODE.md`.
 
 ## Next Gate
 
-Run a low-cost x86 Linux RunPod Pod check:
+Run the Serverless migration gates in order:
 
-1. Clone upstream VanitySearch at `c8d48ce5f03f5357c0e87cbdb3e1e93cd50af88b`.
-2. Apply local patch `工作记录/vanitysearch_tron_cpu_prototype_20260617.patch`.
-3. Run `scripts/runpod_verify_tron_cpu_vectors.sh`.
-4. Continue to GPU TRON path only if it prints `tron_cpu_vectors_passed`.
+1. Build the RunPod Serverless image from the current GitHub repo.
+2. Confirm the image builds `/app/build/vanitysearch_tron_worker` from the current patch.
+3. Run one ordinary GPU Pod or Serverless smoke request with a test suffix and test age recipient.
+4. Inspect the response with `scripts/inspect_runpod_result.py ... --mode find`.
+5. If using a local test identity, inspect the age envelope with `scripts/verify_age_encrypted_find_response.py`.
+6. Run `1 cold + 10 warm` Serverless find requests and inspect them with `scripts/inspect_serverless_find_e2e.py`.
