@@ -33,10 +33,14 @@ FROM ${CUDA_RUNTIME_IMAGE} AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PIP_NO_CACHE_DIR=1
 ENV ALLOW_RUNTIME_NVCC=0
 ENV GPU_WORKER_BACKEND=vanitysearch
 
 WORKDIR /app
+
+COPY requirements.txt /app/requirements.txt
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -44,10 +48,9 @@ RUN apt-get update \
         ca-certificates \
         python3 \
         python3-pip \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt /app/requirements.txt
-RUN python3 -m pip install --no-cache-dir -r /app/requirements.txt
+    && python3 -m pip install --no-cache-dir -r /app/requirements.txt \
+    && apt-get purge -y --auto-remove python3-pip \
+    && rm -rf /var/lib/apt/lists/* /root/.cache/pip /tmp/*
 
 COPY app.py /app/app.py
 COPY tests/phase0_test_vectors.json /app/tests/phase0_test_vectors.json

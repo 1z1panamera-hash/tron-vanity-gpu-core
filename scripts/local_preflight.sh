@@ -93,6 +93,19 @@ assert speed["candidate_attempts_per_second_estimate"] == 456_780_000.0
 assert app.contains_forbidden_output_marker("TRON_SUPPRESS_SECRET_OUTPUT=1") is False
 assert app.contains_forbidden_output_marker("Priv (HEX): 0xabc") is True
 assert app.selected_gpu_backend() in {"self", "vanitysearch"}
+assert app.default_vanitysearch_gpu_grid("RTX PRO 6000") == "128,128"
+os.environ["VANITYSEARCH_GPU_GRID_PRO6000"] = "64,128"
+assert app.default_vanitysearch_gpu_grid("RTX PRO 6000") == "64,128"
+os.environ.pop("VANITYSEARCH_GPU_GRID_PRO6000", None)
+os.environ["GPU_NAME"] = "PRO 6000 MIG 24GB"
+app.GPU_NAME_CACHE = None
+grid, gpu_name = app.vanitysearch_gpu_grid_from_payload({})
+assert gpu_name == "PRO 6000 MIG 24GB"
+assert grid == "128,128"
+grid, _ = app.vanitysearch_gpu_grid_from_payload({"gpu_grid": "32,128"})
+assert grid == "32,128"
+os.environ.pop("GPU_NAME", None)
+app.GPU_NAME_CACHE = None
 print("wrapper_gate_ok")
 PY
 
@@ -100,6 +113,8 @@ echo "== docker context sanity"
 grep -q "AS builder" Dockerfile
 grep -q "AS runtime" Dockerfile
 grep -q "CUDA_RUNTIME_IMAGE=nvidia/cuda:12.8.1-runtime-ubuntu22.04" Dockerfile
+grep -q "PYTHONDONTWRITEBYTECODE=1" Dockerfile
+grep -q "apt-get purge -y --auto-remove python3-pip" Dockerfile
 grep -q "ARG CUDA_ARCHS=sm_80,sm_86,sm_89,sm_120" Dockerfile
 grep -q "ALLOW_RUNTIME_NVCC=0" Dockerfile
 grep -q "GPU_WORKER_BACKEND=vanitysearch" Dockerfile

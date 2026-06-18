@@ -27,11 +27,13 @@ DEFAULT_TRON_ADDRESS_LEN = 34
 MAX_BENCHMARK_SECONDS = 10
 MAX_FIND_SECONDS = 15
 MAX_BENCHMARK_ATTEMPTS = 10_000_000_000
+DEFAULT_VANITYSEARCH_GPU_GRID = "128,128"
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 DEFAULT_CUDA_ARCH_FALLBACKS = ["native", "sm_120", "sm_80"]
 SENSITIVE_OUTPUT_RE = re.compile(r"Priv|WIF|HEX|private_key|mnemonic|seed|token|secret", re.IGNORECASE)
 SENSITIVE_MARKERS = ("Priv", "WIF", "HEX", "private_key", "mnemonic", "seed", "token", "secret")
 VANITYSEARCH_SPEED_RE = re.compile(r"\[([0-9.]+) Mkey/s\]\[GPU ([0-9.]+) Mkey/s\]")
+GPU_NAME_CACHE: Optional[str] = None
 
 
 def utc_now_iso() -> str:
@@ -171,6 +173,65 @@ def selected_gpu_backend() -> str:
     if VANITYSEARCH_BINARY_PATH.exists():
         return "vanitysearch"
     return "self"
+
+
+def detect_gpu_name() -> Optional[str]:
+    global GPU_NAME_CACHE
+    if GPU_NAME_CACHE is not None:
+        return GPU_NAME_CACHE
+    explicit = os.environ.get("RUNPOD_GPU_NAME", "").strip() or os.environ.get("GPU_NAME", "").strip()
+    if explicit:
+        GPU_NAME_CACHE = explicit
+        return GPU_NAME_CACHE
+    nvidia_smi = shutil.which("nvidia-smi")
+    if not nvidia_smi:
+        GPU_NAME_CACHE = ""
+        return None
+    try:
+        result = subprocess.run(
+            [nvidia_smi, "--query-gpu=name", "--format=csv,noheader"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        GPU_NAME_CACHE = ""
+        return None
+    if result.returncode != 0:
+        GPU_NAME_CACHE = ""
+        return None
+    first = result.stdout.strip().splitlines()[0].strip() if result.stdout.strip() else ""
+    GPU_NAME_CACHE = first
+    return first or None
+
+
+def validate_vanitysearch_gpu_grid(value: str) -> str:
+    if not re.fullmatch(r"[0-9]+,[0-9]+", value):
+        raise ValueError("gpu_grid must use VanitySearch format like 128,128")
+    return value
+
+
+def default_vanitysearch_gpu_grid(gpu_name: Optional[str]) -> str:
+    override = os.environ.get("VANITYSEARCH_GPU_GRID", "").strip()
+    if override:
+        return validate_vanitysearch_gpu_grid(override)
+    name = (gpu_name or "").lower()
+    if "mig" in name or "24gb" in name or "24 gb" in name:
+        return validate_vanitysearch_gpu_grid(os.environ.get("VANITYSEARCH_GPU_GRID_MIG", DEFAULT_VANITYSEARCH_GPU_GRID))
+    if "rtx pro 6000" in name or "pro 6000" in name or "blackwell" in name:
+        return validate_vanitysearch_gpu_grid(os.environ.get("VANITYSEARCH_GPU_GRID_PRO6000", DEFAULT_VANITYSEARCH_GPU_GRID))
+    if "a100" in name:
+        return validate_vanitysearch_gpu_grid(os.environ.get("VANITYSEARCH_GPU_GRID_A100", DEFAULT_VANITYSEARCH_GPU_GRID))
+    if "h100" in name or "h200" in name:
+        return validate_vanitysearch_gpu_grid(os.environ.get("VANITYSEARCH_GPU_GRID_HOPPER", DEFAULT_VANITYSEARCH_GPU_GRID))
+    return validate_vanitysearch_gpu_grid(DEFAULT_VANITYSEARCH_GPU_GRID)
+
+
+def vanitysearch_gpu_grid_from_payload(payload: Dict[str, Any]) -> tuple[str, Optional[str]]:
+    gpu_name = detect_gpu_name()
+    gpu_grid = str(payload.get("gpu_grid") or default_vanitysearch_gpu_grid(gpu_name))
+    return validate_vanitysearch_gpu_grid(gpu_grid), gpu_name
 
 
 def compile_gpu_binary_if_allowed(timeout_seconds: int = 120) -> Dict[str, Any]:
@@ -897,10 +958,13 @@ def encrypt_private_key_with_age(private_key_hex: str, age_recipient: str) -> st
 
 def handle_health() -> Dict[str, Any]:
     vector_status = validate_vector_file()
+    gpu_name = detect_gpu_name()
     return {
         "mode": "health",
         "ready_for_gpu_benchmark": False,
         "gpu_worker_backend": selected_gpu_backend(),
+        "gpu_name": gpu_name,
+        "default_vanitysearch_gpu_grid": default_vanitysearch_gpu_grid(gpu_name),
         "gpu_binary_exists": GPU_BINARY_PATH.exists(),
         "vanitysearch_binary_exists": VANITYSEARCH_BINARY_PATH.exists(),
         "runtime_nvcc_enabled": os.environ.get("ALLOW_RUNTIME_NVCC") == "1",
@@ -968,13 +1032,14 @@ def handle_benchmark(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("kernel_mode must be incremental or scalar")
 
     if gpu_backend == "vanitysearch":
-        gpu_grid = str(payload.get("gpu_grid", "128,128"))
+        gpu_grid, gpu_name = vanitysearch_gpu_grid_from_payload(payload)
         started = time.perf_counter()
         benchmark_result = run_vanitysearch_benchmark(match_rule["suffix"], duration_seconds, gpu_grid)
         elapsed = time.perf_counter() - started
         return {
             "mode": "benchmark",
             "gpu_worker_backend": gpu_backend,
+            "gpu_name": gpu_name,
             "duration_seconds": duration_seconds,
             "max_attempts": max_attempts,
             "match_rule": match_rule,
@@ -1073,7 +1138,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("start_counter must be non-negative")
 
     if gpu_backend == "vanitysearch":
-        gpu_grid = str(payload.get("gpu_grid", "128,128"))
+        gpu_grid, gpu_name = vanitysearch_gpu_grid_from_payload(payload)
         test_force_first_candidate = bool(payload.get("test_force_first_candidate", False))
         test_seed_value = payload.get("test_seed")
         test_seed = str(test_seed_value) if test_seed_value is not None else None
@@ -1094,6 +1159,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "allowed": True,
                 "matched": False,
                 "gpu_worker_backend": gpu_backend,
+                "gpu_name": gpu_name,
                 "match_rule": match_rule,
                 "elapsed_seconds": elapsed,
                 "gpu_binary": {
@@ -1113,6 +1179,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "allowed": True,
                 "matched": False,
                 "gpu_worker_backend": gpu_backend,
+                "gpu_name": gpu_name,
                 "match_rule": match_rule,
                 "elapsed_seconds": elapsed,
                 "gpu_grid": gpu_grid,
@@ -1136,6 +1203,7 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
             "allowed": True,
             "matched": True,
             "gpu_worker_backend": gpu_backend,
+            "gpu_name": gpu_name,
             "matched_address": gpu_result.get("matched_address"),
             "encrypted_private_key": encrypted_private_key,
             "match_rule": match_rule,
@@ -1277,7 +1345,7 @@ def handle_find_debug(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("probe_incr must be between 0 and 1000000")
     duration_seconds = int(payload.get("duration_seconds", 5))
     duration_seconds = max(1, min(duration_seconds, 15))
-    gpu_grid = str(payload.get("gpu_grid", "1,128"))
+    gpu_grid, gpu_name = vanitysearch_gpu_grid_from_payload(payload)
     force_first_candidate = bool(payload.get("force_first_candidate", False))
 
     started = time.perf_counter()
@@ -1333,6 +1401,7 @@ def handle_find_debug(payload: Dict[str, Any]) -> Dict[str, Any]:
         "find_debug": find_debug,
         "elapsed_seconds": elapsed,
         "gpu_grid": gpu_grid,
+        "gpu_name": gpu_name,
         "force_first_candidate": force_first_candidate,
         "notes": [
             "Test-only fixed seed diagnostic; do not use as production flow.",
