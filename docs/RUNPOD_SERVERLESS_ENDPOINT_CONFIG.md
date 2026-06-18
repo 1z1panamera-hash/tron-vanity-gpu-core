@@ -17,6 +17,12 @@ scripts/runpod_serverless_readiness_check.py
 ## Build
 
 - Dockerfile path: `Dockerfile`
+- The Dockerfile is multi-stage:
+  - builder stage uses CUDA devel image and compiles patched VanitySearch TRON worker.
+  - runtime stage uses CUDA runtime image and contains only Python handler, `age`,
+    RunPod SDK, test vectors, and `/app/build/vanitysearch_tron_worker`.
+  - runtime stage intentionally does not include `git`, `g++`, `make`, `nvcc`,
+    source tree, patches, or build scripts.
 - Recommended first GPU target: RTX PRO 6000 Blackwell / 5090-class if available.
 - Build args for Blackwell / 5090-class:
 

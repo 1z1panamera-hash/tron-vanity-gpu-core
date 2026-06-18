@@ -93,8 +93,18 @@ print("wrapper_gate_ok")
 PY
 
 echo "== docker context sanity"
-cmp -s Dockerfile Dockerfile.cuda-validate
-for p in requirements.txt app.py src patches scripts/build_vanitysearch_tron_worker.sh scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh tests/phase0_test_vectors.json; do
+grep -q "AS builder" Dockerfile
+grep -q "AS runtime" Dockerfile
+grep -q "CUDA_RUNTIME_IMAGE=nvidia/cuda:12.8.1-runtime-ubuntu22.04" Dockerfile
+grep -q "ALLOW_RUNTIME_NVCC=0" Dockerfile
+grep -q "GPU_WORKER_BACKEND=vanitysearch" Dockerfile
+grep -q "COPY --from=builder /app/build/vanitysearch_tron_worker" Dockerfile
+if awk '/FROM .* AS runtime/{runtime=1} runtime && /(git|g\+\+|make|nvcc)/{print; found=1} END{exit found ? 0 : 1}' Dockerfile >/tmp/tron_runtime_build_tools.txt; then
+    echo "runtime image still references build tools" >&2
+    cat /tmp/tron_runtime_build_tools.txt >&2
+    exit 1
+fi
+for p in requirements.txt app.py patches scripts/build_vanitysearch_tron_worker.sh tests/phase0_test_vectors.json; do
     test -e "$p"
     if git check-ignore "$p" >/dev/null 2>&1; then
         echo "docker_source_ignored $p" >&2
