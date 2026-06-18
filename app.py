@@ -576,9 +576,15 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
             },
         }
 
+    parsed = parse_vanitysearch_find_stdout(result.stdout, suffix)
+    safe_diagnostics = summarize_vanitysearch_find_stdout(result.stdout, suffix)
+    unsafe_marker_seen = bool(
+        re.search(r"Priv \(|WIF|mnemonic|seed|token|secret", result.stdout + result.stderr, re.IGNORECASE)
+    )
     if (
         not unsafe_test_output_allowed()
-        and re.search(r"Priv \(|WIF|mnemonic|seed|token|secret", result.stdout + result.stderr, re.IGNORECASE)
+        and unsafe_marker_seen
+        and not parsed.get("matched")
     ):
         return {
             "ready": True,
@@ -589,8 +595,6 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
             "parsed": {},
         }
 
-    parsed = parse_vanitysearch_find_stdout(result.stdout, suffix)
-    safe_diagnostics = summarize_vanitysearch_find_stdout(result.stdout, suffix)
     return {
         "ready": True,
         "returncode": result.returncode,
