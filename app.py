@@ -30,6 +30,7 @@ MAX_BENCHMARK_ATTEMPTS = 10_000_000_000
 BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 DEFAULT_CUDA_ARCH_FALLBACKS = ["native", "sm_120", "sm_80"]
 SENSITIVE_OUTPUT_RE = re.compile(r"Priv|WIF|HEX|private_key|mnemonic|seed|token|secret", re.IGNORECASE)
+SENSITIVE_MARKERS = ("Priv", "WIF", "HEX", "private_key", "mnemonic", "seed", "token", "secret")
 VANITYSEARCH_SPEED_RE = re.compile(r"\[([0-9.]+) Mkey/s\]\[GPU ([0-9.]+) Mkey/s\]")
 
 
@@ -329,6 +330,11 @@ def contains_forbidden_output_marker(text: str) -> bool:
     return bool(SENSITIVE_OUTPUT_RE.search(strip_allowed_safety_markers(text)))
 
 
+def forbidden_output_markers(text: str) -> List[str]:
+    stripped = strip_allowed_safety_markers(text)
+    return [marker for marker in SENSITIVE_MARKERS if re.search(re.escape(marker), stripped, re.IGNORECASE)]
+
+
 def parse_vanitysearch_speed(stdout: str) -> Dict[str, Any]:
     matches = VANITYSEARCH_SPEED_RE.findall(stdout)
     if not matches:
@@ -418,6 +424,7 @@ def run_vanitysearch_benchmark(suffix: str, duration_seconds: int, gpu_grid: str
             "returncode": returncode,
             "error": "patched VanitySearch emitted a forbidden key marker",
             "binary": str(VANITYSEARCH_BINARY_PATH),
+            "forbidden_markers": sorted(set(forbidden_output_markers(stdout) + forbidden_output_markers(stderr))),
         }
 
     parsed = parse_vanitysearch_speed(stdout)
@@ -521,6 +528,7 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
             "returncode": result.returncode,
             "error": "patched VanitySearch emitted an unsafe output marker",
             "binary": str(VANITYSEARCH_BINARY_PATH),
+            "forbidden_markers": sorted(set(forbidden_output_markers(result.stdout) + forbidden_output_markers(result.stderr))),
             "parsed": {},
         }
 
