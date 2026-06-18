@@ -556,6 +556,147 @@ def run_vanitysearch_find_internal(suffix: str, duration_seconds: int, gpu_grid:
     }
 
 
+def parse_tron_seed_offset_probe(stdout: str) -> Dict[str, Any]:
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(stdout):
+        if char != "{":
+            continue
+        try:
+            candidate, _ = decoder.raw_decode(stdout[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(candidate, dict) and candidate.get("mode") == "tron_seed_offset_probe":
+            address = candidate.get("address")
+            suffix = candidate.get("suffix5")
+            if (
+                isinstance(address, str)
+                and address.startswith("T")
+                and isinstance(suffix, str)
+                and re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{5}", suffix)
+                and address.endswith(suffix)
+            ):
+                return {
+                    "address": address,
+                    "suffix5": suffix,
+                    "offset": candidate.get("offset"),
+                }
+    raise ValueError("patched VanitySearch did not return a valid seed offset probe")
+
+
+def run_vanitysearch_seed_offset_probe(seed: str, offset: int) -> Dict[str, Any]:
+    if not VANITYSEARCH_BINARY_PATH.exists():
+        return {
+            "ready": False,
+            "error": "patched VanitySearch TRON worker is not built yet.",
+            "binary": str(VANITYSEARCH_BINARY_PATH),
+        }
+    result = subprocess.run(
+        [str(VANITYSEARCH_BINARY_PATH), "-cts", seed, str(offset)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    if result.returncode != 0:
+        return {
+            "ready": True,
+            "returncode": result.returncode,
+            "error": "seed offset probe failed",
+            "stderr_tail": result.stderr[-1000:],
+        }
+    parsed = parse_tron_seed_offset_probe(result.stdout)
+    parsed.update({
+        "ready": True,
+        "returncode": result.returncode,
+        "binary": str(VANITYSEARCH_BINARY_PATH),
+    })
+    return parsed
+
+
+def run_vanitysearch_fixed_seed_find_debug(
+    seed: str,
+    suffix: str,
+    duration_seconds: int,
+    gpu_grid: str,
+) -> Dict[str, Any]:
+    if not VANITYSEARCH_BINARY_PATH.exists():
+        return {
+            "ready": False,
+            "error": "patched VanitySearch TRON worker is not built yet.",
+            "binary": str(VANITYSEARCH_BINARY_PATH),
+        }
+    if not re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{5}", suffix):
+        raise ValueError("suffix must be exactly 5 Base58 characters")
+    if not re.fullmatch(r"[0-9]+,[0-9]+", gpu_grid):
+        raise ValueError("gpu_grid must use VanitySearch format like 128,128")
+
+    env = os.environ.copy()
+    env["TRON_JSON_HIT_OUTPUT"] = "1"
+    env["TRON_SUPPRESS_SECRET_OUTPUT"] = "1"
+    env["TRON_DEBUG_FIND_RECHECK"] = "1"
+    timeout_bin = shutil.which("timeout")
+    command = [
+        str(VANITYSEARCH_BINARY_PATH),
+        "-gpu",
+        "-stop",
+        "-t",
+        "0",
+        "-g",
+        gpu_grid,
+        "-s",
+        seed,
+        f"T*{suffix}",
+    ]
+    effective_command = [timeout_bin, f"{duration_seconds}s", *command] if timeout_bin else command
+    result = subprocess.run(
+        effective_command,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=duration_seconds + 20,
+        env=env,
+    )
+
+    decoder = json.JSONDecoder()
+    hits: List[Dict[str, Any]] = []
+    for index, char in enumerate(result.stdout):
+        if char != "{":
+            continue
+        try:
+            candidate, _ = decoder.raw_decode(result.stdout[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(candidate, dict) and candidate.get("mode") == "tron_find":
+            hits.append(candidate)
+
+    matched_address = None
+    internal_key_seen = False
+    if hits:
+        last = hits[-1]
+        value = last.get("matched_address")
+        matched_address = value if isinstance(value, str) else None
+        internal_key_seen = isinstance(last.get("private_key_hex"), str)
+
+    debug_lines = [
+        line
+        for line in result.stdout.splitlines()
+        if line.startswith("tron_debug_") or line.startswith("Warning, wrong private key generated")
+    ]
+    return {
+        "ready": True,
+        "returncode": result.returncode,
+        "timeout": result.returncode == 124,
+        "binary": str(VANITYSEARCH_BINARY_PATH),
+        "json_hit_count": len(hits),
+        "matched": bool(matched_address and matched_address.endswith(suffix)),
+        "matched_address": matched_address,
+        "matched_suffix_ok": bool(matched_address and matched_address.endswith(suffix)),
+        "internal_key_seen": internal_key_seen,
+        "debug_lines": debug_lines[-40:],
+        "stderr_tail": result.stderr[-1000:],
+    }
+
+
 def parse_json_stdout(status: Dict[str, Any]) -> Dict[str, Any]:
     stdout = status.get("stdout")
     if not isinstance(stdout, str) or not stdout.strip():
@@ -940,6 +1081,72 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def handle_find_debug(payload: Dict[str, Any]) -> Dict[str, Any]:
+    if os.environ.get("ALLOW_GPU_FIND") != "1":
+        return {
+            "mode": "find_debug",
+            "allowed": False,
+            "error": "GPU find debug disabled. Set ALLOW_GPU_FIND=1 only inside an approved RunPod test worker.",
+        }
+    if selected_gpu_backend() != "vanitysearch":
+        return {
+            "mode": "find_debug",
+            "allowed": False,
+            "error": "find_debug currently targets the patched VanitySearch backend only.",
+        }
+
+    seed = str(payload.get("seed", "codex-fixed-find-debug-20260618"))
+    if len(seed) < 8:
+        raise ValueError("seed must be at least 8 characters")
+    probe_offset = int(payload.get("probe_offset", 512))
+    if probe_offset < 0 or probe_offset > 1_000_000:
+        raise ValueError("probe_offset must be between 0 and 1000000")
+    duration_seconds = int(payload.get("duration_seconds", 5))
+    duration_seconds = max(1, min(duration_seconds, 15))
+    gpu_grid = str(payload.get("gpu_grid", "1,128"))
+
+    started = time.perf_counter()
+    probe = run_vanitysearch_seed_offset_probe(seed, probe_offset)
+    if not probe.get("ready") or probe.get("error"):
+        return {
+            "mode": "find_debug",
+            "allowed": True,
+            "passed": False,
+            "probe": probe,
+            "elapsed_seconds": time.perf_counter() - started,
+        }
+
+    find_debug = run_vanitysearch_fixed_seed_find_debug(
+        seed=seed,
+        suffix=str(probe["suffix5"]),
+        duration_seconds=duration_seconds,
+        gpu_grid=gpu_grid,
+    )
+    elapsed = time.perf_counter() - started
+    passed = bool(
+        find_debug.get("matched")
+        and find_debug.get("matched_address") == probe.get("address")
+    )
+    return {
+        "mode": "find_debug",
+        "allowed": True,
+        "passed": passed,
+        "probe": {
+            "address": probe.get("address"),
+            "suffix5": probe.get("suffix5"),
+            "offset": probe.get("offset"),
+        },
+        "find_debug": find_debug,
+        "elapsed_seconds": elapsed,
+        "gpu_grid": gpu_grid,
+        "notes": [
+            "Test-only fixed seed diagnostic; do not use as production flow.",
+            "No internal key value is returned by this debug response.",
+            "If passed=false, debug_lines identify whether GPU hit writeback or CPU recheck failed.",
+        ],
+    }
+
+
 def handler(event: Dict[str, Any]) -> Dict[str, Any]:
     payload = event.get("input", event)
     mode = payload.get("mode", "health")
@@ -953,6 +1160,8 @@ def handler(event: Dict[str, Any]) -> Dict[str, Any]:
             result = handle_benchmark(payload)
         elif mode == "find":
             result = handle_find(payload)
+        elif mode == "find_debug":
+            result = handle_find_debug(payload)
         else:
             raise ValueError(f"unsupported mode: {mode}")
         result["started_at"] = started_at
