@@ -8,7 +8,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 try:
     import runpod
@@ -518,6 +518,7 @@ def run_vanitysearch_find_internal(
     duration_seconds: int,
     gpu_grid: str,
     test_force_first_candidate: bool = False,
+    test_seed: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run patched VanitySearch find mode and keep raw stdout internal-only."""
     if not VANITYSEARCH_BINARY_PATH.exists():
@@ -540,10 +541,15 @@ def run_vanitysearch_find_internal(
     if unsafe_test_output_allowed():
         env["TRON_DEBUG_FIND_RECHECK"] = "1"
     seed_args: List[str] = []
+    if test_seed is not None:
+        if not isinstance(test_seed, str) or len(test_seed) < 8 or len(test_seed) > 128:
+            raise ValueError("test_seed must be between 8 and 128 characters")
+        seed_args = ["-s", test_seed]
     if test_force_first_candidate:
         env["TRON_DEBUG_FORCE_FIRST_CANDIDATE"] = "1"
         env["TRON_DEBUG_FIND_RECHECK"] = "1"
-        seed_args = ["-s", "codex-fixed-find-debug-20260618"]
+        if not seed_args:
+            seed_args = ["-s", "codex-fixed-find-debug-20260618"]
     command = [
         str(VANITYSEARCH_BINARY_PATH),
         "-gpu",
@@ -1069,12 +1075,15 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
     if gpu_backend == "vanitysearch":
         gpu_grid = str(payload.get("gpu_grid", "128,128"))
         test_force_first_candidate = bool(payload.get("test_force_first_candidate", False))
+        test_seed_value = payload.get("test_seed")
+        test_seed = str(test_seed_value) if test_seed_value is not None else None
         started = time.perf_counter()
         binary_status = run_vanitysearch_find_internal(
             match_rule["suffix"],
             duration_seconds,
             gpu_grid,
             test_force_first_candidate=test_force_first_candidate,
+            test_seed=test_seed,
         )
         elapsed = time.perf_counter() - started
         gpu_result = binary_status.get("parsed", {})
