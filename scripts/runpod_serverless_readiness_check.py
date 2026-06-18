@@ -71,8 +71,12 @@ def main() -> int:
 
     dockerfile = read("Dockerfile")
     add("nvidia/cuda:12.8.1-devel-ubuntu22.04" in dockerfile, failures, "Dockerfile does not use the expected CUDA devel base image")
+    add("nvidia/cuda:12.8.1-runtime-ubuntu22.04" in dockerfile, failures, "Dockerfile does not use the expected CUDA runtime base image")
     add("ARG CUDA_ARCH=sm_120" in dockerfile, failures, "Dockerfile does not expose CUDA_ARCH build arg")
+    add("ARG CUDA_ARCHS=sm_80,sm_86,sm_89,sm_120" in dockerfile, failures, "Dockerfile does not expose multi-arch CUDA_ARCHS build arg")
     add("ARG STEP_SIZE=4096" in dockerfile, failures, "Dockerfile does not expose STEP_SIZE build arg")
+    add("ALLOW_RUNTIME_NVCC=0" in dockerfile, failures, "Dockerfile does not disable runtime nvcc")
+    add("GPU_WORKER_BACKEND=vanitysearch" in dockerfile, failures, "Dockerfile does not force VanitySearch backend in runtime")
     add(" age " in dockerfile or "\nage \\" in dockerfile, failures, "Dockerfile does not install age")
     add("COPY patches /app/patches" in dockerfile, failures, "Dockerfile does not copy patches")
     add("COPY scripts/build_vanitysearch_tron_worker.sh" in dockerfile, failures, "Dockerfile does not copy build helper")
@@ -84,11 +88,13 @@ def main() -> int:
     add("ALLOW_GPU_FIND=1" in endpoint_config, failures, "endpoint config does not require ALLOW_GPU_FIND=1")
     add("GPU_WORKER_BACKEND=vanitysearch" in endpoint_config, failures, "endpoint config does not require VanitySearch backend")
     add("CUDA_ARCH=sm_120" in endpoint_config and "CUDA_ARCH=sm_80" in endpoint_config, failures, "endpoint config does not document CUDA arch build args")
+    add("CUDA_ARCHS=sm_80,sm_86,sm_89,sm_120" in endpoint_config, failures, "endpoint config does not document multi-arch CUDA fat binary build arg")
     add("STEP_SIZE=4096" in endpoint_config, failures, "endpoint config does not document STEP_SIZE build arg")
     add("RUNPOD_API_KEY" in endpoint_config and "Do not set or store" in endpoint_config, failures, "endpoint config does not warn against storing API keys")
 
     build_script = read("scripts/build_vanitysearch_tron_worker.sh")
     add(EXPECTED_PATCH_SHA in build_script, failures, "build helper does not enforce expected patch sha")
+    add("CUDA_ARCHS" in build_script and "NVCC_GENCODE_FLAGS" in build_script, failures, "build helper does not support multi-arch CUDA fat binary")
     add("scripts/runpod_verify_tron_gpu_address_layer.sh" in build_script, failures, "build helper does not run TRON GPU address-layer vector check")
     add("STEP_SIZE=\"${STEP_SIZE:-4096}\"" in build_script, failures, "build helper does not default STEP_SIZE to 4096")
 

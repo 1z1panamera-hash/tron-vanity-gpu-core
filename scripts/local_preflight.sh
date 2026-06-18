@@ -96,9 +96,12 @@ echo "== docker context sanity"
 grep -q "AS builder" Dockerfile
 grep -q "AS runtime" Dockerfile
 grep -q "CUDA_RUNTIME_IMAGE=nvidia/cuda:12.8.1-runtime-ubuntu22.04" Dockerfile
+grep -q "ARG CUDA_ARCHS=sm_80,sm_86,sm_89,sm_120" Dockerfile
 grep -q "ALLOW_RUNTIME_NVCC=0" Dockerfile
 grep -q "GPU_WORKER_BACKEND=vanitysearch" Dockerfile
 grep -q "COPY --from=builder /app/build/vanitysearch_tron_worker" Dockerfile
+grep -Fq 'CUDA_ARCHS="${CUDA_ARCHS}"' Dockerfile
+grep -q "NVCC_GENCODE_FLAGS" scripts/build_vanitysearch_tron_worker.sh
 if awk '/FROM .* AS runtime/{runtime=1} runtime && /(git|g\+\+|make|nvcc)/{print; found=1} END{exit found ? 0 : 1}' Dockerfile >/tmp/tron_runtime_build_tools.txt; then
     echo "runtime image still references build tools" >&2
     cat /tmp/tron_runtime_build_tools.txt >&2

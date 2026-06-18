@@ -3,6 +3,7 @@ ARG CUDA_RUNTIME_IMAGE=nvidia/cuda:12.8.1-runtime-ubuntu22.04
 FROM ${CUDA_DEVEL_IMAGE} AS builder
 
 ARG CUDA_ARCH=sm_120
+ARG CUDA_ARCHS=sm_80,sm_86,sm_89,sm_120
 ARG STEP_SIZE=4096
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -23,6 +24,7 @@ COPY scripts/build_vanitysearch_tron_worker.sh /app/scripts/build_vanitysearch_t
 RUN mkdir -p /app/build
 RUN ALLOW_BUILD_VANITYSEARCH_TRON_WORKER=1 \
     CUDA_ARCH="${CUDA_ARCH}" \
+    CUDA_ARCHS="${CUDA_ARCHS}" \
     STEP_SIZE="${STEP_SIZE}" \
     INSTALL_PATH=/app/build/vanitysearch_tron_worker \
     /app/scripts/build_vanitysearch_tron_worker.sh

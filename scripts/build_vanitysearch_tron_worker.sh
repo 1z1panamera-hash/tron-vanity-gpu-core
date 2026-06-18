@@ -31,6 +31,7 @@ INSTALL_PATH="${INSTALL_PATH:-$ROOT/build/vanitysearch_tron_worker}"
 CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
 CUDA_ARCH_INPUT="${CUDA_ARCH:-sm_120}"
 CCAP="${CUDA_ARCH_INPUT#sm_}"
+CUDA_ARCHS_INPUT="${CUDA_ARCHS:-}"
 CXXCUDA="${CXXCUDA:-/usr/bin/g++}"
 STEP_SIZE="${STEP_SIZE:-4096}"
 
@@ -54,6 +55,7 @@ echo "== build patched VanitySearch TRON worker"
 echo "vanitysearch_repo=$VANITYSEARCH_REPO"
 echo "vanitysearch_commit=$VANITYSEARCH_COMMIT"
 echo "cuda_arch=$CUDA_ARCH_INPUT"
+echo "cuda_archs=${CUDA_ARCHS_INPUT:-single:${CUDA_ARCH_INPUT}}"
 echo "ccap=$CCAP"
 echo "step_size=$STEP_SIZE"
 echo "install_path=$INSTALL_PATH"
@@ -70,6 +72,26 @@ done
 
 git apply "$PATCH_PATH"
 
+NVCC_GENCODE_FLAGS=""
+if [ -n "$CUDA_ARCHS_INPUT" ]; then
+  IFS=',' read -r -a cuda_archs <<< "$CUDA_ARCHS_INPUT"
+  for arch in "${cuda_archs[@]}"; do
+    arch="${arch//[[:space:]]/}"
+    if [[ ! "$arch" =~ ^sm_[0-9]+$ ]]; then
+      echo "CUDA_ARCHS entries must look like sm_80,sm_86,sm_89,sm_120: $arch" >&2
+      exit 1
+    fi
+    ccap_multi="${arch#sm_}"
+    NVCC_GENCODE_FLAGS+=" -gencode=arch=compute_${ccap_multi},code=sm_${ccap_multi}"
+  done
+  last_index=$((${#cuda_archs[@]} - 1))
+  last_arch="${cuda_archs[$last_index]//[[:space:]]/}"
+  last_ccap="${last_arch#sm_}"
+  NVCC_GENCODE_FLAGS+=" -gencode=arch=compute_${last_ccap},code=compute_${last_ccap}"
+  sed -i 's|-gencode=arch=compute_$(ccap),code=sm_$(ccap) -gencode=arch=compute_$(ccap),code=compute_$(ccap)|$(NVCC_GENCODE_FLAGS)|g' Makefile
+  echo "nvcc_gencode_flags=$NVCC_GENCODE_FLAGS"
+fi
+
 if [ "${RUN_VANITYSEARCH_GPU_VECTOR_CHECK:-0}" = "1" ]; then
   CUDA_ARCH="$CUDA_ARCH_INPUT" scripts/runpod_verify_tron_gpu_address_layer.sh
 else
@@ -77,7 +99,7 @@ else
   echo "Set RUN_VANITYSEARCH_GPU_VECTOR_CHECK=1 only in an approved GPU runtime, not during Serverless image build."
 fi
 
-make gpu=1 CCAP="$CCAP" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" STEP_SIZE="$STEP_SIZE" all
+make gpu=1 CCAP="$CCAP" CUDA="$CUDA_HOME" CXXCUDA="$CXXCUDA" STEP_SIZE="$STEP_SIZE" NVCC_GENCODE_FLAGS="$NVCC_GENCODE_FLAGS" all
 cp ./VanitySearch "$INSTALL_PATH"
 chmod 0755 "$INSTALL_PATH"
 
