@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_suffix_only_20260618.patch"
-EXPECTED_PATCH_SHA="4508971abdd4a9b8e195a824b68d111be48096d3e04409031816ac71863a576d"
+EXPECTED_PATCH_SHA="2c2ecf656c010ecb0ad4bc605ae0ef60cd91d77426340452675aeedf73210216"
 
 if [ "${ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP:-0}" != "1" ]; then
   echo "refusing_to_run_without_ALLOW_RUNPOD_SUFFIX_SPEED_SWEEP=1" >&2

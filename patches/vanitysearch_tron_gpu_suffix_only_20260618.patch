@@ -1833,7 +1833,7 @@ index 0000000..646d3a0
 +
 +#endif
 diff --git a/main.cpp b/main.cpp
-index f404066..b487660 100644
+index f404066..d70ed6d 100644
 --- a/main.cpp
 +++ b/main.cpp
 @@ -22,6 +22,7 @@
@@ -1844,16 +1844,17 @@ index f404066..b487660 100644
  #include "hash/sha512.h"
  #include "hash/sha256.h"
  
-@@ -57,6 +58,8 @@ void printUsage() {
+@@ -57,6 +58,9 @@ void printUsage() {
    printf(" -l: List cuda enabled devices\n");
    printf(" -check: Check CPU and GPU kernel vs CPU\n");
    printf(" -cp privKey: Compute public key (privKey in hex hormat)\n");
 +  printf(" -ct privKey: Compute TRON address only (privKey in hex format, no private key output)\n");
 +  printf(" -cts seed offset: Compute TRON address for VanitySearch seed plus numeric offset, no private key output\n");
++  printf(" -ctg seed threadIndex gpuThreadId groupSize incr: Compute TRON address for a VanitySearch GPU candidate, no private key output\n");
    printf(" -ca pubKey: Compute address (pubKey in hex hormat)\n");
    printf(" -kp: Generate key pair\n");
    printf(" -rp privkey partialkeyfile: Reconstruct final private key(s) from partial key(s) info.\n");
-@@ -365,6 +368,35 @@ void reconstructAdd(Secp256K1 *secp, string fileName, string outputFile, string
+@@ -365,6 +369,78 @@ void reconstructAdd(Secp256K1 *secp, string fileName, string outputFile, string
  
  // ------------------------------------------------------------------------------------------
  
@@ -1886,10 +1887,53 @@ index f404066..b487660 100644
 +
 +// ------------------------------------------------------------------------------------------
 +
++void computeTronGpuCandidateAddress(Secp256K1 *secp, string seed, uint64_t threadIndex,
++                                    uint64_t gpuThreadId, uint64_t groupSize, uint64_t incr) {
++
++  if (seed.length() < 8) {
++    printf("Error: Use a seed of at least 8 characters for -ctg\n");
++    exit(-1);
++  }
++
++  string salt = "VanitySearch";
++  unsigned char hseed[64];
++  pbkdf2_hmac_sha512(hseed, 64, (const uint8_t *)seed.c_str(), seed.length(),
++    (const uint8_t *)salt.c_str(), salt.length(),
++    2048);
++
++  Int privKey;
++  privKey.SetInt32(0);
++  sha256(hseed, 64, (unsigned char *)privKey.bits64);
++
++  Int offThread(threadIndex);
++  offThread.ShiftL(80);
++  privKey.Add(&offThread);
++
++  Int offGpuThread(gpuThreadId);
++  offGpuThread.ShiftL(112);
++  privKey.Add(&offGpuThread);
++
++  privKey.Add(groupSize / 2);
++  privKey.Add(incr);
++
++  Point p = secp->ComputePublicKey(&privKey);
++  string addr = secp->GetTronAddress(p);
++  printf("{\"mode\":\"tron_gpu_candidate_probe\",\"thread_index\":%llu,\"gpu_thread_id\":%llu,\"group_size\":%llu,\"incr\":%llu,\"address\":\"%s\",\"suffix5\":\"%s\"}\n",
++         (unsigned long long)threadIndex,
++         (unsigned long long)gpuThreadId,
++         (unsigned long long)groupSize,
++         (unsigned long long)incr,
++         addr.c_str(),
++         addr.substr(addr.length() - 5).c_str());
++
++}
++
++// ------------------------------------------------------------------------------------------
++
  int main(int argc, char* argv[]) {
  
    // Global Init
-@@ -461,6 +493,31 @@ int main(int argc, char* argv[]) {
+@@ -461,6 +537,51 @@ int main(int argc, char* argv[]) {
        printf("Addr (P2PKH): %s\n",secp->GetAddress(P2PKH,isComp,p).c_str());
        printf("Addr (P2SH): %s\n",secp->GetAddress(P2SH,isComp,p).c_str());
        printf("Addr (BECH32): %s\n",secp->GetAddress(BECH32,isComp,p).c_str());
@@ -1918,10 +1962,30 @@ index f404066..b487660 100644
 +      }
 +      a++;
 +      computeTronSeedOffsetAddress(secp, probeSeed, offset);
++      exit(0);
++    } else if(strcmp(argv[a],"-ctg") == 0) {
++      if (a + 5 >= argc) {
++        printf("Error: -ctg requires seed threadIndex gpuThreadId groupSize incr\n");
++        exit(-1);
++      }
++      a++;
++      string probeSeed = string(argv[a]);
++      uint64_t values[4];
++      for (int vi = 0; vi < 4; ++vi) {
++        a++;
++        char *endptr = NULL;
++        values[vi] = strtoull(argv[a], &endptr, 10);
++        if (endptr == NULL || *endptr != '\0') {
++          printf("Error: -ctg numeric argument is invalid\n");
++          exit(-1);
++        }
++      }
++      a++;
++      computeTronGpuCandidateAddress(secp, probeSeed, values[0], values[1], values[2], values[3]);
        exit(0);
      } else if (strcmp(argv[a], "-cp") == 0) {
        a++;
-@@ -478,6 +535,7 @@ int main(int argc, char* argv[]) {
+@@ -478,6 +599,7 @@ int main(int argc, char* argv[]) {
        printf("Addr (P2PKH): %s\n", secp->GetAddress(P2PKH,isComp,p).c_str());
        printf("Addr (P2SH): %s\n", secp->GetAddress(P2SH,isComp,p).c_str());
        printf("Addr (BECH32): %s\n", secp->GetAddress(BECH32,isComp,p).c_str());

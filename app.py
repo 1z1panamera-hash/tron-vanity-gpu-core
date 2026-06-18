@@ -583,6 +583,36 @@ def parse_tron_seed_offset_probe(stdout: str) -> Dict[str, Any]:
     raise ValueError("patched VanitySearch did not return a valid seed offset probe")
 
 
+def parse_tron_gpu_candidate_probe(stdout: str) -> Dict[str, Any]:
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(stdout):
+        if char != "{":
+            continue
+        try:
+            candidate, _ = decoder.raw_decode(stdout[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(candidate, dict) and candidate.get("mode") == "tron_gpu_candidate_probe":
+            address = candidate.get("address")
+            suffix = candidate.get("suffix5")
+            if (
+                isinstance(address, str)
+                and address.startswith("T")
+                and isinstance(suffix, str)
+                and re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{5}", suffix)
+                and address.endswith(suffix)
+            ):
+                return {
+                    "address": address,
+                    "suffix5": suffix,
+                    "thread_index": candidate.get("thread_index"),
+                    "gpu_thread_id": candidate.get("gpu_thread_id"),
+                    "group_size": candidate.get("group_size"),
+                    "incr": candidate.get("incr"),
+                }
+    raise ValueError("patched VanitySearch did not return a valid GPU candidate probe")
+
+
 def run_vanitysearch_seed_offset_probe(seed: str, offset: int) -> Dict[str, Any]:
     if not VANITYSEARCH_BINARY_PATH.exists():
         return {
@@ -605,6 +635,50 @@ def run_vanitysearch_seed_offset_probe(seed: str, offset: int) -> Dict[str, Any]
             "stderr_tail": result.stderr[-1000:],
         }
     parsed = parse_tron_seed_offset_probe(result.stdout)
+    parsed.update({
+        "ready": True,
+        "returncode": result.returncode,
+        "binary": str(VANITYSEARCH_BINARY_PATH),
+    })
+    return parsed
+
+
+def run_vanitysearch_gpu_candidate_probe(
+    seed: str,
+    thread_index: int,
+    gpu_thread_id: int,
+    group_size: int,
+    incr: int,
+) -> Dict[str, Any]:
+    if not VANITYSEARCH_BINARY_PATH.exists():
+        return {
+            "ready": False,
+            "error": "patched VanitySearch TRON worker is not built yet.",
+            "binary": str(VANITYSEARCH_BINARY_PATH),
+        }
+    result = subprocess.run(
+        [
+            str(VANITYSEARCH_BINARY_PATH),
+            "-ctg",
+            seed,
+            str(thread_index),
+            str(gpu_thread_id),
+            str(group_size),
+            str(incr),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    if result.returncode != 0:
+        return {
+            "ready": True,
+            "returncode": result.returncode,
+            "error": "GPU candidate probe failed",
+            "stderr_tail": result.stderr[-1000:],
+        }
+    parsed = parse_tron_gpu_candidate_probe(result.stdout)
     parsed.update({
         "ready": True,
         "returncode": result.returncode,
@@ -1101,12 +1175,32 @@ def handle_find_debug(payload: Dict[str, Any]) -> Dict[str, Any]:
     probe_offset = int(payload.get("probe_offset", 512))
     if probe_offset < 0 or probe_offset > 1_000_000:
         raise ValueError("probe_offset must be between 0 and 1000000")
+    probe_thread_index = int(payload.get("probe_thread_index", 0))
+    probe_gpu_thread_id = int(payload.get("probe_gpu_thread_id", 128))
+    probe_group_size = int(payload.get("probe_group_size", 1024))
+    probe_incr = int(payload.get("probe_incr", 512))
+    if probe_thread_index < 0 or probe_thread_index > 1_000_000:
+        raise ValueError("probe_thread_index must be between 0 and 1000000")
+    if probe_gpu_thread_id < 0 or probe_gpu_thread_id > 1_000_000:
+        raise ValueError("probe_gpu_thread_id must be between 0 and 1000000")
+    if probe_group_size <= 0 or probe_group_size > 1_000_000:
+        raise ValueError("probe_group_size must be between 1 and 1000000")
+    if probe_incr < 0 or probe_incr > 1_000_000:
+        raise ValueError("probe_incr must be between 0 and 1000000")
     duration_seconds = int(payload.get("duration_seconds", 5))
     duration_seconds = max(1, min(duration_seconds, 15))
     gpu_grid = str(payload.get("gpu_grid", "1,128"))
 
     started = time.perf_counter()
-    probe = run_vanitysearch_seed_offset_probe(seed, probe_offset)
+    probe = run_vanitysearch_gpu_candidate_probe(
+        seed=seed,
+        thread_index=probe_thread_index,
+        gpu_thread_id=probe_gpu_thread_id,
+        group_size=probe_group_size,
+        incr=probe_incr,
+    )
+    if not probe.get("ready") and probe_offset >= 0:
+        probe = run_vanitysearch_seed_offset_probe(seed, probe_offset)
     if not probe.get("ready") or probe.get("error"):
         return {
             "mode": "find_debug",
@@ -1135,6 +1229,10 @@ def handle_find_debug(payload: Dict[str, Any]) -> Dict[str, Any]:
             "address": probe.get("address"),
             "suffix5": probe.get("suffix5"),
             "offset": probe.get("offset"),
+            "thread_index": probe.get("thread_index"),
+            "gpu_thread_id": probe.get("gpu_thread_id"),
+            "group_size": probe.get("group_size"),
+            "incr": probe.get("incr"),
         },
         "find_debug": find_debug,
         "elapsed_seconds": elapsed,

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PATCH_PATH="$ROOT/patches/vanitysearch_tron_gpu_suffix_only_20260618.patch"
-EXPECTED_PATCH_SHA="4508971abdd4a9b8e195a824b68d111be48096d3e04409031816ac71863a576d"
+EXPECTED_PATCH_SHA="2c2ecf656c010ecb0ad4bc605ae0ef60cd91d77426340452675aeedf73210216"
 
 if [ "${ALLOW_RUNPOD_FIND_DEBUG:-0}" != "1" ]; then
   echo "refusing_to_run_without_ALLOW_RUNPOD_FIND_DEBUG=1" >&2
@@ -41,7 +41,10 @@ BENCHMARK_PATTERN="${BENCHMARK_PATTERN:-T*CDEFG}"
 FIND_SECONDS="${FIND_SECONDS:-5}"
 FIND_GRID="${FIND_GRID:-1,128}"
 FIND_DEBUG_SEED="${FIND_DEBUG_SEED:-codex-fixed-find-debug-20260618}"
-PROBE_OFFSET="${PROBE_OFFSET:-512}"
+PROBE_THREAD_INDEX="${PROBE_THREAD_INDEX:-0}"
+PROBE_GPU_THREAD_ID="${PROBE_GPU_THREAD_ID:-128}"
+PROBE_GROUP_SIZE="${PROBE_GROUP_SIZE:-1024}"
+PROBE_INCR="${PROBE_INCR:-512}"
 
 case "$STEP_SIZE" in
   ''|*[!0-9]*)
@@ -171,7 +174,13 @@ PY
 
 echo "== derive fixed seed suffix"
 probe_json="$RESULT_DIR/fixed_seed_probe.json"
-./VanitySearch -cts "$FIND_DEBUG_SEED" "$PROBE_OFFSET" >"$probe_json"
+./VanitySearch -ctg \
+  "$FIND_DEBUG_SEED" \
+  "$PROBE_THREAD_INDEX" \
+  "$PROBE_GPU_THREAD_ID" \
+  "$PROBE_GROUP_SIZE" \
+  "$PROBE_INCR" \
+  >"$probe_json"
 suffix="$(python3 - "$probe_json" <<'PY'
 from pathlib import Path
 import json

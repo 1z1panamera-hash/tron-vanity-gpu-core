@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
 PATCH_PATH = ROOT / "patches" / "vanitysearch_tron_gpu_suffix_only_20260618.patch"
-EXPECTED_PATCH_SHA = "4508971abdd4a9b8e195a824b68d111be48096d3e04409031816ac71863a576d"
+EXPECTED_PATCH_SHA = "2c2ecf656c010ecb0ad4bc605ae0ef60cd91d77426340452675aeedf73210216"
 BASE58 = set("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 REQUIRED_FILES = [
     "Dockerfile",
