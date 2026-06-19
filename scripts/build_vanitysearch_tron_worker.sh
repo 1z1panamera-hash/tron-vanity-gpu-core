@@ -103,7 +103,7 @@ for header in Timer.h hash/sha256.h hash/sha512.h; do
   fi
 done
 
-git apply "$PATCH_PATH"
+git apply --recount "$PATCH_PATH"
 
 NVCC_GENCODE_FLAGS=""
 if [ -n "$CUDA_ARCHS_INPUT" ]; then
