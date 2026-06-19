@@ -144,7 +144,7 @@ grep -q "AS runtime" Dockerfile
 grep -q "CUDA_RUNTIME_IMAGE=nvidia/cuda:12.8.1-runtime-ubuntu22.04" Dockerfile
 grep -q "PYTHONDONTWRITEBYTECODE=1" Dockerfile
 grep -q "apt-get purge -y --auto-remove python3-pip" Dockerfile
-grep -q "ARG CUDA_ARCHS=sm_80,sm_86,sm_89,sm_120" Dockerfile
+grep -q "ARG CUDA_ARCHS=sm_80,sm_86,sm_89,sm_90,sm_120" Dockerfile
 grep -q "ALLOW_RUNTIME_NVCC=0" Dockerfile
 grep -q "GPU_WORKER_BACKEND=vanitysearch" Dockerfile
 grep -q "COPY --from=builder /app/build/vanitysearch_tron_worker" Dockerfile

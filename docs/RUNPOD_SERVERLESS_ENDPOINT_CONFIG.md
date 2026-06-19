@@ -23,15 +23,16 @@ scripts/runpod_serverless_readiness_check.py
     RunPod SDK, test vectors, and `/app/build/vanitysearch_tron_worker`.
   - runtime stage intentionally does not include `git`, `g++`, `make`, `nvcc`,
     source tree, patches, or build scripts.
-- The default build creates a CUDA fat binary for `sm_80,sm_86,sm_89,sm_120`,
-  so one Serverless image can run on A100-class, 3090/4090-class, and
-  Blackwell/5090-class workers.
+- The default build creates a CUDA fat binary for
+  `sm_80,sm_86,sm_89,sm_90,sm_120`, so one Serverless image can run on
+  A100-class, 3090/4090-class, H100/H200-class, and Blackwell/5090-class
+  workers without relying on an unintended architecture fallback.
 - Recommended first GPU target: RTX PRO 6000 Blackwell / 5090-class if available.
 - Build args for Blackwell / 5090-class:
 
 ```text
 CUDA_ARCH=sm_120
-CUDA_ARCHS=sm_80,sm_86,sm_89,sm_120
+CUDA_ARCHS=sm_80,sm_86,sm_89,sm_90,sm_120
 STEP_SIZE=4096
 ```
 
@@ -39,13 +40,13 @@ STEP_SIZE=4096
 
 ```text
 CUDA_ARCH=sm_80
-CUDA_ARCHS=sm_80,sm_86,sm_89,sm_120
+CUDA_ARCHS=sm_80,sm_86,sm_89,sm_90,sm_120
 STEP_SIZE=4096
 ```
 
 The speed evidence `1.54328B attempts/s` came from RTX PRO 6000 Blackwell with
-suffix-only last-5 matching. A100 Serverless performance must be measured
-separately and should not be assumed equal.
+suffix-only last-5 matching. A100/H100/H200 Serverless performance must be
+measured separately and should not be assumed equal.
 
 ## Current Endpoint Fallback Config
 

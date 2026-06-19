@@ -3,7 +3,7 @@ ARG CUDA_RUNTIME_IMAGE=nvidia/cuda:12.8.1-runtime-ubuntu22.04
 FROM ${CUDA_DEVEL_IMAGE} AS builder
 
 ARG CUDA_ARCH=sm_120
-ARG CUDA_ARCHS=sm_80,sm_86,sm_89,sm_120
+ARG CUDA_ARCHS=sm_80,sm_86,sm_89,sm_90,sm_120
 ARG STEP_SIZE=4096
 
 ENV DEBIAN_FRONTEND=noninteractive
