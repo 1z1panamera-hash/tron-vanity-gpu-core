@@ -60,9 +60,25 @@ echo "ccap=$CCAP"
 echo "step_size=$STEP_SIZE"
 echo "install_path=$INSTALL_PATH"
 
-git clone --quiet "$VANITYSEARCH_REPO" "$WORKDIR/VanitySearch"
+mkdir -p "$WORKDIR/VanitySearch"
+git -C "$WORKDIR/VanitySearch" init --quiet
+git -C "$WORKDIR/VanitySearch" remote add origin "$VANITYSEARCH_REPO"
+fetch_rc=1
+for attempt in 1 2 3; do
+  if git -C "$WORKDIR/VanitySearch" fetch --quiet --depth=1 origin "$VANITYSEARCH_COMMIT"; then
+    fetch_rc=0
+    break
+  fi
+  fetch_rc=$?
+  echo "vanitysearch_fetch_failed attempt=$attempt rc=$fetch_rc" >&2
+  sleep $((attempt * 3))
+done
+if [ "$fetch_rc" -ne 0 ]; then
+  echo "failed to fetch VanitySearch commit after retries" >&2
+  exit "$fetch_rc"
+fi
 cd "$WORKDIR/VanitySearch"
-git checkout --quiet "$VANITYSEARCH_COMMIT"
+git checkout --quiet FETCH_HEAD
 
 for header in Timer.h hash/sha256.h hash/sha512.h; do
   if ! grep -q '#include <cstdint>' "$header"; then
