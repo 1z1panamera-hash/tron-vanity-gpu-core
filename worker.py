@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 
-from vastai import HandlerConfig, LogActionConfig, Worker, WorkerConfig
+from vastai.serverless.server.worker import HandlerConfig, LogActionConfig, Worker, WorkerConfig
 
 
 MODEL_SERVER_URL = os.environ.get("VAST_MODEL_SERVER_URL", "http://127.0.0.1")
