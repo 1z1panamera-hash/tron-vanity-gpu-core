@@ -602,6 +602,12 @@ index 0000000..9724e60
 +         ((value & 0x000000ffU) << 24);
 +}
 +
++__device__ __forceinline__ uint8_t tron_keccak_state_byte(
++    const uint64_t state[25],
++    int pos) {
++  return static_cast<uint8_t>((state[pos >> 3] >> (8 * (pos & 7))) & 0xff);
++}
++
 +__device__ __noinline__ void tron_payload21_from_xy(
 +    const uint64_t *x,
 +    const uint64_t *y,
@@ -628,8 +634,7 @@ index 0000000..9724e60
 +
 +  payload21[0] = 0x41;
 +  for (int i = 0; i < 20; ++i) {
-+    const int pos = 12 + i;
-+    payload21[i + 1] = static_cast<uint8_t>((state[pos >> 3] >> (8 * (pos & 7))) & 0xff);
++    payload21[i + 1] = tron_keccak_state_byte(state, 12 + i);
 +  }
 +}
 +
@@ -713,39 +718,33 @@ index 0000000..9724e60
 +  state[16] = 0x8000000000000000ULL;
 +  tron_keccak_f1600(state);
 +
-+  uint8_t digest_tail[20];
-+  for (int i = 0; i < 20; ++i) {
-+    const int pos = 12 + i;
-+    digest_tail[i] = static_cast<uint8_t>((state[pos >> 3] >> (8 * (pos & 7))) & 0xff);
-+  }
-+
 +  const uint32_t w0 =
 +      0x41000000U |
-+      (static_cast<uint32_t>(digest_tail[0]) << 16) |
-+      (static_cast<uint32_t>(digest_tail[1]) << 8) |
-+      static_cast<uint32_t>(digest_tail[2]);
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 12)) << 16) |
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 13)) << 8) |
++      static_cast<uint32_t>(tron_keccak_state_byte(state, 14));
 +  const uint32_t w1 =
-+      (static_cast<uint32_t>(digest_tail[3]) << 24) |
-+      (static_cast<uint32_t>(digest_tail[4]) << 16) |
-+      (static_cast<uint32_t>(digest_tail[5]) << 8) |
-+      static_cast<uint32_t>(digest_tail[6]);
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 15)) << 24) |
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 16)) << 16) |
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 17)) << 8) |
++      static_cast<uint32_t>(tron_keccak_state_byte(state, 18));
 +  const uint32_t w2 =
-+      (static_cast<uint32_t>(digest_tail[7]) << 24) |
-+      (static_cast<uint32_t>(digest_tail[8]) << 16) |
-+      (static_cast<uint32_t>(digest_tail[9]) << 8) |
-+      static_cast<uint32_t>(digest_tail[10]);
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 19)) << 24) |
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 20)) << 16) |
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 21)) << 8) |
++      static_cast<uint32_t>(tron_keccak_state_byte(state, 22));
 +  const uint32_t w3 =
-+      (static_cast<uint32_t>(digest_tail[11]) << 24) |
-+      (static_cast<uint32_t>(digest_tail[12]) << 16) |
-+      (static_cast<uint32_t>(digest_tail[13]) << 8) |
-+      static_cast<uint32_t>(digest_tail[14]);
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 23)) << 24) |
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 24)) << 16) |
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 25)) << 8) |
++      static_cast<uint32_t>(tron_keccak_state_byte(state, 26));
 +  const uint32_t w4 =
-+      (static_cast<uint32_t>(digest_tail[15]) << 24) |
-+      (static_cast<uint32_t>(digest_tail[16]) << 16) |
-+      (static_cast<uint32_t>(digest_tail[17]) << 8) |
-+      static_cast<uint32_t>(digest_tail[18]);
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 27)) << 24) |
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 28)) << 16) |
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 29)) << 8) |
++      static_cast<uint32_t>(tron_keccak_state_byte(state, 30));
 +  const uint32_t w5 =
-+      (static_cast<uint32_t>(digest_tail[19]) << 24) | 0x00800000U;
++      (static_cast<uint32_t>(tron_keccak_state_byte(state, 31)) << 24) | 0x00800000U;
 +
 +  if (!force_accept &&
 +      !tron_payload_words_checksum_fused_matches_suffix5(w0, w1, w2, w3, w4, w5, suffix5_value)) {
@@ -753,7 +752,7 @@ index 0000000..9724e60
 +  }
 +
 +  payload21[0] = 0x41;
-+  for (int i = 0; i < 20; ++i) payload21[i + 1] = digest_tail[i];
++  for (int i = 0; i < 20; ++i) payload21[i + 1] = tron_keccak_state_byte(state, 12 + i);
 +  return true;
 +}
 +
