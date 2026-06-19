@@ -1,3 +1,6 @@
+import time
+APP_PROCESS_STARTED_PERF = time.perf_counter()
+
 import json
 import os
 import re
@@ -5,7 +8,6 @@ import shutil
 import shlex
 import subprocess
 import tempfile
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -34,6 +36,8 @@ SENSITIVE_OUTPUT_RE = re.compile(r"Priv|WIF|HEX|private_key|mnemonic|seed|token|
 SENSITIVE_MARKERS = ("Priv", "WIF", "HEX", "private_key", "mnemonic", "seed", "token", "secret")
 VANITYSEARCH_SPEED_RE = re.compile(r"\[([0-9.]+) Mkey/s\]\[GPU ([0-9.]+) Mkey/s\]")
 GPU_NAME_CACHE: Optional[str] = None
+HANDLER_INVOCATION_COUNT = 0
+APP_MODULE_READY_PERF: Optional[float] = None
 
 
 def utc_now_iso() -> str:
@@ -46,6 +50,15 @@ def elapsed_since(started: float) -> float:
 
 def rounded_seconds(value: float) -> float:
     return round(float(value), 6)
+
+
+def startup_observability(handler_started_perf: float, handler_invocation_index: int) -> Dict[str, Any]:
+    module_ready_perf = APP_MODULE_READY_PERF or handler_started_perf
+    return {
+        "handler_invocation_index": handler_invocation_index,
+        "worker_process_age_seconds_at_handler_start": rounded_seconds(handler_started_perf - APP_PROCESS_STARTED_PERF),
+        "module_ready_seconds_after_process_start": rounded_seconds(module_ready_perf - APP_PROCESS_STARTED_PERF),
+    }
 
 
 def load_phase0_vectors() -> List[Dict[str, Any]]:
@@ -1533,6 +1546,10 @@ def handle_find_debug(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def handler(event: Dict[str, Any]) -> Dict[str, Any]:
+    global HANDLER_INVOCATION_COUNT
+    HANDLER_INVOCATION_COUNT += 1
+    handler_invocation_index = HANDLER_INVOCATION_COUNT
+    handler_started_perf = time.perf_counter()
     payload = event.get("input", event)
     mode = payload.get("mode", "health")
     started_at = utc_now_iso()
@@ -1551,6 +1568,8 @@ def handler(event: Dict[str, Any]) -> Dict[str, Any]:
             raise ValueError(f"unsupported mode: {mode}")
         result["started_at"] = started_at
         result["finished_at"] = utc_now_iso()
+        result["worker_startup"] = startup_observability(handler_started_perf, handler_invocation_index)
+        result["handler_total_seconds"] = rounded_seconds(elapsed_since(handler_started_perf))
         return result
     except Exception as exc:
         return {
@@ -1558,10 +1577,15 @@ def handler(event: Dict[str, Any]) -> Dict[str, Any]:
             "error": str(exc),
             "started_at": started_at,
             "finished_at": utc_now_iso(),
+            "worker_startup": startup_observability(handler_started_perf, handler_invocation_index),
+            "handler_total_seconds": rounded_seconds(elapsed_since(handler_started_perf)),
             "notes": [
                 "No key material or credential material is returned.",
             ],
         }
+
+
+APP_MODULE_READY_PERF = time.perf_counter()
 
 
 if __name__ == "__main__":
