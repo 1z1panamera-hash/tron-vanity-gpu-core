@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 
-from vastai import BenchmarkConfig, HandlerConfig, LogActionConfig, Worker, WorkerConfig
+from vastai import HandlerConfig, LogActionConfig, Worker, WorkerConfig
 
 
 MODEL_SERVER_URL = os.environ.get("VAST_MODEL_SERVER_URL", "http://127.0.0.1")
@@ -21,10 +21,6 @@ def constant_find_workload(payload: dict) -> float:
         return 8.0
 
 
-def health_benchmark_payload() -> dict:
-    return {"mode": "health"}
-
-
 worker_config = WorkerConfig(
     model_server_url=MODEL_SERVER_URL,
     model_server_port=MODEL_SERVER_PORT,
@@ -35,11 +31,6 @@ worker_config = WorkerConfig(
             allow_parallel_requests=True,
             max_queue_time=10.0,
             workload_calculator=lambda payload: 1.0,
-            benchmark_config=BenchmarkConfig(
-                generator=health_benchmark_payload,
-                runs=1,
-                concurrency=1,
-            ),
         ),
         HandlerConfig(
             route="/find",
