@@ -141,7 +141,7 @@ PY
 echo "== docker context sanity"
 grep -q "AS builder" Dockerfile
 grep -q "AS runtime" Dockerfile
-grep -q "CUDA_RUNTIME_IMAGE=nvidia/cuda:12.8.1-base-ubuntu22.04" Dockerfile
+grep -q "CUDA_RUNTIME_IMAGE=nvidia/cuda:12.8.1-runtime-ubuntu22.04" Dockerfile
 grep -q "PYTHONDONTWRITEBYTECODE=1" Dockerfile
 grep -q "apt-get purge -y --auto-remove python3-pip" Dockerfile
 grep -q "ARG CUDA_ARCHS=sm_80,sm_86,sm_89,sm_120" Dockerfile
