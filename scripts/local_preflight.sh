@@ -7,6 +7,7 @@ cd "$ROOT"
 echo "== python syntax"
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile app.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile flash/runpod_flash_cuda_probe.py
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile worker.py vast_model_server.py
 test -x scripts/public_repo_audit.py
 test -x scripts/prepare_github_push.sh
 test -x scripts/runpod_verify_vanitysearch_tron_gpu_address_layer.sh
@@ -37,6 +38,7 @@ bash -n scripts/runpod_gpu_pod_find_debug.sh
 bash -n scripts/runpod_gpu_pod_suffix_compare_commits.sh
 bash -n scripts/build_vanitysearch_tron_worker.sh
 bash -n scripts/print_runpod_suffix_only_commands.sh
+bash -n vast/start_vast_worker.sh
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_serverless_find_e2e.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_fixed_pod_autotune_e2e.py
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_serverless_readiness_check.py
