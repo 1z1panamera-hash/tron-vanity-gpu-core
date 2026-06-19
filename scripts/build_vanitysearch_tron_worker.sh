@@ -74,6 +74,7 @@ if [ -n "$VANITYSEARCH_SOURCE_DIR" ] && [ -f "$VANITYSEARCH_SOURCE_DIR/Makefile"
       exit 1
     fi
   fi
+  rm -rf "$WORKDIR/VanitySearch/.git"
 else
   mkdir -p "$WORKDIR/VanitySearch"
   git -C "$WORKDIR/VanitySearch" init --quiet
