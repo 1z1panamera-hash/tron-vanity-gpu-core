@@ -1,5 +1,5 @@
 ARG CUDA_DEVEL_IMAGE=nvidia/cuda:12.8.1-devel-ubuntu22.04
-ARG CUDA_RUNTIME_IMAGE=nvidia/cuda:12.8.1-runtime-ubuntu22.04
+ARG CUDA_RUNTIME_IMAGE=nvidia/cuda:12.8.1-base-ubuntu22.04
 FROM ${CUDA_DEVEL_IMAGE} AS builder
 
 ARG CUDA_ARCH=sm_120

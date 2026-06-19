@@ -71,7 +71,7 @@ def main() -> int:
 
     dockerfile = read("Dockerfile")
     add("nvidia/cuda:12.8.1-devel-ubuntu22.04" in dockerfile, failures, "Dockerfile does not use the expected CUDA devel base image")
-    add("nvidia/cuda:12.8.1-runtime-ubuntu22.04" in dockerfile, failures, "Dockerfile does not use the expected CUDA runtime base image")
+    add("nvidia/cuda:12.8.1-base-ubuntu22.04" in dockerfile, failures, "Dockerfile does not use the expected CUDA base runtime image")
     add("ARG CUDA_ARCH=sm_120" in dockerfile, failures, "Dockerfile does not expose CUDA_ARCH build arg")
     add("ARG CUDA_ARCHS=sm_80,sm_86,sm_89,sm_120" in dockerfile, failures, "Dockerfile does not expose multi-arch CUDA_ARCHS build arg")
     add("ARG STEP_SIZE=4096" in dockerfile, failures, "Dockerfile does not expose STEP_SIZE build arg")
