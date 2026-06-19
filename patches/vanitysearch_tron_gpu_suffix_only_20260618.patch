@@ -3,9 +3,9 @@ index 6c43e94..6a33926 100644
 --- a/GPU/GPUCompute.h
 +++ b/GPU/GPUCompute.h
 @@ -251,6 +251,159 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
- 
+
  // -----------------------------------------------------------------------------------------
- 
+
 +__device__ __noinline__ void CheckTronPoint(
 +    uint64_t *px,
 +    uint64_t *py,
@@ -23,10 +23,9 @@ index 6c43e94..6a33926 100644
 +  bool forcedCandidate = forceFirstCandidate && tid == 0 && incr == (GRP_SIZE / 2);
 +  bool sampledCandidate = sampleCandidates && tid < maxFound && tid < 32 && incr == (GRP_SIZE / 2);
 +  tron_payload21_from_xy(px, py, payload21);
-+  uint32_t checksum4_be32 = tron_checksum4_be32(payload21);
 +  if (!forcedCandidate &&
 +      !sampledCandidate &&
-+      !tron_payload21_checksum_word_matches_suffix5(payload21, checksum4_be32, suffix5Value)) {
++      !tron_payload21_checksum_fused_matches_suffix5(payload21, suffix5Value)) {
 +    return;
 +  }
 +
@@ -161,14 +160,14 @@ index 6c43e94..6a33926 100644
 +
  __device__ void ComputeKeys(uint32_t mode, uint64_t *startx, uint64_t *starty,
                              prefix_t *sPrefix, uint32_t *lookup32, uint32_t maxFound, uint32_t *out) {
- 
+
 diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
 index ccb113c..96b05ff 100644
 --- a/GPU/GPUEngine.cu
 +++ b/GPU/GPUEngine.cu
 @@ -25,6 +25,8 @@
  #include <cuda_runtime.h>
- 
+
  #include <stdint.h>
 +#include <stdlib.h>
 +#include <string.h>
@@ -182,9 +181,9 @@ index ccb113c..96b05ff 100644
 +#include "GPUTron.h"
  #include "GPUWildcard.h"
  #include "GPUCompute.h"
- 
+
  // ---------------------------------------------------------------------------------------
- 
+
 +static int host_tron_base58_value(char c) {
 +  const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 +  for (int i = 0; i < 58; ++i) {
@@ -207,12 +206,12 @@ index ccb113c..96b05ff 100644
 +// ---------------------------------------------------------------------------------------
 +
  __global__ void comp_keys(uint32_t mode,prefix_t *prefix, uint32_t *lookup32, uint64_t *keys, uint32_t maxFound, uint32_t *found) {
- 
+
    int xPtr = (blockIdx.x*blockDim.x) * 8;
 @@ -78,6 +102,17 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_
- 
+
  }
- 
+
 +__global__ void comp_keys_tron_pattern(uint64_t suffix5Value, bool forceFirstCandidate,
 +                                       bool sampleCandidates,
 +                                       uint64_t *keys, uint32_t maxFound, uint32_t *found) {
@@ -226,7 +225,7 @@ index ccb113c..96b05ff 100644
 +
  //#define FULLCHECK
  #ifdef FULLCHECK
- 
+
 @@ -284,6 +319,10 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
    initialised = true;
    pattern = "";
@@ -236,12 +235,12 @@ index ccb113c..96b05ff 100644
 +  tronSuffixValue = 0;
 +  memset(&tronPrefixRange, 0, sizeof(tronPrefixRange));
    inputPrefixLookUp = NULL;
- 
+
  }
 @@ -404,6 +443,32 @@ void GPUEngine::SetPattern(const char *pattern) {
- 
+
  }
- 
+
 +bool GPUEngine::SetTronPattern(const char *pattern) {
 +
 +  if (!pattern) {
@@ -269,11 +268,11 @@ index ccb113c..96b05ff 100644
 +}
 +
  void GPUEngine::SetPrefix(std::vector<LPREFIX> prefixes, uint32_t totalPrefix) {
- 
+
    // Allocate memory for the second level of lookup tables
 @@ -459,7 +524,22 @@ bool GPUEngine::callKernel() {
    cudaMemset(outputPrefix,0,4);
- 
+
    // Call the kernel (Perform STEP_SIZE keys per thread)
 -  if (searchType == P2SH) {
 +  if (searchType == TRON_ADDR) {
@@ -292,12 +291,12 @@ index ccb113c..96b05ff 100644
 +      (tronSuffixValue, forceFirstCandidate, sampleCandidates, inputKey, maxFound, outputPrefix);
 +
 +  } else if (searchType == P2SH) {
- 
+
      if (hasPattern) {
        comp_keys_p2sh_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
 @@ -840,5 +920,3 @@ bool GPUEngine::Check(Secp256K1 *secp) {
    return ok;
- 
+
  }
 -
 -
@@ -306,24 +305,24 @@ index 6d00aab..f008147 100644
 --- a/GPU/GPUEngine.h
 +++ b/GPU/GPUEngine.h
 @@ -20,6 +20,7 @@
- 
+
  #include <vector>
  #include "../SECP256k1.h"
 +#include "GPUTronTypes.h"
- 
+
  #define SEARCH_COMPRESSED 0
  #define SEARCH_UNCOMPRESSED 1
 @@ -27,8 +28,11 @@
- 
+
  static const char *searchModes[] = {"Compressed","Uncompressed","Compressed or Uncompressed"};
- 
+
 -// Number of key per thread (must be a multiple of GRP_SIZE) per kernel call
 +// Number of key per thread (must be a multiple of GRP_SIZE) per kernel call.
 +// RunPod speed sweeps can override this at compile time with -DSTEP_SIZE=...
 +#ifndef STEP_SIZE
  #define STEP_SIZE 1024
 +#endif
- 
+
  // Number of thread per block
  #define ITEM_SIZE 28
 @@ -64,6 +68,7 @@ public:
@@ -342,9 +341,9 @@ index 6d00aab..f008147 100644
 +  char tronSuffix5[6];
 +  uint64_t tronSuffixValue;
 +  TronPrefixRange tronPrefixRange;
- 
+
  };
- 
+
 diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
 new file mode 100644
 index 0000000..9724e60
@@ -676,6 +675,62 @@ index 0000000..9724e60
 +  return s[0];
 +}
 +
++__device__ __noinline__ bool tron_payload21_checksum_fused_matches_suffix5(
++    const uint8_t payload21[21],
++    uint64_t suffix5_value) {
++  uint32_t s[8];
++  uint32_t w[16];
++
++  const uint32_t w0 = tron_read_be32(payload21);
++  const uint32_t w1 = tron_read_be32(payload21 + 4);
++  const uint32_t w2 = tron_read_be32(payload21 + 8);
++  const uint32_t w3 = tron_read_be32(payload21 + 12);
++  const uint32_t w4 = tron_read_be32(payload21 + 16);
++  const uint32_t w5 = (static_cast<uint32_t>(payload21[20]) << 24) | 0x00800000U;
++
++  w[0] = w0;
++  w[1] = w1;
++  w[2] = w2;
++  w[3] = w3;
++  w[4] = w4;
++  w[5] = w5;
++  w[6] = 0;
++  w[7] = 0;
++  w[8] = 0;
++  w[9] = 0;
++  w[10] = 0;
++  w[11] = 0;
++  w[12] = 0;
++  w[13] = 0;
++  w[14] = 0;
++  w[15] = 168U;
++
++  SHA256Initialize(s);
++  SHA256Transform(s, w);
++
++  for (int i = 0; i < 8; ++i) w[i] = s[i];
++  w[8] = 0x80000000U;
++  w[9] = 0;
++  w[10] = 0;
++  w[11] = 0;
++  w[12] = 0;
++  w[13] = 0;
++  w[14] = 0;
++  w[15] = 256U;
++
++  SHA256Initialize(s);
++  SHA256Transform(s, w);
++
++  uint64_t value = 0x41ULL;
++  value = tron_mod58p5_append_be32(value, ((w0 & 0x00ffffffU) << 8) | (w1 >> 24));
++  value = tron_mod58p5_append_be32(value, ((w1 & 0x00ffffffU) << 8) | (w2 >> 24));
++  value = tron_mod58p5_append_be32(value, ((w2 & 0x00ffffffU) << 8) | (w3 >> 24));
++  value = tron_mod58p5_append_be32(value, ((w3 & 0x00ffffffU) << 8) | (w4 >> 24));
++  value = tron_mod58p5_append_be32(value, ((w4 & 0x00ffffffU) << 8) | (w5 >> 24));
++  value = tron_mod58p5_append_be32(value, s[0]);
++  return value == suffix5_value;
++}
++
 +__device__ __noinline__ void tron_checksum4(const uint8_t payload21[21], uint8_t checksum4[4]) {
 +  uint32_t checksum = tron_checksum4_be32(payload21);
 +  checksum4[0] = static_cast<uint8_t>((checksum >> 24) & 0xff);
@@ -893,9 +948,11 @@ index 0000000..b7bddd2
 +      !tron_payload21_checksum_matches_suffix5(payload21, checksum4, wrong_suffix_value) ? 1 : 0;
 +  uint32_t checksum4_be32 = tron_checksum4_be32(payload21);
 +  result.suffix_checksum_word_prefilter_passed =
-+      tron_payload21_checksum_word_matches_suffix5(payload21, checksum4_be32, suffix_value) ? 1 : 0;
++      (tron_payload21_checksum_word_matches_suffix5(payload21, checksum4_be32, suffix_value) &&
++       tron_payload21_checksum_fused_matches_suffix5(payload21, suffix_value)) ? 1 : 0;
 +  result.wrong_suffix_checksum_word_prefilter_rejected =
-+      !tron_payload21_checksum_word_matches_suffix5(payload21, checksum4_be32, wrong_suffix_value) ? 1 : 0;
++      (!tron_payload21_checksum_word_matches_suffix5(payload21, checksum4_be32, wrong_suffix_value) &&
++       !tron_payload21_checksum_fused_matches_suffix5(payload21, wrong_suffix_value)) ? 1 : 0;
 +  result.passed = 1;
 +  for (int i = 0; i < 48; ++i) {
 +    if (result.computed_address[i] != inputs[idx].expected_address[i]) {
@@ -1166,7 +1223,7 @@ index 70b98bd..3259299 100644
 -      hash/sha256.cpp hash/sha512.cpp hash/ripemd160_sse.cpp \
 +      hash/sha256.cpp hash/sha512.cpp hash/keccak256.cpp hash/ripemd160_sse.cpp \
        hash/sha256_sse.cpp Bech32.cpp Wildcard.cpp
- 
+
  OBJDIR = obj
 @@ -16,7 +16,7 @@ ifdef gpu
  OBJET = $(addprefix $(OBJDIR)/, \
@@ -1176,7 +1233,7 @@ index 70b98bd..3259299 100644
 +        hash/ripemd160.o hash/sha256.o hash/sha512.o hash/keccak256.o \
          hash/ripemd160_sse.o hash/sha256_sse.o \
          GPU/GPUEngine.o Bech32.o Wildcard.o)
- 
+
 @@ -25,7 +25,7 @@ else
  OBJET = $(addprefix $(OBJDIR)/, \
          Base58.o IntGroup.o main.o Random.o Timer.o Int.o \
@@ -1184,7 +1241,7 @@ index 70b98bd..3259299 100644
 -        hash/ripemd160.o hash/sha256.o hash/sha512.o \
 +        hash/ripemd160.o hash/sha256.o hash/sha512.o hash/keccak256.o \
          hash/ripemd160_sse.o hash/sha256_sse.o Bech32.o Wildcard.o)
- 
+
  endif
 @@ -36,19 +36,21 @@ CXXCUDA    = /usr/bin/g++-4.8
  NVCC       = $(CUDA)/bin/nvcc
@@ -1192,7 +1249,7 @@ index 70b98bd..3259299 100644
  ccap       = $(shell echo $(CCAP) | tr -d '.')
 +STEP_SIZE  ?= 1024
 +STEP_SIZE_FLAG = -DSTEP_SIZE=$(STEP_SIZE)
- 
+
  ifdef gpu
  ifdef debug
 -CXXFLAGS   = -DWITHGPU -m64  -mssse3 -Wno-write-strings -g -I. -I$(CUDA)/include
@@ -1224,7 +1281,7 @@ index 70b98bd..3259299 100644
 +	$(NVCC) -maxrregcount=0 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin $(CXXCUDA) -m64 -O2 $(STEP_SIZE_FLAG) -I$(CUDA)/include -gencode=arch=compute_$(ccap),code=sm_$(ccap) -gencode=arch=compute_$(ccap),code=compute_$(ccap) -o $(OBJDIR)/GPU/GPUEngine.o -c GPU/GPUEngine.cu
  endif
  endif
- 
+
 @@ -91,4 +93,3 @@ clean:
  	@rm -f obj/*.o
  	@rm -f obj/GPU/*.o
@@ -1243,9 +1300,9 @@ index fd36f85..c294258 100644
  #include "Bech32.h"
  #include <string.h>
 @@ -707,6 +708,16 @@ std::vector<std::string> Secp256K1::GetAddress(int type, bool compressed, unsign
- 
+
  }
- 
+
 +static void tron_sha256_checksum(uint8_t *input, int length, uint8_t *checksum) {
 +
 +  uint8_t digest1[32];
@@ -1257,7 +1314,7 @@ index fd36f85..c294258 100644
 +}
 +
  std::string Secp256K1::GetAddress(int type, bool compressed,unsigned char *hash160) {
- 
+
    unsigned char address[25];
 @@ -727,9 +738,16 @@ std::string Secp256K1::GetAddress(int type, bool compressed,unsigned char *hash1
        return std::string(output);
@@ -1274,7 +1331,7 @@ index fd36f85..c294258 100644
 +    tron_sha256_checksum(address,21,address+21);
 +  else
 +    sha256_checksum(address,21,address+21);
- 
+
    // Base58
    return EncodeBase58(address, address + 25);
 @@ -765,6 +783,9 @@ std::string Secp256K1::GetAddress(int type, bool compressed, Point &pubKey) {
@@ -1285,12 +1342,12 @@ index fd36f85..c294258 100644
 +  case TRON_ADDR:
 +    return GetTronAddress(pubKey);
    }
- 
+
    GetHash160(type,compressed,pubKey, address + 1);
 @@ -775,6 +796,25 @@ std::string Secp256K1::GetAddress(int type, bool compressed, Point &pubKey) {
- 
+
  }
- 
+
 +std::string Secp256K1::GetTronAddress(Point &pubKey) {
 +
 +  unsigned char publicKeyBytes[64];
@@ -1311,10 +1368,10 @@ index fd36f85..c294258 100644
 +}
 +
  bool Secp256K1::CheckPudAddress(std::string address) {
- 
+
    std::vector<unsigned char> pubKey;
 @@ -785,7 +825,10 @@ bool Secp256K1::CheckPudAddress(std::string address) {
- 
+
    // Check checksum
    unsigned char chk[4];
 -  sha256_checksum(pubKey.data(), 21, chk);
@@ -1322,7 +1379,7 @@ index fd36f85..c294258 100644
 +    tron_sha256_checksum(pubKey.data(), 21, chk);
 +  else
 +    sha256_checksum(pubKey.data(), 21, chk);
- 
+
    return  (pubKey[21] == chk[0]) &&
            (pubKey[22] == chk[1]) &&
 diff --git a/SECP256k1.h b/SECP256k1.h
@@ -1334,9 +1391,9 @@ index 8cf4881..e91bc08 100644
  #define P2SH   1
  #define BECH32 2
 +#define TRON_ADDR 3
- 
+
  class Secp256K1 {
- 
+
 @@ -48,6 +49,7 @@ public:
    std::string GetAddress(int type, bool compressed, Point &pubKey);
    std::string GetAddress(int type, bool compressed, unsigned char *hash160);
@@ -1366,7 +1423,7 @@ index e7ad0d7..25da135 100644
 +  this->patternFound = NULL;
    this->caseSensitive = caseSensitive;
    this->startPubKeySpecified = !startPubKey.isZero();
- 
+
 @@ -245,9 +249,13 @@ VanitySearch::VanitySearch(Secp256K1 *secp, vector<std::string> &inputPrefixes,s
      case 'B':
        searchType = BECH32;
@@ -1375,17 +1432,17 @@ index e7ad0d7..25da135 100644
 +      searchType = TRON_ADDR;
 +      searchMode = SEARCH_UNCOMPRESSED;
 +      break;
- 
+
      default:
 -      printf("Invalid start character 1,3 or b, expected");
 +      printf("Invalid start character 1,3,b or T, expected");
        exit(1);
- 
+
      }
 @@ -311,8 +319,15 @@ VanitySearch::VanitySearch(Secp256K1 *secp, vector<std::string> &inputPrefixes,s
    ctimeBuff = ctime(&now);
    printf("Start %s", ctimeBuff);
- 
+
 +  bool suppressTronSecret =
 +      searchType == TRON_ADDR &&
 +      getenv("TRON_SUPPRESS_SECRET_OUTPUT") != NULL &&
@@ -1406,24 +1463,24 @@ index e7ad0d7..25da135 100644
 +    aType = TRON_ADDR;
 +    break;
    }
- 
+
    if (aType==-1) {
 -    printf("Ignoring prefix \"%s\" (must start with 1 or 3 or bc1q)\n", prefix.c_str());
 +    printf("Ignoring prefix \"%s\" (must start with 1, 3, bc1q or T)\n", prefix.c_str());
      return false;
    }
- 
+
    if (searchType == -1) searchType = aType;
    if (aType != searchType) {
 -    printf("Ignoring prefix \"%s\" (P2PKH, P2SH or BECH32 allowed at once)\n", prefix.c_str());
 +    printf("Ignoring prefix \"%s\" (P2PKH, P2SH, BECH32 or TRON allowed at once)\n", prefix.c_str());
      return false;
    }
- 
+
 @@ -429,6 +447,53 @@ bool VanitySearch::initPrefix(std::string &prefix,PREFIX_ITEM *it) {
- 
+
      return true;
- 
+
 +  } else if (aType == TRON_ADDR) {
 +
 +    wrong = !DecodeBase58(prefix, result);
@@ -1472,21 +1529,21 @@ index e7ad0d7..25da135 100644
 +    return true;
 +
    } else {
- 
+
      // P2PKH/P2SH
 @@ -666,7 +731,7 @@ string VanitySearch::GetExpectedTime(double keyRate,double keyCount) {
- 
+
  // ----------------------------------------------------------------------------
- 
+
 -void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
 +void VanitySearch::output(string addr,string pAddr,string pAddrHex,string pubKeyHex) {
- 
+
  #ifdef WIN64
     WaitForSingleObject(ghMutex,INFINITE);
 @@ -687,14 +752,45 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
      }
    }
- 
+
 +  bool tronJsonHitOutput =
 +      searchType == TRON_ADDR &&
 +      getenv("TRON_JSON_HIT_OUTPUT") != NULL &&
@@ -1512,24 +1569,24 @@ index e7ad0d7..25da135 100644
 +
    if(!needToClose)
      printf("\n");
- 
+
    fprintf(f, "PubAddress: %s\n", addr.c_str());
- 
+
 +  bool suppressTronSecret =
 +      searchType == TRON_ADDR &&
 +      getenv("TRON_SUPPRESS_SECRET_OUTPUT") != NULL &&
 +      strcmp(getenv("TRON_SUPPRESS_SECRET_OUTPUT"), "1") == 0;
 +
    if (startPubKeySpecified) {
- 
+
 -    fprintf(f, "PartialPriv: %s\n", pAddr.c_str());
 +    if (suppressTronSecret)
 +      fprintf(f, "SensitiveOutput: suppressed\n");
 +    else
 +      fprintf(f, "PartialPriv: %s\n", pAddr.c_str());
- 
+
    } else {
- 
+
 @@ -705,11 +801,20 @@ void VanitySearch::output(string addr,string pAddr,string pAddrHex) {
      case P2SH:
        fprintf(f, "Priv (WIF): p2wpkh-p2sh:%s\n", pAddr.c_str());
@@ -1553,27 +1610,27 @@ index e7ad0d7..25da135 100644
 +      fprintf(f, "SensitiveOutput2: suppressed\n");
 +    else
 +      fprintf(f, "Priv (HEX): 0x%s\n", pAddrHex.c_str());
- 
+
    }
- 
+
 @@ -821,7 +926,7 @@ bool VanitySearch::checkPrivKey(string addr, Int &key, int32_t incr, int endomor
- 
+
    }
- 
+
 -  output(addr, secp->GetPrivAddress(mode ,k), k.GetBase16());
 +  output(addr, secp->GetPrivAddress(mode ,k), k.GetBase16(), secp->GetPublicKeyHex(false, p));
- 
+
    return true;
- 
+
 @@ -1468,7 +1573,7 @@ void VanitySearch::FindKeyCPU(TH_PARAM *ph) {
      }
- 
+
      key.Add((uint64_t)CPU_GRP_SIZE);
 -    counters[thId]+= 6*CPU_GRP_SIZE; // Point + endo #1 + endo #2 + Symetric point + endo #1 + endo #2
 +    counters[thId] += (searchType == TRON_ADDR) ? CPU_GRP_SIZE : 6 * CPU_GRP_SIZE;
- 
+
    }
- 
+
 @@ -1528,7 +1633,9 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
      g.SetPrefix(usedPrefixL,nbPrefix);
    } else {
@@ -1586,7 +1643,7 @@ index e7ad0d7..25da135 100644
        g.SetPrefix(usedPrefix);
    }
 @@ -1550,11 +1657,62 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
- 
+
      // Call kernel
      ok = g.Launch(found);
 +    bool tronDebugFindRecheck =
@@ -1609,9 +1666,9 @@ index e7ad0d7..25da135 100644
 +    if (tronDebugFindRecheck && found.size() > 0) {
 +      printf("tron_debug_gpu_found_count=%zu\n", found.size());
 +    }
- 
+
      for(int i=0;i<(int)found.size() && !endOfSearch;i++) {
- 
+
        ITEM it = found[i];
 -      checkAddr(*(prefix_t *)(it.hash), it.hash, keys[it.thId], it.incr, it.endo, it.mode);
 +      if (searchType == TRON_ADDR && hasPattern) {
@@ -1646,9 +1703,9 @@ index e7ad0d7..25da135 100644
 +      } else {
 +        checkAddr(*(prefix_t *)(it.hash), it.hash, keys[it.thId], it.incr, it.endo, it.mode);
 +      }
- 
+
      }
- 
+
 @@ -1562,7 +1720,8 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
        for (int i = 0; i < nbThread; i++) {
          keys[i].Add((uint64_t)STEP_SIZE);
@@ -1657,7 +1714,7 @@ index e7ad0d7..25da135 100644
 +      uint64_t attemptsPerThread = (searchType == TRON_ADDR) ? STEP_SIZE : 6ULL * STEP_SIZE;
 +      counters[thId] += attemptsPerThread * nbThread;
      }
- 
+
    }
 diff --git a/Vanity.h b/Vanity.h
 index b7e6e07..2976eff 100644
@@ -1966,7 +2023,7 @@ index f404066..d1d927e 100644
 +#include <stdlib.h>
  #include "hash/sha512.h"
  #include "hash/sha256.h"
- 
+
 @@ -57,6 +58,9 @@ void printUsage() {
    printf(" -l: List cuda enabled devices\n");
    printf(" -check: Check CPU and GPU kernel vs CPU\n");
@@ -1978,9 +2035,9 @@ index f404066..d1d927e 100644
    printf(" -kp: Generate key pair\n");
    printf(" -rp privkey partialkeyfile: Reconstruct final private key(s) from partial key(s) info.\n");
 @@ -365,6 +369,77 @@ void reconstructAdd(Secp256K1 *secp, string fileName, string outputFile, string
- 
+
  // ------------------------------------------------------------------------------------------
- 
+
 +void computeTronSeedOffsetAddress(Secp256K1 *secp, string seed, uint64_t offset) {
 +
 +  if (seed.length() < 8) {
@@ -2053,7 +2110,7 @@ index f404066..d1d927e 100644
 +// ------------------------------------------------------------------------------------------
 +
  int main(int argc, char* argv[]) {
- 
+
    // Global Init
 @@ -461,6 +536,51 @@ int main(int argc, char* argv[]) {
        printf("Addr (P2PKH): %s\n",secp->GetAddress(P2PKH,isComp,p).c_str());
