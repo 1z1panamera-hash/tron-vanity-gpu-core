@@ -82,9 +82,9 @@ def main() -> int:
         )
         write_executable(
             fake_vanitysearch,
-            "#!/usr/bin/env python3\n"
-            "import json\n"
-            f"print(json.dumps({{'mode':'tron_find','matched':True,'matched_address':'TA11111111111111111111111111CDEFG','private_key_hex':'{private_key_hex}','public_key_uncompressed_hex':'{public_key_uncompressed_hex}'}}))\n",
+            "#!/usr/bin/env bash\n"
+            "printf '%s\\n' "
+            f"'{{\"mode\":\"tron_find\",\"matched\":true,\"matched_address\":\"TA11111111111111111111111111CDEFG\",\"private_key_hex\":\"{private_key_hex}\",\"public_key_uncompressed_hex\":\"{public_key_uncompressed_hex}\"}}'\n",
         )
         write_executable(
             fake_age,
@@ -108,7 +108,7 @@ def main() -> int:
                         {
                             "suffix": "CDEFG",
                             "age_recipient": "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
-                            "duration_seconds": 1,
+                            "duration_seconds": 3,
                             "max_attempts": 1,
                             "start_counter": 0,
                             "shard_id": 0,
