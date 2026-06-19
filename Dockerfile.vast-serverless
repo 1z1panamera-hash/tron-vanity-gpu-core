@@ -20,9 +20,11 @@ RUN apt-get update \
 
 COPY patches /app/patches
 COPY scripts/build_vanitysearch_tron_worker.sh /app/scripts/build_vanitysearch_tron_worker.sh
+COPY vendor /app/vendor
 
 RUN mkdir -p /app/build
 RUN ALLOW_BUILD_VANITYSEARCH_TRON_WORKER=1 \
+    VANITYSEARCH_SOURCE_DIR=/app/vendor/VanitySearch \
     CUDA_ARCH="${CUDA_ARCH}" \
     CUDA_ARCHS="${CUDA_ARCHS}" \
     STEP_SIZE="${STEP_SIZE}" \

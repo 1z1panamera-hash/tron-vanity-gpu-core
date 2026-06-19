@@ -26,6 +26,7 @@ fi
 
 VANITYSEARCH_REPO="${VANITYSEARCH_REPO:-https://github.com/JeanLucPons/VanitySearch.git}"
 VANITYSEARCH_COMMIT="${VANITYSEARCH_COMMIT:-c8d48ce5f03f5357c0e87cbdb3e1e93cd50af88b}"
+VANITYSEARCH_SOURCE_DIR="${VANITYSEARCH_SOURCE_DIR:-}"
 WORKDIR="${WORKDIR:-/tmp/vanitysearch-tron-worker-build}"
 INSTALL_PATH="${INSTALL_PATH:-$ROOT/build/vanitysearch_tron_worker}"
 CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
@@ -54,31 +55,46 @@ mkdir -p "$WORKDIR" "$(dirname "$INSTALL_PATH")"
 echo "== build patched VanitySearch TRON worker"
 echo "vanitysearch_repo=$VANITYSEARCH_REPO"
 echo "vanitysearch_commit=$VANITYSEARCH_COMMIT"
+echo "vanitysearch_source_dir=${VANITYSEARCH_SOURCE_DIR:-network_fetch}"
 echo "cuda_arch=$CUDA_ARCH_INPUT"
 echo "cuda_archs=${CUDA_ARCHS_INPUT:-single:${CUDA_ARCH_INPUT}}"
 echo "ccap=$CCAP"
 echo "step_size=$STEP_SIZE"
 echo "install_path=$INSTALL_PATH"
 
-mkdir -p "$WORKDIR/VanitySearch"
-git -C "$WORKDIR/VanitySearch" init --quiet
-git -C "$WORKDIR/VanitySearch" remote add origin "$VANITYSEARCH_REPO"
-fetch_rc=1
-for attempt in 1 2 3; do
-  if git -C "$WORKDIR/VanitySearch" fetch --quiet --depth=1 origin "$VANITYSEARCH_COMMIT"; then
-    fetch_rc=0
-    break
+if [ -n "$VANITYSEARCH_SOURCE_DIR" ] && [ -f "$VANITYSEARCH_SOURCE_DIR/Makefile" ]; then
+  mkdir -p "$WORKDIR/VanitySearch"
+  cp -a "$VANITYSEARCH_SOURCE_DIR/." "$WORKDIR/VanitySearch/"
+  if git -C "$WORKDIR/VanitySearch" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    source_commit="$(git -C "$WORKDIR/VanitySearch" rev-parse HEAD)"
+    if [ "$source_commit" != "$VANITYSEARCH_COMMIT" ]; then
+      echo "VanitySearch source commit mismatch" >&2
+      echo "expected=$VANITYSEARCH_COMMIT" >&2
+      echo "actual=$source_commit" >&2
+      exit 1
+    fi
   fi
-  fetch_rc=$?
-  echo "vanitysearch_fetch_failed attempt=$attempt rc=$fetch_rc" >&2
-  sleep $((attempt * 3))
-done
-if [ "$fetch_rc" -ne 0 ]; then
-  echo "failed to fetch VanitySearch commit after retries" >&2
-  exit "$fetch_rc"
+else
+  mkdir -p "$WORKDIR/VanitySearch"
+  git -C "$WORKDIR/VanitySearch" init --quiet
+  git -C "$WORKDIR/VanitySearch" remote add origin "$VANITYSEARCH_REPO"
+  fetch_rc=1
+  for attempt in 1 2 3; do
+    if git -C "$WORKDIR/VanitySearch" fetch --quiet --depth=1 origin "$VANITYSEARCH_COMMIT"; then
+      fetch_rc=0
+      break
+    fi
+    fetch_rc=$?
+    echo "vanitysearch_fetch_failed attempt=$attempt rc=$fetch_rc" >&2
+    sleep $((attempt * 3))
+  done
+  if [ "$fetch_rc" -ne 0 ]; then
+    echo "failed to fetch VanitySearch commit after retries" >&2
+    exit "$fetch_rc"
+  fi
+  git -C "$WORKDIR/VanitySearch" checkout --quiet FETCH_HEAD
 fi
 cd "$WORKDIR/VanitySearch"
-git checkout --quiet FETCH_HEAD
 
 for header in Timer.h hash/sha256.h hash/sha512.h; do
   if ! grep -q '#include <cstdint>' "$header"; then
