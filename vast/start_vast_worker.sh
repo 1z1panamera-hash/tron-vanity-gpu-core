@@ -36,4 +36,8 @@ while time.time() < deadline:
 raise SystemExit("Vast model backend did not become ready")
 PY
 
-exec python3 -u /app/worker.py
+set +e
+python3 -u /app/worker.py 2>&1 | tee -a "$VAST_MODEL_LOG_FILE"
+worker_rc="${PIPESTATUS[0]}"
+set -e
+exit "$worker_rc"
