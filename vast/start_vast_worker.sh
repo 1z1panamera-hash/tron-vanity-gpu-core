@@ -8,6 +8,7 @@ export VAST_MODEL_SERVER_PORT="${VAST_MODEL_SERVER_PORT:-18000}"
 export VAST_MODEL_LOG_FILE="${VAST_MODEL_LOG_FILE:-/var/log/tron-vanity/model.log}"
 
 mkdir -p "$(dirname "$VAST_MODEL_LOG_FILE")"
+: > "$VAST_MODEL_LOG_FILE"
 
 python3 -u /app/vast_model_server.py &
 backend_pid="$!"

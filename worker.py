@@ -17,6 +17,12 @@ from vastai.serverless.server.worker import (
 MODEL_SERVER_URL = os.environ.get("VAST_MODEL_SERVER_URL", "http://127.0.0.1")
 MODEL_SERVER_PORT = int(os.environ.get("VAST_MODEL_SERVER_PORT", "18000"))
 MODEL_LOG_FILE = os.environ.get("VAST_MODEL_LOG_FILE", "/var/log/tron-vanity/model.log")
+DEFAULT_BENCHMARK_AGE_RECIPIENT = (
+    "age14vx3vmfu8f9yt8l5ee4zrj7xh8hstxekkdvadw7mauzv5qcj8y4q5emk4t"
+)
+BENCHMARK_AGE_RECIPIENT = (
+    os.environ.get("VAST_BENCHMARK_AGE_RECIPIENT") or DEFAULT_BENCHMARK_AGE_RECIPIENT
+)
 
 
 def constant_find_workload(payload: dict) -> float:
@@ -27,8 +33,15 @@ def constant_find_workload(payload: dict) -> float:
         return 8.0
 
 
-def health_benchmark_payload() -> dict:
-    return {}
+def find_benchmark_payload() -> dict:
+    return {
+        "mode": "find",
+        "suffix": os.environ.get("VAST_BENCHMARK_SUFFIX", "ZZZZZ"),
+        "age_recipient": BENCHMARK_AGE_RECIPIENT,
+        "duration_seconds": 1,
+        "max_attempts": 1_000_000,
+        "gpu_grid": os.environ.get("VAST_BENCHMARK_GPU_GRID", "128,128"),
+    }
 
 
 worker_config = WorkerConfig(
@@ -41,18 +54,18 @@ worker_config = WorkerConfig(
             route="/health",
             allow_parallel_requests=True,
             max_queue_time=10.0,
-            benchmark_config=BenchmarkConfig(
-                generator=health_benchmark_payload,
-                runs=1,
-                concurrency=1,
-                do_warmup=False,
-            ),
             workload_calculator=lambda payload: 1.0,
         ),
         HandlerConfig(
             route="/find",
             allow_parallel_requests=False,
             max_queue_time=30.0,
+            benchmark_config=BenchmarkConfig(
+                generator=find_benchmark_payload,
+                runs=1,
+                concurrency=1,
+                do_warmup=False,
+            ),
             workload_calculator=constant_find_workload,
         ),
     ],
