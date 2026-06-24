@@ -63,6 +63,7 @@ def main() -> int:
     original_find = os.environ.get("ALLOW_GPU_FIND")
     original_backend = os.environ.get("GPU_WORKER_BACKEND")
     private_key_hex = "0" * 63 + "1"
+    vanitysearch_short_private_key_hex = "1"
     public_key_uncompressed_hex = (
         "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
         "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"
@@ -84,7 +85,7 @@ def main() -> int:
             fake_vanitysearch,
             "#!/usr/bin/env bash\n"
             "printf '%s\\n' "
-            f"'{{\"mode\":\"tron_find\",\"matched\":true,\"matched_address\":\"TA11111111111111111111111111CDEFG\",\"private_key_hex\":\"{private_key_hex}\",\"public_key_uncompressed_hex\":\"{public_key_uncompressed_hex}\"}}'\n",
+            f"'{{\"mode\":\"tron_find\",\"matched\":true,\"matched_address\":\"TA11111111111111111111111111CDEFG\",\"private_key_hex\":\"{vanitysearch_short_private_key_hex}\",\"public_key_uncompressed_hex\":\"{public_key_uncompressed_hex}\"}}'\n",
         )
         write_executable(
             fake_age,
@@ -153,6 +154,7 @@ def main() -> int:
                 "response_keys": [sorted(response.keys()) for response in responses],
                 "notes": [
                     "Uses fake local GPU workers and fake local age binary only.",
+                    "VanitySearch fake output uses a leading-zero-shortened internal key to verify normalization.",
                     "Verifies API response has age ciphertext and no plaintext key markers.",
                 ],
             },

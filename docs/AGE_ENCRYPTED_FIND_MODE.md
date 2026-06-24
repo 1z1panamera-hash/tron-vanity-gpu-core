@@ -89,6 +89,8 @@ Locally wired, pending RunPod proof.
 - It must not be written to controller logs.
 - `app.py` must encrypt it with the customer age recipient and return only `encrypted_private_key`.
 
+The internal key value is normalized before encryption. Patched VanitySearch can produce a valid scalar whose hex representation has leading zeroes; if the C++ `GetBase16()` output is shorter than 64 characters, the C++ JSON path and the Python wrapper left-pad it to 64 hex characters. Non-hex values and values longer than 64 characters remain invalid.
+
 ## Safety Gate
 
 Any RunPod result inspection must fail if response JSON includes:

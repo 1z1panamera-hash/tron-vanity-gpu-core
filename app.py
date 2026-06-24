@@ -542,7 +542,7 @@ def parse_vanitysearch_find_stdout(stdout: str, suffix: str) -> Dict[str, Any]:
             continue
 
         matched_address = candidate.get("matched_address")
-        private_key_hex = candidate.get("private_key_hex")
+        raw_private_key_hex = candidate.get("private_key_hex")
         public_key_uncompressed_hex = candidate.get("public_key_uncompressed_hex")
         if candidate.get("matched") is not True:
             continue
@@ -553,8 +553,9 @@ def parse_vanitysearch_find_stdout(stdout: str, suffix: str) -> Dict[str, Any]:
             or any(ch not in BASE58_ALPHABET for ch in matched_address)
         ):
             raise ValueError("patched VanitySearch returned an invalid matched_address")
-        if not isinstance(private_key_hex, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", private_key_hex):
+        if not isinstance(raw_private_key_hex, str) or not re.fullmatch(r"[0-9a-fA-F]{1,64}", raw_private_key_hex):
             raise ValueError("patched VanitySearch returned an invalid internal key value")
+        private_key_hex = raw_private_key_hex.zfill(64)
         if public_key_uncompressed_hex is not None and (
             not isinstance(public_key_uncompressed_hex, str)
             or not re.fullmatch(r"04[0-9a-fA-F]{128}", public_key_uncompressed_hex)
