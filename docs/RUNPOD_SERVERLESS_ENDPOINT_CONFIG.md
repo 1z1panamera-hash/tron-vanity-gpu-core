@@ -17,6 +17,10 @@ scripts/runpod_serverless_readiness_check.py
 ## Build
 
 - Dockerfile path: `Dockerfile`
+- GHCR image workflow: `.github/workflows/build-runpod-serverless-image.yml`
+- GHCR image tags:
+  - `ghcr.io/1z1panamera-hash/tron-vanity-gpu-core:runpod-serverless-latest`
+  - `ghcr.io/1z1panamera-hash/tron-vanity-gpu-core:runpod-serverless-<commit>`
 - The Dockerfile is multi-stage:
   - builder stage uses CUDA devel image and compiles patched VanitySearch TRON worker.
   - runtime stage uses CUDA runtime image and contains only Python handler, `age`,
