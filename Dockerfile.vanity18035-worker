@@ -48,7 +48,7 @@ RUN echo "${CORE_SHA256}  /opt/vanity-api-18035/worker/bin/vanity18035_core_daem
 COPY --chmod=0755 vanity-api-18035/deploy/worker/container-entrypoint.sh \
     /usr/local/bin/vanity18035-worker-entrypoint
 COPY vanity-api-18035/deploy/worker/supervisord.conf \
-    /etc/supervisor/conf.d/vanity18035.conf
+    /etc/vanity-api-18035/supervisord.conf
 
 RUN chown -R root:root /opt/vanity-api-18035/api /opt/vanity-api-18035/worker \
     && chmod 0755 /opt/vanity-api-18035/worker/bin/vanity18035_core_daemon

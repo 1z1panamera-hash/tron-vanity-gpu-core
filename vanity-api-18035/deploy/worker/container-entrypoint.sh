@@ -76,4 +76,4 @@ export VANITY18035_WORKER_KEY=/run/vanity-api-18035/tls/worker.key
 python3 -c 'from vanity18035.worker_config import WorkerSettings; WorkerSettings.from_env().validate()'
 
 exec /usr/bin/setpriv --reuid=10001 --regid=10001 --init-groups \
-  /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf
+  /usr/bin/supervisord -n -c /etc/vanity-api-18035/supervisord.conf
