@@ -33,6 +33,16 @@ Date: 2026-07-12
 - No customer value, API key, Age identity, TLS private key, or plaintext TRON
   private key is stored in this repository.
 
+## Published Worker Artifact
+
+- Git branch: `vanity-api-18035`
+- Source commit: `125893c1b633b84bf7cd3fb1db272d2cff6bbd59`
+- Image tag: `ghcr.io/1z1panamera-hash/tron-vanity-gpu-core:vanity18035-worker-125893c1b633b84bf7cd3fb1db272d2cff6bbd59`
+- OCI digest: `sha256:3db9f27b50ee3c0670898fbb6862fc097a3e92c3fd8afa285d853988397a0619`
+- GitHub Actions run: `29204099843` (`success`)
+
+Production deployment must pin the digest, not the mutable `latest` tag.
+
 ## Required Before Activation
 
 1. Customer fixed IPv4.
@@ -42,6 +52,6 @@ Date: 2026-07-12
 4. Controller TLS certificate/key and the separate worker mTLS CA/client pair.
 5. A fixed Vast Secure Cloud RTX 5090 host with driver 580 or newer and a fixed
    outbound IPv4.
-6. Container image pull, worker configuration mount, full real-host end-to-end
-   test, and restart/outage recovery test.
+6. Pull the pinned worker image on the fixed host, mount worker configuration,
+   then run the full real-host end-to-end and restart/outage recovery tests.
 7. User approval before enabling the controller or opening AWS TCP 18035.

@@ -7,8 +7,11 @@ on:
       - vanity-api-18035
     paths:
       - "Dockerfile.vanity18035-worker"
-      - "vanity-api-18035/**"
-      - "vanity-api-v2-core/results/rtx5090_round53_20260712/**"
+      - "vanity-api-18035/pyproject.toml"
+      - "vanity-api-18035/src/**"
+      - "vanity-api-18035/deploy/worker/container-entrypoint.sh"
+      - "vanity-api-18035/deploy/worker/supervisord.conf"
+      - "vanity-api-v2-core/results/rtx5090_round53_20260712/vanity18035_core_daemon"
       - ".github/workflows/build-vanity18035-worker-image.yml"
 
 permissions:
