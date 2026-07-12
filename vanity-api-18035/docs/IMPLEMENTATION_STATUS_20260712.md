@@ -15,12 +15,16 @@ Date: 2026-07-12
 - Real RTX 5090 acceptance: all 24 six/eight-position split vectors, 1/4/8/16
   targets, 1.929% scheduler overhead, 13.793ms P0 takeover P99, and a real
   encrypted P0 hit.
-- Local controller/worker acceptance: 42 tests, including 100 identical P0
+- Local controller/worker acceptance: 45 tests, including 100 identical P0
   requests sharing one task, disconnect/retry, timeout reset, queue refill,
   callback recovery, real TLS handshakes, mTLS rejection cases, and end-to-end
   controller/worker delivery.
 - Controller code and dependencies installed on 43 under
   `/opt/vanity-api-18035`; its unit is disabled and inactive.
+- The hardened systemd unit passed a loopback-only startup/health/stop smoke on
+  43. The temporary configuration and database were removed afterward.
+- The corrected controller release `a40d93cf50a5abc79df045ecb952b27f8ccd0d93`
+  passed all 45 tests on 43 itself.
 
 ## Current Safety State
 
@@ -36,10 +40,12 @@ Date: 2026-07-12
 ## Published Worker Artifact
 
 - Git branch: `vanity-api-18035`
-- Source commit: `125893c1b633b84bf7cd3fb1db272d2cff6bbd59`
-- Image tag: `ghcr.io/1z1panamera-hash/tron-vanity-gpu-core:vanity18035-worker-125893c1b633b84bf7cd3fb1db272d2cff6bbd59`
-- OCI digest: `sha256:3db9f27b50ee3c0670898fbb6862fc097a3e92c3fd8afa285d853988397a0619`
-- GitHub Actions run: `29204099843` (`success`)
+- Source commit: `ad1842dfd9fc7b8a715f14311a26996fa815bc30`
+- Image tag: `ghcr.io/1z1panamera-hash/tron-vanity-gpu-core:vanity18035-worker-ad1842dfd9fc7b8a715f14311a26996fa815bc30`
+- OCI digest: `sha256:7272691d66a23f493e871ab58b1fccf2b59eeb57a399bddfce462c2ec1be8071`
+- GitHub Actions run: `29213723668` (`success`)
+- Image CI validates Python imports, Supervisor parsing, dynamic libraries,
+  dedicated UID 10001, and absence of key/identity/API-key files before push.
 
 Production deployment must pin the digest, not the mutable `latest` tag.
 
