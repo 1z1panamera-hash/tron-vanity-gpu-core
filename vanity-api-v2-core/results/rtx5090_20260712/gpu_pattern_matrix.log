@@ -1,0 +1,29 @@
+PASS total=6 prefix=0 suffix=6 pattern=T*LeYxPZ
+PASS total=6 prefix=1 suffix=5 pattern=TL*eYxPZ
+PASS total=6 prefix=2 suffix=4 pattern=TLU*YxPZ
+PASS total=6 prefix=3 suffix=3 pattern=TLU9*xPZ
+PASS total=6 prefix=4 suffix=2 pattern=TLU9w*PZ
+PASS total=6 prefix=5 suffix=1 pattern=TLU9wb*Z
+PASS total=6 prefix=6 suffix=0 pattern=TLU9wb2*
+PASS total=7 prefix=0 suffix=7 pattern=T*qLeYxPZ
+PASS total=7 prefix=1 suffix=6 pattern=TL*LeYxPZ
+PASS total=7 prefix=2 suffix=5 pattern=TLU*eYxPZ
+PASS total=7 prefix=3 suffix=4 pattern=TLU9*YxPZ
+PASS total=7 prefix=4 suffix=3 pattern=TLU9w*xPZ
+PASS total=7 prefix=5 suffix=2 pattern=TLU9wb*PZ
+PASS total=7 prefix=6 suffix=1 pattern=TLU9wb2*Z
+PASS total=7 prefix=7 suffix=0 pattern=TLU9wb2z*
+PASS total=8 prefix=0 suffix=8 pattern=T*WqLeYxPZ
+PASS total=8 prefix=1 suffix=7 pattern=TL*qLeYxPZ
+PASS total=8 prefix=2 suffix=6 pattern=TLU*LeYxPZ
+PASS total=8 prefix=3 suffix=5 pattern=TLU9*eYxPZ
+PASS total=8 prefix=4 suffix=4 pattern=TLU9w*YxPZ
+PASS total=8 prefix=5 suffix=3 pattern=TLU9wb*xPZ
+PASS total=8 prefix=6 suffix=2 pattern=TLU9wb2*PZ
+PASS total=8 prefix=7 suffix=1 pattern=TLU9wb2z*Z
+PASS total=8 prefix=8 suffix=0 pattern=TLU9wb2zm*
+PASS multi_target_count=1 found=32
+PASS multi_target_count=4 found=128
+PASS multi_target_count=8 found=256
+PASS multi_target_count=16 found=512
+gpu_pattern_matrix passed=24 expected_address=TLU9wb2zmViRYiNx6iFa6CiEidWqLeYxPZ

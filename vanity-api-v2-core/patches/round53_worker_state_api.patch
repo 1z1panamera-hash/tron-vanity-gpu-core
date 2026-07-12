@@ -1,0 +1,64 @@
+--- a/GPU/GPUEngine.h
++++ b/GPU/GPUEngine.h
+@@ -57,6 +57,9 @@ public:
+   void SetPrefix(std::vector<prefix_t> prefixes);
+   void SetPrefix(std::vector<LPREFIX> prefixes,uint32_t totalPrefix);
+   bool SetKeys(Point *p);
++  size_t GetKeyStateWordCount() const;
++  bool ExportKeyState(std::vector<uint64_t> &state);
++  bool ImportKeyState(const std::vector<uint64_t> &state);
+   void SetSearchMode(int searchMode);
+   void SetSearchType(int searchType);
+   void SetPattern(const char *pattern);
+--- a/GPU/GPUEngine.cu
++++ b/GPU/GPUEngine.cu
+@@ -683,7 +683,9 @@ bool GPUEngine::SetTronPattern(const char *pattern) {
+     return false;
+   }
+
+-  SetPattern(pattern);
++  this->pattern = std::string(pattern);
++  hasPattern = true;
++  lostWarning = false;
+   memcpy(tronSuffix5, wildcard + 1, 5);
+   tronSuffix5[5] = 0;
+   tronSuffixValue = suffixValue;
+@@ -1023,6 +1023,38 @@ bool GPUEngine::SetKeys(Point *p) {
+
+ }
+
++size_t GPUEngine::GetKeyStateWordCount() const {
++  return static_cast<size_t>(nbThread) * 8U;
++}
++
++bool GPUEngine::ExportKeyState(std::vector<uint64_t> &state) {
++  const size_t wordCount = GetKeyStateWordCount();
++  state.resize(wordCount);
++  const cudaError_t error = cudaMemcpy(
++      state.data(), inputKey, wordCount * sizeof(uint64_t), cudaMemcpyDeviceToHost);
++  if (error != cudaSuccess) {
++    printf("GPUEngine: ExportKeyState: %s\n", cudaGetErrorString(error));
++    state.clear();
++    return false;
++  }
++  return true;
++}
++
++bool GPUEngine::ImportKeyState(const std::vector<uint64_t> &state) {
++  const size_t wordCount = GetKeyStateWordCount();
++  if (state.size() != wordCount) {
++    printf("GPUEngine: ImportKeyState: invalid state size\n");
++    return false;
++  }
++  const cudaError_t error = cudaMemcpy(
++      inputKey, state.data(), wordCount * sizeof(uint64_t), cudaMemcpyHostToDevice);
++  if (error != cudaSuccess) {
++    printf("GPUEngine: ImportKeyState: %s\n", cudaGetErrorString(error));
++    return false;
++  }
++  return callKernel();
++}
++
+ bool GPUEngine::Launch(
+     std::vector<ITEM> &prefixFound,
+     bool spinWait,

@@ -1,0 +1,3 @@
+scheduler_throughput continuous_billion_per_second=4.688677 scheduled_billion_per_second=4.598225 overhead_percent=1.929159
+p0_takeover iterations=60 p50_ms=13.699 p99_ms=13.793 max_ms=13.793
+acceptance scheduler_overhead_le_3pct=true p0_takeover_p99_le_20ms=true

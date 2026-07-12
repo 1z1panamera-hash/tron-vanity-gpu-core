@@ -1,0 +1,9 @@
+GPU: NVIDIA GeForce RTX 5090
+Driver: 580.95.05
+Power limit: 575.00 W
+GPU memory: 32607 MiB
+CUDA compiler: 12.8 (build 12.8.35583870)
+Build target: sm_120 plus compute_120 PTX
+STEP_SIZE: 16384
+Grid: 160,128
+Instance type: Vast Secure Cloud temporary validation instance

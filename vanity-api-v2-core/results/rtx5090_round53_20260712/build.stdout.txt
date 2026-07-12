@@ -1,0 +1,312 @@
+make: Entering directory '/root/vanity18035-round53-fix/VanitySearch'
+mkdir -p obj
+cd obj &&	mkdir -p GPU
+cd obj &&	mkdir -p hash
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/Base58.o -c Base58.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/IntGroup.o -c IntGroup.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/main.o -c main.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/Random.o -c Random.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/Timer.o -c Timer.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/Int.o -c Int.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/IntMod.o -c IntMod.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/Point.o -c Point.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/SECP256K1.o -c SECP256K1.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/Vanity.o -c Vanity.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/GPU/GPUGenerate.o -c GPU/GPUGenerate.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/hash/ripemd160.o -c hash/ripemd160.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/hash/sha256.o -c hash/sha256.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/hash/sha512.o -c hash/sha512.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/hash/keccak256.o -c hash/keccak256.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/hash/ripemd160_sse.o -c hash/ripemd160_sse.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/hash/sha256_sse.o -c hash/sha256_sse.cpp
+/usr/local/cuda/bin/nvcc -maxrregcount=172 --ptxas-options=-v --compile --compiler-options -fPIC -ccbin /usr/bin/g++ -m64 -O2 -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -I/usr/local/cuda/include -gencode=arch=compute_120,code=sm_120 -gencode=arch=compute_120,code=compute_120 -o obj/GPU/GPUEngine.o -c GPU/GPUEngine.cu
+ptxas info    : Overriding maximum register limit 256 for '_Z28comp_keys_tron_hash_pipelineILb0ELi2EEvPKmjjjmjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z28comp_keys_tron_hash_pipelineILb0ELi1EEvPKmjjjmjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z28comp_keys_tron_hash_pipelineILb0ELi0EEvPKmjjjmjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z28comp_keys_tron_hash_pipelineILb1ELi2EEvPKmjjjmjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z28comp_keys_tron_hash_pipelineILb1ELi1EEvPKmjjjmjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z28comp_keys_tron_hash_pipelineILb1ELi0EEvPKmjjjmjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z31comp_keys_tron_hash_pipeline_v2ILi2EEvPKmjjjjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z31comp_keys_tron_hash_pipeline_v2ILi1EEvPKmjjjjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z31comp_keys_tron_hash_pipeline_v2ILi0EEvPKmjjjjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z26comp_keys_tron_emit_pointsPmS_j' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z29comp_keys_tron_prefix_patternmPmjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z22comp_keys_tron_patternmPmjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z22comp_keys_p2sh_patternjPtPmjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z17comp_keys_patternjPtPmjPj' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z14comp_keys_compPtPjPmjS0_' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z14comp_keys_p2shjPtPjPmjS0_' with  172 of maxrregcount option
+ptxas info    : Overriding maximum register limit 256 for '_Z9comp_keysjPtPjPmjS0_' with  172 of maxrregcount option
+ptxas info    : 59 bytes gmem
+ptxas info    : Compiling entry function '_Z28comp_keys_tron_hash_pipelineILb0ELi2EEvPKmjjjmjPj' for 'sm_120'
+ptxas info    : Function properties for _Z28comp_keys_tron_hash_pipelineILb0ELi2EEvPKmjjjmjPj
+    96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 79 registers, used 0 barriers, 96 bytes cumulative stack size
+ptxas info    : Compile time = 301.193 ms
+ptxas info    : Function properties for _Z25tron_keccak_fixed64_wordsmmmmmmmmPjS_S_S_S_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z41tron_check_x_suffix5_fixed64_with_y_lanesILb0EEbPKmmmmmmbPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z49tron_payload_words_checksum_fused_matches_suffix5jjjjjjm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z28comp_keys_tron_hash_pipelineILb0ELi1EEvPKmjjjmjPj' for 'sm_120'
+ptxas info    : Function properties for _Z28comp_keys_tron_hash_pipelineILb0ELi1EEvPKmjjjmjPj
+    96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 79 registers, used 0 barriers, 96 bytes cumulative stack size
+ptxas info    : Compile time = 298.128 ms
+ptxas info    : Function properties for _Z25tron_keccak_fixed64_wordsmmmmmmmmPjS_S_S_S_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z41tron_check_x_suffix5_fixed64_with_y_lanesILb0EEbPKmmmmmmbPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z49tron_payload_words_checksum_fused_matches_suffix5jjjjjjm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z28comp_keys_tron_hash_pipelineILb0ELi0EEvPKmjjjmjPj' for 'sm_120'
+ptxas info    : Function properties for _Z28comp_keys_tron_hash_pipelineILb0ELi0EEvPKmjjjmjPj
+    96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 79 registers, used 0 barriers, 96 bytes cumulative stack size
+ptxas info    : Compile time = 291.801 ms
+ptxas info    : Function properties for _Z25tron_keccak_fixed64_wordsmmmmmmmmPjS_S_S_S_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z41tron_check_x_suffix5_fixed64_with_y_lanesILb0EEbPKmmmmmmbPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z49tron_payload_words_checksum_fused_matches_suffix5jjjjjjm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z28comp_keys_tron_hash_pipelineILb1ELi2EEvPKmjjjmjPj' for 'sm_120'
+ptxas info    : Function properties for _Z28comp_keys_tron_hash_pipelineILb1ELi2EEvPKmjjjmjPj
+    96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 79 registers, used 0 barriers, 96 bytes cumulative stack size
+ptxas info    : Compile time = 284.890 ms
+ptxas info    : Function properties for _Z25tron_keccak_fixed64_wordsmmmmmmmmPjS_S_S_S_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z41tron_check_x_suffix5_fixed64_with_y_lanesILb1EEbPKmmmmmmbPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z49tron_payload_words_checksum_fused_matches_suffix5jjjjjjm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z28comp_keys_tron_hash_pipelineILb1ELi1EEvPKmjjjmjPj' for 'sm_120'
+ptxas info    : Function properties for _Z28comp_keys_tron_hash_pipelineILb1ELi1EEvPKmjjjmjPj
+    96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 79 registers, used 0 barriers, 96 bytes cumulative stack size
+ptxas info    : Compile time = 286.208 ms
+ptxas info    : Function properties for _Z25tron_keccak_fixed64_wordsmmmmmmmmPjS_S_S_S_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z41tron_check_x_suffix5_fixed64_with_y_lanesILb1EEbPKmmmmmmbPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z49tron_payload_words_checksum_fused_matches_suffix5jjjjjjm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z28comp_keys_tron_hash_pipelineILb1ELi0EEvPKmjjjmjPj' for 'sm_120'
+ptxas info    : Function properties for _Z28comp_keys_tron_hash_pipelineILb1ELi0EEvPKmjjjmjPj
+    96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 79 registers, used 0 barriers, 96 bytes cumulative stack size
+ptxas info    : Compile time = 273.667 ms
+ptxas info    : Function properties for _Z25tron_keccak_fixed64_wordsmmmmmmmmPjS_S_S_S_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z41tron_check_x_suffix5_fixed64_with_y_lanesILb1EEbPKmmmmmmbPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z49tron_payload_words_checksum_fused_matches_suffix5jjjjjjm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z31comp_keys_tron_hash_pipeline_v2ILi2EEvPKmjjjjPj' for 'sm_120'
+ptxas info    : Function properties for _Z31comp_keys_tron_hash_pipeline_v2ILi2EEvPKmjjjjPj
+    96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 85 registers, used 0 barriers, 96 bytes cumulative stack size
+ptxas info    : Compile time = 317.502 ms
+ptxas info    : Function properties for _Z23tron_v2_checksum4_wordsjjjjj
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z25tron_keccak_fixed64_wordsmmmmmmmmPjS_S_S_S_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z28tron_v2_check_x_with_y_lanesPKmmmmmPjPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z31comp_keys_tron_hash_pipeline_v2ILi1EEvPKmjjjjPj' for 'sm_120'
+ptxas info    : Function properties for _Z31comp_keys_tron_hash_pipeline_v2ILi1EEvPKmjjjjPj
+    96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 85 registers, used 0 barriers, 96 bytes cumulative stack size
+ptxas info    : Compile time = 327.951 ms
+ptxas info    : Function properties for _Z23tron_v2_checksum4_wordsjjjjj
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z25tron_keccak_fixed64_wordsmmmmmmmmPjS_S_S_S_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z28tron_v2_check_x_with_y_lanesPKmmmmmPjPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z31comp_keys_tron_hash_pipeline_v2ILi0EEvPKmjjjjPj' for 'sm_120'
+ptxas info    : Function properties for _Z31comp_keys_tron_hash_pipeline_v2ILi0EEvPKmjjjjPj
+    96 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 85 registers, used 0 barriers, 96 bytes cumulative stack size
+ptxas info    : Compile time = 312.055 ms
+ptxas info    : Function properties for _Z23tron_v2_checksum4_wordsjjjjj
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z25tron_keccak_fixed64_wordsmmmmmmmmPjS_S_S_S_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z28tron_v2_check_x_with_y_lanesPKmmmmmPjPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z26comp_keys_tron_emit_pointsPmS_j' for 'sm_120'
+ptxas info    : Function properties for _Z26comp_keys_tron_emit_pointsPmS_j
+    32960 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 168 registers, used 1 barriers, 32960 bytes cumulative stack size
+ptxas info    : Compile time = 299.695 ms
+ptxas info    : Function properties for _Z14_ModInvGroupedPA4_m
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z7_ModInvPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z29comp_keys_tron_prefix_patternmPmjPj' for 'sm_120'
+ptxas info    : Function properties for _Z29comp_keys_tron_prefix_patternmPmjPj
+    33024 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 172 registers, used 1 barriers, 33024 bytes cumulative stack size
+ptxas info    : Compile time = 1071.752 ms
+ptxas info    : Function properties for _Z14CheckTronPointILb1EEvPmS0_iimjPj
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z14_ModInvGroupedPA4_m
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z25tron_keccak_fixed64_wordsmmmmmmmmPjS_S_S_S_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z41tron_check_x_suffix5_fixed64_with_y_lanesILb1EEbPKmmmmmmbPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z49tron_payload_words_checksum_fused_matches_suffix5jjjjjjm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z7_ModInvPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z22comp_keys_tron_patternmPmjPj' for 'sm_120'
+ptxas info    : Function properties for _Z22comp_keys_tron_patternmPmjPj
+    33024 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 172 registers, used 1 barriers, 33024 bytes cumulative stack size
+ptxas info    : Compile time = 1029.787 ms
+ptxas info    : Function properties for _Z14CheckTronPointILb0EEvPmS0_iimjPj
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z14_ModInvGroupedPA4_m
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z25tron_keccak_fixed64_wordsmmmmmmmmPjS_S_S_S_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z41tron_check_x_suffix5_fixed64_with_y_lanesILb0EEbPKmmmmmmbPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z49tron_payload_words_checksum_fused_matches_suffix5jjjjjjm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z7_ModInvPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z22comp_keys_p2sh_patternjPtPmjPj' for 'sm_120'
+ptxas info    : Function properties for _Z22comp_keys_p2sh_patternjPtPmjPj
+    33072 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 166 registers, used 1 barriers, 33072 bytes cumulative stack size
+ptxas info    : Compile time = 2023.258 ms
+ptxas info    : Function properties for _Z10CheckPointPjiiiPtS_jS_i
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z11_GetAddressiPjPc
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z11_GetHash160PmS_Ph
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z13CheckP2SHHashjPtPmS0_iPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z14_ModInvGroupedPA4_m
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z15_GetHash160CompPmhPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z17CheckHashP2SHCompPtPmhiPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z19CheckHashP2SHUncompPtPmS0_iPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z19_GetHash160P2SHCompPmhPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z21_GetHash160P2SHUncompPmS_Ph
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z6_MatchPKcS0_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z7_ModInvPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z17comp_keys_patternjPtPmjPj' for 'sm_120'
+ptxas info    : Function properties for _Z17comp_keys_patternjPtPmjPj
+    33072 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 166 registers, used 1 barriers, 33072 bytes cumulative stack size
+ptxas info    : Compile time = 1344.239 ms
+ptxas info    : Function properties for _Z10CheckPointPjiiiPtS_jS_i
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z11_GetAddressiPjPc
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z11_GetHash160PmS_Ph
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z13CheckHashCompPtPmhiPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z14_ModInvGroupedPA4_m
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z15CheckHashUncompPtPmS0_iPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z15_GetHash160CompPmhPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z6_MatchPKcS0_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z7_ModInvPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z9CheckHashjPtPmS0_iPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z14comp_keys_compPtPjPmjS0_' for 'sm_120'
+ptxas info    : Function properties for _Z14comp_keys_compPtPjPmjS0_
+    33120 bytes stack frame, 16 bytes spill stores, 16 bytes spill loads
+ptxas info    : Used 172 registers, used 1 barriers, 33120 bytes cumulative stack size
+ptxas info    : Compile time = 839.807 ms
+ptxas info    : Function properties for _Z10CheckPointPjiiiPtS_jS_i
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z11_GetAddressiPjPc
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z14_ModInvGroupedPA4_m
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z18_GetHash160CompSymPmPhS0_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z6_MatchPKcS0_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z7_ModInvPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z14comp_keys_p2shjPtPjPmjS0_' for 'sm_120'
+ptxas info    : Function properties for _Z14comp_keys_p2shjPtPjPmjS0_
+    33072 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 166 registers, used 1 barriers, 33072 bytes cumulative stack size
+ptxas info    : Compile time = 2078.888 ms
+ptxas info    : Function properties for _Z10CheckPointPjiiiPtS_jS_i
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z11_GetAddressiPjPc
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z11_GetHash160PmS_Ph
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z13CheckP2SHHashjPtPmS0_iPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z14_ModInvGroupedPA4_m
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z15_GetHash160CompPmhPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z17CheckHashP2SHCompPtPmhiPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z19CheckHashP2SHUncompPtPmS0_iPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z19_GetHash160P2SHCompPmhPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z21_GetHash160P2SHUncompPmS_Ph
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z6_MatchPKcS0_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z7_ModInvPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Compiling entry function '_Z9comp_keysjPtPjPmjS0_' for 'sm_120'
+ptxas info    : Function properties for _Z9comp_keysjPtPjPmjS0_
+    33072 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 168 registers, used 1 barriers, 33072 bytes cumulative stack size
+ptxas info    : Compile time = 1314.176 ms
+ptxas info    : Function properties for _Z10CheckPointPjiiiPtS_jS_i
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z11_GetAddressiPjPc
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z11_GetHash160PmS_Ph
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z13CheckHashCompPtPmhiPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z14_ModInvGroupedPA4_m
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z15CheckHashUncompPtPmS0_iPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z15_GetHash160CompPmhPh
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z6_MatchPKcS0_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z7_ModInvPm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Function properties for _Z9CheckHashjPtPmS0_iPjjS1_
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/Bech32.o -c Bech32.cpp
+g++ -DWITHGPU -DSTEP_SIZE=16384 -DTRON_ENABLE_ENDOMORPHISM -DTRON_ENABLE_KECCAK_FIXED64_WORDS -DTRON_ENABLE_BASE58_LINEAR_RESIDUE -DTRON_ENABLE_KECCAK_FIXED64_Y_LANES -DTRON_ENABLE_POINT_HASH_PIPELINE -DTRON_ENABLE_POINT_HASH_DOUBLE_BUFFER -m64 -mssse3 -Wno-write-strings -O2 -I. -I/usr/local/cuda/include -o obj/Wildcard.o -c Wildcard.cpp
+Making VanitySearch...
+g++ obj/Base58.o obj/IntGroup.o obj/main.o obj/Random.o obj/Timer.o obj/Int.o obj/IntMod.o obj/Point.o obj/SECP256K1.o obj/Vanity.o obj/GPU/GPUGenerate.o obj/hash/ripemd160.o obj/hash/sha256.o obj/hash/sha512.o obj/hash/keccak256.o obj/hash/ripemd160_sse.o obj/hash/sha256_sse.o obj/GPU/GPUEngine.o obj/Bech32.o obj/Wildcard.o -lpthread -L/usr/local/cuda/lib64 -lcudart -o VanitySearch
+make: Leaving directory '/root/vanity18035-round53-fix/VanitySearch'

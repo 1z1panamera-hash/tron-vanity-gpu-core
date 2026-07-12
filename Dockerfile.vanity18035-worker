@@ -1,0 +1,62 @@
+ARG CUDA_RUNTIME_IMAGE=nvidia/cuda:12.8.1-runtime-ubuntu22.04
+FROM ${CUDA_RUNTIME_IMAGE}
+
+ARG CORE_SHA256=98d912d2399c5c10600c59ce8ff5712b71f12a283ab304fce81af7fbb3c44714
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PIP_NO_CACHE_DIR=1
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        age \
+        ca-certificates \
+        libsqlite3-0 \
+        python3 \
+        python3-pip \
+        supervisor \
+        tini \
+        util-linux \
+    && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/*
+
+RUN groupadd --gid 10001 vanity18035 \
+    && useradd --uid 10001 --gid 10001 --home-dir /nonexistent \
+        --shell /usr/sbin/nologin --no-create-home vanity18035 \
+    && install -d -o vanity18035 -g vanity18035 -m 0700 \
+        /opt/vanity-api-18035/data \
+        /opt/vanity-api-18035/logs \
+        /run/vanity-api-18035 \
+    && install -d -o root -g vanity18035 -m 0750 \
+        /opt/vanity-api-18035/api \
+        /opt/vanity-api-18035/worker/bin \
+        /etc/vanity-api-18035/tls
+
+COPY vanity-api-18035/pyproject.toml /opt/vanity-api-18035/api/pyproject.toml
+COPY vanity-api-18035/src /opt/vanity-api-18035/api/src
+RUN python3 -m pip install --no-cache-dir /opt/vanity-api-18035/api \
+    && rm -rf /root/.cache /tmp/*
+
+COPY --chmod=0755 \
+    vanity-api-v2-core/results/rtx5090_round53_20260712/vanity18035_core_daemon \
+    /opt/vanity-api-18035/worker/bin/vanity18035_core_daemon
+RUN echo "${CORE_SHA256}  /opt/vanity-api-18035/worker/bin/vanity18035_core_daemon" \
+        | sha256sum -c -
+
+COPY --chmod=0755 vanity-api-18035/deploy/worker/container-entrypoint.sh \
+    /usr/local/bin/vanity18035-worker-entrypoint
+COPY vanity-api-18035/deploy/worker/supervisord.conf \
+    /etc/supervisor/conf.d/vanity18035.conf
+
+RUN chown -R root:root /opt/vanity-api-18035/api /opt/vanity-api-18035/worker \
+    && chmod 0755 /opt/vanity-api-18035/worker/bin/vanity18035_core_daemon
+
+VOLUME ["/opt/vanity-api-18035/data", "/etc/vanity-api-18035/tls"]
+WORKDIR /opt/vanity-api-18035/worker
+
+HEALTHCHECK --interval=5s --timeout=2s --start-period=20s --retries=3 \
+    CMD python3 -c 'import os,stat; p="/run/vanity-api-18035/core.sock"; s=os.stat(p); assert stat.S_ISSOCK(s.st_mode) and stat.S_IMODE(s.st_mode)==0o600'
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/vanity18035-worker-entrypoint"]

@@ -1,0 +1,637 @@
+--- a/GPU/GPUTronTypes.h
++++ b/GPU/GPUTronTypes.h
+@@ -10,4 +10,22 @@
+   uint64_t possibleHighWords[3];
+ } TronPrefixRange;
+
++#define TRON_V2_MAX_TARGETS 16
++#define TRON_V2_HAS_PREFIX 1U
++#define TRON_V2_HAS_SUFFIX 2U
++
++typedef struct {
++  uint64_t prefixLow[4];
++  uint64_t prefixHigh[4];
++  uint64_t payloadLow[3];
++  uint64_t payloadHigh[3];
++  uint64_t suffixValue;
++  uint64_t suffixModulus;
++  uint32_t targetId;
++  uint8_t prefixLength;
++  uint8_t suffixLength;
++  uint8_t totalCustomLength;
++  uint8_t flags;
++} TronPatternV2Descriptor;
++
+ #endif
+--- a/GPU/GPUTron.h
++++ b/GPU/GPUTron.h
+@@ -13,6 +13,17 @@
+
+ __device__ __constant__ uint64_t tronPrefixLowWordsConst[3];
+ __device__ __constant__ uint64_t tronPrefixHighWordsConst[3];
++__device__ __constant__ TronPatternV2Descriptor tronV2TargetsConst[TRON_V2_MAX_TARGETS];
++__device__ __constant__ uint32_t tronV2TargetCountConst;
++__device__ __constant__ uint64_t tronV2ResidueCoefficientsConst[25] = {
++    32994552086272ULL, 112684327885312ULL, 51465307277824ULL,
++    59230113085952ULL, 67264386966016ULL, 15270143900416ULL,
++    18568766279168ULL, 121132166179840ULL, 10478100783360ULL,
++    127603765386240ULL, 114554634363648ULL, 127009821519616ULL,
++    121055517638912ULL, 15980511917568ULL, 37080658433792ULL,
++    4647064038656ULL, 25530719654912ULL, 86142112402944ULL,
++    25348813274624ULL, 1099511627776ULL, 4294967296ULL,
++    16777216ULL, 65536ULL, 256ULL, 1ULL};
+
+ __device__ __forceinline__ int tron_base58_value(char c) {
+   const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+@@ -874,4 +885,168 @@
+   return true;
+ }
+
++__device__ __forceinline__ int tron_v2_compare_words(
++    const uint64_t *lhs,
++    const uint64_t *rhs,
++    int count) {
++  for (int index = 0; index < count; ++index) {
++    if (lhs[index] < rhs[index]) return -1;
++    if (lhs[index] > rhs[index]) return 1;
++  }
++  return 0;
++}
++
++__device__ __forceinline__ bool tron_v2_prefix_possible(
++    const TronPatternV2Descriptor& target,
++    const uint64_t payloadWords[3]) {
++  return tron_v2_compare_words(payloadWords, target.payloadLow, 3) >= 0 &&
++         tron_v2_compare_words(payloadWords, target.payloadHigh, 3) <= 0;
++}
++
++__device__ __forceinline__ bool tron_v2_prefix_exact(
++    const TronPatternV2Descriptor& target,
++    const uint64_t payloadWords[4]) {
++  return tron_v2_compare_words(payloadWords, target.prefixLow, 4) >= 0 &&
++         tron_v2_compare_words(payloadWords, target.prefixHigh, 4) <= 0;
++}
++
++__device__ __noinline__ uint32_t tron_v2_checksum4_words(
++    uint32_t d0,
++    uint32_t d1,
++    uint32_t d2,
++    uint32_t d3,
++    uint32_t d4) {
++  uint32_t s[8];
++  uint32_t w[16];
++  w[0] = 0x41000000U | (d0 >> 8);
++  w[1] = ((d0 & 0xffU) << 24) | (d1 >> 8);
++  w[2] = ((d1 & 0xffU) << 24) | (d2 >> 8);
++  w[3] = ((d2 & 0xffU) << 24) | (d3 >> 8);
++  w[4] = ((d3 & 0xffU) << 24) | (d4 >> 8);
++  w[5] = ((d4 & 0xffU) << 24) | 0x00800000U;
++  w[6] = 0;
++  w[7] = 0;
++  w[8] = 0;
++  w[9] = 0;
++  w[10] = 0;
++  w[11] = 0;
++  w[12] = 0;
++  w[13] = 0;
++  w[14] = 0;
++  w[15] = 168U;
++  SHA256Initialize(s);
++  SHA256Transform(s, w);
++  for (int index = 0; index < 8; ++index) w[index] = s[index];
++  w[8] = 0x80000000U;
++  w[9] = 0;
++  w[10] = 0;
++  w[11] = 0;
++  w[12] = 0;
++  w[13] = 0;
++  w[14] = 0;
++  w[15] = 256U;
++  SHA256Initialize(s);
++  SHA256Transform(s, w);
++  return s[0];
++}
++
++__device__ __forceinline__ uint64_t tron_v2_residue_add_word(
++    uint64_t sum,
++    uint32_t word,
++    int firstCoefficient) {
++#pragma unroll
++  for (int byte = 0; byte < 4; ++byte) {
++    const uint32_t value = (word >> (24 - byte * 8)) & 0xffU;
++    sum += static_cast<uint64_t>(value) *
++           tronV2ResidueCoefficientsConst[firstCoefficient + byte];
++  }
++  return sum;
++}
++
++__device__ __forceinline__ uint64_t tron_v2_residue58p8(
++    uint32_t d0,
++    uint32_t d1,
++    uint32_t d2,
++    uint32_t d3,
++    uint32_t d4,
++    uint32_t checksum) {
++  uint64_t sum = 0x41ULL * tronV2ResidueCoefficientsConst[0];
++  sum = tron_v2_residue_add_word(sum, d0, 1);
++  sum = tron_v2_residue_add_word(sum, d1, 5);
++  sum = tron_v2_residue_add_word(sum, d2, 9);
++  sum = tron_v2_residue_add_word(sum, d3, 13);
++  sum = tron_v2_residue_add_word(sum, d4, 17);
++  sum = tron_v2_residue_add_word(sum, checksum, 21);
++  return sum % 128063081718016ULL;
++}
++
++__device__ __noinline__ bool tron_v2_check_x_with_y_lanes(
++    const uint64_t *x,
++    uint64_t y0,
++    uint64_t y1,
++    uint64_t y2,
++    uint64_t y3,
++    uint32_t *targetId,
++    uint8_t payload21[21]) {
++  const uint64_t x0 = tron_keccak_coord_lane(x, 0);
++  const uint64_t x1 = tron_keccak_coord_lane(x, 1);
++  const uint64_t x2 = tron_keccak_coord_lane(x, 2);
++  const uint64_t x3 = tron_keccak_coord_lane(x, 3);
++  uint32_t d0;
++  uint32_t d1;
++  uint32_t d2;
++  uint32_t d3;
++  uint32_t d4;
++  tron_keccak_fixed64_words(
++      x0, x1, x2, x3, y0, y1, y2, y3, &d0, &d1, &d2, &d3, &d4);
++
++  const uint64_t possibleWords[3] = {
++      0x4100000000000000ULL |
++          (static_cast<uint64_t>(d0) << 24) |
++          (static_cast<uint64_t>(d1) >> 8),
++      (static_cast<uint64_t>(d1 & 0xffU) << 56) |
++          (static_cast<uint64_t>(d2) << 24) |
++          (static_cast<uint64_t>(d3) >> 8),
++      (static_cast<uint64_t>(d3 & 0xffU) << 56) |
++          (static_cast<uint64_t>(d4) << 24),
++  };
++  bool possible = false;
++  bool needsSuffix = false;
++  for (uint32_t index = 0; index < tronV2TargetCountConst; ++index) {
++    const TronPatternV2Descriptor& target = tronV2TargetsConst[index];
++    if ((target.flags & TRON_V2_HAS_SUFFIX) != 0U) needsSuffix = true;
++    if ((target.flags & TRON_V2_HAS_PREFIX) == 0U ||
++        tron_v2_prefix_possible(target, possibleWords)) {
++      possible = true;
++    }
++  }
++  if (!possible) return false;
++
++  const uint32_t checksum = tron_v2_checksum4_words(d0, d1, d2, d3, d4);
++  const uint64_t residue58p8 = needsSuffix
++      ? tron_v2_residue58p8(d0, d1, d2, d3, d4, checksum)
++      : 0ULL;
++  const uint64_t exactWords[4] = {
++      0x41ULL,
++      (static_cast<uint64_t>(d0) << 32) | d1,
++      (static_cast<uint64_t>(d2) << 32) | d3,
++      (static_cast<uint64_t>(d4) << 32) | checksum,
++  };
++  for (uint32_t index = 0; index < tronV2TargetCountConst; ++index) {
++    const TronPatternV2Descriptor& target = tronV2TargetsConst[index];
++    if ((target.flags & TRON_V2_HAS_PREFIX) != 0U &&
++        !tron_v2_prefix_exact(target, exactWords)) {
++      continue;
++    }
++    if ((target.flags & TRON_V2_HAS_SUFFIX) != 0U &&
++        residue58p8 % target.suffixModulus != target.suffixValue) {
++      continue;
++    }
++    *targetId = target.targetId;
++    tron_payload21_write_digest_words(payload21, d0, d1, d2, d3, d4);
++    return true;
++  }
++  return false;
++}
++
+ #endif
+--- a/GPU/GPUCompute.h
++++ b/GPU/GPUCompute.h
+@@ -596,6 +596,61 @@
+   }
+ }
+
++template <int Endo>
++__device__ void HashTronPipelineCandidateV2(
++    const uint64_t *points,
++    uint32_t pointCount,
++    uint32_t nbThread,
++    uint32_t groupOffset,
++    uint32_t maxFound,
++    uint32_t *out) {
++  const uint32_t pointIndex = (blockIdx.x * blockDim.x) + threadIdx.x;
++  if (pointIndex >= pointCount) return;
++
++  uint64_t x[4];
++#pragma unroll
++  for (int limb = 0; limb < 4; ++limb) x[limb] = points[limb * pointCount + pointIndex];
++  if (Endo == 1) {
++    uint64_t transformed[4];
++    _ModMult(transformed, x, _beta);
++    Load256(x, transformed);
++  } else if (Endo == 2) {
++    uint64_t transformed[4];
++    _ModMult(transformed, x, _beta2);
++    Load256(x, transformed);
++  }
++
++  uint64_t y[4];
++#pragma unroll
++  for (int limb = 0; limb < 4; ++limb) y[limb] = points[(limb + 4) * pointCount + pointIndex];
++  uint32_t targetId = 0;
++  uint8_t payload21[21];
++  if (!tron_v2_check_x_with_y_lanes(
++          x,
++          tron_keccak_coord_lane(y, 0),
++          tron_keccak_coord_lane(y, 1),
++          tron_keccak_coord_lane(y, 2),
++          tron_keccak_coord_lane(y, 3),
++          &targetId,
++          payload21)) {
++    return;
++  }
++
++  const uint32_t offset = pointIndex / nbThread;
++  const uint32_t tid = pointIndex - offset * nbThread;
++  const uint32_t pos = atomicAdd(out, 1);
++  if (pos < maxFound) {
++    out[pos * ITEM_SIZE32 + 1] = tid;
++    const uint16_t metadata = static_cast<uint16_t>(
++        ((targetId & 0x1fffU) << 2) | (Endo & 0x03U));
++    out[pos * ITEM_SIZE32 + 2] =
++        (uint32_t)((groupOffset + offset) << 16) | metadata;
++    uint8_t *hashOut = reinterpret_cast<uint8_t *>(out + pos * ITEM_SIZE32 + 3);
++#pragma unroll
++    for (int byte = 0; byte < 20; ++byte) hashOut[byte] = payload21[byte + 1];
++  }
++}
++
+ #endif
+
+ // -----------------------------------------------------------------------------------------
+--- a/GPU/GPUEngine.h
++++ b/GPU/GPUEngine.h
+@@ -49,6 +49,7 @@
+   uint32_t thId;
+   int16_t  incr;
+   int16_t  endo;
++  uint16_t targetId;
+   uint8_t  *hash;
+   bool mode;
+ } ITEM;
+@@ -72,7 +73,14 @@
+   void SetSearchType(int searchType);
+   void SetPattern(const char *pattern);
+   bool SetTronPattern(const char *pattern);
+-  bool Launch(std::vector<ITEM> &prefixFound,bool spinWait=false);
++  bool SetTronPatternsV2(const std::vector<std::string> &patterns);
++  bool SetTronPatternsV2(const std::vector<TronPatternV2Descriptor> &targets);
++  bool SetTronGroupsPerLaunch(uint32_t groupCount);
++  bool Run();
++  bool Launch(
++      std::vector<ITEM> &prefixFound,
++      bool spinWait=false,
++      bool queueNext=true);
+   int GetNbThread();
+   int GetGroupSize();
+
+@@ -114,9 +122,11 @@
+   bool rekey;
+   uint32_t maxFound;
+   uint32_t outputSize;
++  uint32_t tronGroupsPerLaunch;
+   std::string pattern;
+   bool hasPattern;
+   bool hasTronRule;
++  bool hasTronV2Targets;
+   bool hasTronPrefixRange;
+   char tronSuffix5[6];
+   uint64_t tronSuffixValue;
+--- a/GPU/GPUEngine.cu
++++ b/GPU/GPUEngine.cu
+@@ -60,6 +60,24 @@
+   return true;
+ }
+
++static bool host_tron_suffix_value(
++    const char *suffix,
++    size_t suffix_len,
++    uint64_t *value,
++    uint64_t *modulus) {
++  uint64_t out = 0;
++  uint64_t power = 1;
++  for (size_t index = 0; index < suffix_len; ++index) {
++    int digit = host_tron_base58_value(suffix[index]);
++    if (digit < 0) return false;
++    out = out * 58ULL + static_cast<uint64_t>(digit);
++    power *= 58ULL;
++  }
++  *value = out;
++  *modulus = power;
++  return true;
++}
++
+ static bool host_big25_mul_small(uint8_t value[25], uint32_t multiplier) {
+   uint32_t carry = 0;
+   for (int i = 24; i >= 0; --i) {
+@@ -101,6 +119,18 @@
+   return out;
+ }
+
++static void host_payload25_words(const uint8_t value[25], uint64_t words[4]) {
++  words[0] = value[0];
++  for (int word = 1; word < 4; ++word) {
++    uint64_t packed = 0;
++    const int offset = 1 + (word - 1) * 8;
++    for (int byte = 0; byte < 8; ++byte) {
++      packed = (packed << 8) | value[offset + byte];
++    }
++    words[word] = packed;
++  }
++}
++
+ static bool host_make_tron_prefix_range(
+     const char *prefix,
+     size_t prefix_len,
+@@ -217,6 +247,18 @@
+       points, pointCount, nbThread, groupOffset, suffix5Value, maxFound, found);
+ }
+
++template <int Endo>
++__global__ void comp_keys_tron_hash_pipeline_v2(
++    const uint64_t *points,
++    uint32_t pointCount,
++    uint32_t nbThread,
++    uint32_t groupOffset,
++    uint32_t maxFound,
++    uint32_t *found) {
++  HashTronPipelineCandidateV2<Endo>(
++      points, pointCount, nbThread, groupOffset, maxFound, found);
++}
++
+ #endif
+
+ //#define FULLCHECK
+@@ -360,6 +402,7 @@
+   this->nbThread = nbThreadGroup * nbThreadPerGroup;
+   this->maxFound = maxFound;
+   this->outputSize = (maxFound*ITEM_SIZE + 4);
++  this->tronGroupsPerLaunch = STEP_SIZE / GRP_SIZE;
+
+   char tmp[512];
+   sprintf(tmp,"GPU #%d %s (%dx%d cores) Grid(%dx%d)",
+@@ -467,6 +510,7 @@
+   pattern = "";
+   hasPattern = false;
+   hasTronRule = false;
++  hasTronV2Targets = false;
+   hasTronPrefixRange = false;
+   memset(tronSuffix5, 0, sizeof(tronSuffix5));
+   tronSuffixValue = 0;
+@@ -614,10 +658,19 @@
+   }
+   size_t prefixLen = static_cast<size_t>(wildcard - pattern);
+   size_t suffixLen = strlen(wildcard + 1);
+-  if (prefixLen < 1 || prefixLen >= 34 || suffixLen != 5) {
++  if (prefixLen < 1 || prefixLen >= 34) {
+     printf("GPUEngine: TRON pattern must be T*<five-char-suffix> or T<prefix>*<five-char-suffix>\n");
+     return false;
+   }
++  const size_t customLength = (prefixLen - 1) + suffixLen;
++  if (suffixLen != 5) {
++    if (customLength < 6 || customLength > 8) {
++      printf("GPUEngine: TRON V2 custom prefix and suffix must total 6, 7, or 8\n");
++      return false;
++    }
++    std::vector<std::string> patterns(1, std::string(pattern));
++    return SetTronPatternsV2(patterns);
++  }
+   uint64_t suffixValue = 0;
+   if (!host_tron_suffix5_value(wildcard + 1, &suffixValue)) {
+     printf("GPUEngine: invalid TRON Base58 suffix\n");
+@@ -643,12 +696,120 @@
+                        sizeof(tronPrefixRange.possibleHighWords));
+   } else {
+     memset(&tronPrefixRange, 0, sizeof(tronPrefixRange));
++  }
++  hasTronRule = true;
++  hasTronV2Targets = false;
++  return true;
++
++}
++
++bool GPUEngine::SetTronPatternsV2(const std::vector<std::string> &patterns) {
++  if (patterns.empty() || patterns.size() > TRON_V2_MAX_TARGETS) {
++    printf("GPUEngine: TRON V2 requires 1..%d patterns\n", TRON_V2_MAX_TARGETS);
++    return false;
++  }
++  std::vector<TronPatternV2Descriptor> targets;
++  targets.reserve(patterns.size());
++  for (size_t index = 0; index < patterns.size(); ++index) {
++    const std::string &pattern = patterns[index];
++    const size_t wildcard = pattern.find('*');
++    if (pattern.empty() || pattern[0] != 'T' || wildcard == std::string::npos ||
++        pattern.find('*', wildcard + 1) != std::string::npos) {
++      printf("GPUEngine: invalid TRON V2 pattern at index %zu\n", index);
++      return false;
++    }
++    const size_t prefixLength = wildcard - 1;
++    const size_t suffixLength = pattern.size() - wildcard - 1;
++    const size_t totalLength = prefixLength + suffixLength;
++    if (totalLength < 6 || totalLength > 8) {
++      printf("GPUEngine: TRON V2 pattern length must total 6, 7, or 8\n");
++      return false;
++    }
++    TronPatternV2Descriptor target;
++    memset(&target, 0, sizeof(target));
++    target.targetId = static_cast<uint32_t>(index);
++    target.prefixLength = static_cast<uint8_t>(prefixLength);
++    target.suffixLength = static_cast<uint8_t>(suffixLength);
++    target.totalCustomLength = static_cast<uint8_t>(totalLength);
++    target.suffixModulus = 1;
++    if (prefixLength != 0) {
++      TronPrefixRange range;
++      if (!host_make_tron_prefix_range(pattern.c_str(), wildcard, &range)) {
++        printf("GPUEngine: invalid TRON V2 prefix at index %zu\n", index);
++        return false;
++      }
++      target.flags |= TRON_V2_HAS_PREFIX;
++      host_payload25_words(range.low, target.prefixLow);
++      host_payload25_words(range.high, target.prefixHigh);
++      memcpy(target.payloadLow, range.possibleLowWords, sizeof(target.payloadLow));
++      memcpy(target.payloadHigh, range.possibleHighWords, sizeof(target.payloadHigh));
++    }
++    if (suffixLength != 0) {
++      if (!host_tron_suffix_value(
++              pattern.c_str() + wildcard + 1,
++              suffixLength,
++              &target.suffixValue,
++              &target.suffixModulus)) {
++        printf("GPUEngine: invalid TRON V2 suffix at index %zu\n", index);
++        return false;
++      }
++      target.flags |= TRON_V2_HAS_SUFFIX;
++    }
++    targets.push_back(target);
++  }
++  return SetTronPatternsV2(targets);
++}
++
++bool GPUEngine::SetTronPatternsV2(
++    const std::vector<TronPatternV2Descriptor> &targets) {
++  if (targets.empty() || targets.size() > TRON_V2_MAX_TARGETS) {
++    printf("GPUEngine: TRON V2 requires 1..%d targets\n", TRON_V2_MAX_TARGETS);
++    return false;
++  }
++  for (size_t index = 0; index < targets.size(); ++index) {
++    const TronPatternV2Descriptor &target = targets[index];
++    if (target.totalCustomLength < 6 || target.totalCustomLength > 8 ||
++        target.prefixLength + target.suffixLength != target.totalCustomLength ||
++        (target.flags & (TRON_V2_HAS_PREFIX | TRON_V2_HAS_SUFFIX)) == 0U ||
++        ((target.flags & TRON_V2_HAS_SUFFIX) != 0U && target.suffixModulus == 0U)) {
++      printf("GPUEngine: invalid TRON V2 target at index %zu\n", index);
++      return false;
++    }
++  }
++  const uint32_t targetCount = static_cast<uint32_t>(targets.size());
++  cudaError_t error = cudaMemcpyToSymbol(
++      tronV2TargetsConst,
++      targets.data(),
++      targetCount * sizeof(TronPatternV2Descriptor));
++  if (error == cudaSuccess) {
++    error = cudaMemcpyToSymbol(
++        tronV2TargetCountConst, &targetCount, sizeof(targetCount));
++  }
++  if (error != cudaSuccess) {
++    printf("GPUEngine: SetTronPatternsV2: %s\n", cudaGetErrorString(error));
++    return false;
+   }
++  hasPattern = true;
+   hasTronRule = true;
++  hasTronV2Targets = true;
++  hasTronPrefixRange = false;
+   return true;
++}
+
++bool GPUEngine::SetTronGroupsPerLaunch(uint32_t groupCount) {
++  const uint32_t maximum = STEP_SIZE / GRP_SIZE;
++  if (groupCount == 0 || groupCount > maximum) {
++    printf("GPUEngine: TRON groups per launch must be 1..%u\n", maximum);
++    return false;
++  }
++  tronGroupsPerLaunch = groupCount;
++  return true;
+ }
+
++bool GPUEngine::Run() {
++  return callKernel();
++}
++
+ void GPUEngine::SetPrefix(std::vector<LPREFIX> prefixes, uint32_t totalPrefix) {
+
+   // Allocate memory for the second level of lookup tables
+@@ -719,7 +880,7 @@
+     const uint32_t pointBlocks =
+         (pointCount + 256U - 1U) / 256U;
+     uint32_t groupIndex = 0;
+-    for (uint32_t groupOffset = 0; groupOffset < STEP_SIZE;
++    for (uint32_t groupOffset = 0; groupIndex < tronGroupsPerLaunch;
+          groupOffset += GRP_SIZE, ++groupIndex) {
+ #ifdef TRON_ENABLE_POINT_HASH_DOUBLE_BUFFER
+       const uint32_t buffer = groupIndex & 1U;
+@@ -734,7 +895,17 @@
+       comp_keys_tron_emit_points << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+         (tronPointBuffers[buffer], inputKey, static_cast<uint32_t>(nbThread));
+ #endif
+-      if (hasTronPrefixRange) {
++      if (hasTronV2Targets) {
++        comp_keys_tron_hash_pipeline_v2<0> << < pointBlocks, 256, 0, tronHashStream >> >
++          (tronPointBuffers[buffer], pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++           maxFound, outputPrefix);
++        comp_keys_tron_hash_pipeline_v2<1> << < pointBlocks, 256, 0, tronHashStream >> >
++          (tronPointBuffers[buffer], pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++           maxFound, outputPrefix);
++        comp_keys_tron_hash_pipeline_v2<2> << < pointBlocks, 256, 0, tronHashStream >> >
++          (tronPointBuffers[buffer], pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++           maxFound, outputPrefix);
++      } else if (hasTronPrefixRange) {
+         comp_keys_tron_hash_pipeline<true, 0> << < pointBlocks, 256, 0, tronHashStream >> >
+           (tronPointBuffers[buffer], pointCount, static_cast<uint32_t>(nbThread), groupOffset,
+            tronSuffixValue, maxFound, outputPrefix);
+@@ -852,7 +1023,10 @@
+
+ }
+
+-bool GPUEngine::Launch(std::vector<ITEM> &prefixFound,bool spinWait) {
++bool GPUEngine::Launch(
++    std::vector<ITEM> &prefixFound,
++    bool spinWait,
++    bool queueNext) {
+
+
+   prefixFound.clear();
+@@ -903,14 +1077,16 @@
+     ITEM it;
+     it.thId = itemPtr[0];
+     int16_t *ptr = (int16_t *)&(itemPtr[1]);
+-    it.endo = ptr[0] & 0x7FFF;
+-    it.mode = (ptr[0]&0x8000)!=0;
++    const uint16_t metadata = static_cast<uint16_t>(ptr[0]);
++    it.endo = metadata & 0x0003U;
++    it.targetId = (metadata >> 2) & 0x1fffU;
++    it.mode = (metadata & 0x8000U) != 0;
+     it.incr = ptr[1];
+     it.hash = (uint8_t *)(itemPtr + 2);
+     prefixFound.push_back(it);
+   }
+
+-  return callKernel();
++  return queueNext ? callKernel() : true;
+
+ }
+
+--- a/Vanity.cpp
++++ b/Vanity.cpp
+@@ -1638,7 +1638,9 @@
+   } else {
+     if(hasPattern)
+       ok = (searchType == TRON_ADDR)
+-        ? g.SetTronPattern(inputPrefixes[0].c_str())
++        ? (inputPrefixes.size() == 1
++            ? g.SetTronPattern(inputPrefixes[0].c_str())
++            : g.SetTronPatternsV2(inputPrefixes))
+         : (g.SetPattern(inputPrefixes[0].c_str()), true);
+     else
+       g.SetPrefix(usedPrefix);
+@@ -1687,6 +1689,15 @@
+       ITEM it = found[i];
+       if (searchType == TRON_ADDR && hasPattern) {
+         string addr = secp->GetAddress(searchType, it.mode, it.hash);
++        if (it.targetId >= inputPrefixes.size() ||
++            !Wildcard::match(
++                addr.c_str(), inputPrefixes[it.targetId].c_str(), caseSensitive)) {
++          printf("TRON V2 GPU result failed target verification (target=%u address=%s)\n",
++                 it.targetId,
++                 addr.c_str());
++          ok = false;
++          continue;
++        }
+         if (tronDebugFindRecheck) {
+           printf("tron_debug_gpu_item th_id=%u incr=%d endo=%d mode=%d address=%s suffix5=%s\n",
+                  it.thId,
+@@ -1711,7 +1722,7 @@
+         }
+         if (checkPrivKey(addr, keys[it.thId], it.incr, it.endo, it.mode)) {
+           nbFoundKey++;
+-          patternFound[0] = true;
++          patternFound[it.targetId] = true;
+           updateFound();
+         }
+       } else {

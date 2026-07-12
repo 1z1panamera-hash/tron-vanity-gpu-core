@@ -1,0 +1,5 @@
+throughput targets=1 billion_per_second=5.045238 elapsed_seconds=2.394257 hits=0
+throughput targets=4 billion_per_second=4.919366 elapsed_seconds=2.455519 hits=0
+throughput targets=8 billion_per_second=4.883633 elapsed_seconds=2.473486 hits=0
+throughput targets=16 billion_per_second=4.782762 elapsed_seconds=2.525652 hits=0
+preemption groups=1 targets=16 p50_ms=13.669 p99_ms=13.722 max_ms=13.722

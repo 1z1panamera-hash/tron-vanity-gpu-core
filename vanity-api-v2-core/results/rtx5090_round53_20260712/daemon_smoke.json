@@ -1,0 +1,1 @@
+{"address_matches": true, "age_armored": true, "database_mode": "0o600", "durable_before_ack": true, "elapsed_ms": 440.037, "identity_file_present_during_daemon_run": false, "no_resend_after_ack": true, "socket_mode": "0o600"}

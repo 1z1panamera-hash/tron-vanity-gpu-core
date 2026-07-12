@@ -1,0 +1,37 @@
+[Unit]
+Description=Independent TRON Vanity CUDA core for API 18035
+After=local-fs.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=vanity18035
+Group=vanity18035
+RuntimeDirectory=vanity-api-18035
+RuntimeDirectoryMode=0700
+WorkingDirectory=/opt/vanity-api-18035/worker
+ExecStart=/opt/vanity-api-18035/worker/bin/vanity18035_core_daemon --socket /run/vanity-api-18035/core.sock --age-bin /usr/bin/age --age-recipient-file /etc/vanity-api-18035/age-recipient.txt --worker-db /opt/vanity-api-18035/data/worker.sqlite3
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=15s
+UMask=0077
+LimitCORE=0
+LimitMEMLOCK=64M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/opt/vanity-api-18035/data /run/vanity-api-18035
+
+[Install]
+WantedBy=multi-user.target

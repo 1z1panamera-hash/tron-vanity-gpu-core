@@ -1,0 +1,40 @@
+[Unit]
+Description=Independent TRON Vanity worker agent for API 18035
+Wants=network-online.target
+After=network-online.target vanity-gpu-core-18035.service
+Requires=vanity-gpu-core-18035.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=vanity18035
+Group=vanity18035
+WorkingDirectory=/opt/vanity-api-18035/worker
+EnvironmentFile=/etc/vanity-api-18035/worker.env
+ExecStart=/opt/vanity-api-18035/venv/bin/python -m vanity18035.worker_agent
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=15s
+UMask=0077
+LimitCORE=0
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/opt/vanity-api-18035/data /run/vanity-api-18035
+
+[Install]
+WantedBy=multi-user.target
