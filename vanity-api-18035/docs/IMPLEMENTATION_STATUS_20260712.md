@@ -43,6 +43,9 @@ Date: 2026-07-12
 
 Production deployment must pin the digest, not the mutable `latest` tag.
 
+The current Secure Cloud/static-IP RTX 5090 shortlist is recorded in
+`VAST_FIXED_HOST_SHORTLIST_20260712.md`. It was read-only; no host was rented.
+
 ## Required Before Activation
 
 1. Customer fixed IPv4.
