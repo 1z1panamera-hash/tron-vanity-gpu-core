@@ -100,6 +100,27 @@ class ControllerAcceptanceTests(unittest.IsolatedAsyncioTestCase):
         second.cancel()
         await asyncio.gather(second, return_exceptions=True)
 
+    async def test_late_encrypted_result_after_timeout_is_terminally_acked(self) -> None:
+        pattern = classify_pattern("", "Yqvi2")
+        self.database.create_item("customer-1", pattern)
+        task = self.database.desired_tasks("worker-0001")["tasks"][0]
+        self.database.fail_item(task["item_id"], "P0_TIMEOUT")
+        response = await self.controller.accept_result(
+            worker_id="worker-0001",
+            event_id=str(uuid.uuid4()),
+            payload={
+                "result_id": str(uuid.uuid4()),
+                "item_id": task["item_id"],
+                "lease_id": task["lease_id"],
+                "matched_address": "T" + "1" * 28 + "Yqvi2",
+                "encrypted_private_key": AGE_CIPHERTEXT,
+            },
+        )
+        self.assertTrue(response["ack"])
+        self.assertTrue(response["terminal"])
+        self.assertFalse(response["accepted"])
+        self.assertEqual(self.database.get_item(task["item_id"])["status"], "failed")
+
 
 class BackgroundQueueAcceptanceTests(unittest.TestCase):
     def test_more_than_sixteen_background_targets_queue_and_refill(self) -> None:

@@ -126,11 +126,13 @@ class Controller:
         wait_seconds: float,
     ) -> dict[str, Any]:
         deadline = asyncio.get_running_loop().time() + max(0.0, min(wait_seconds, 25.0))
-        while self.database.revision() <= since_revision:
-            remaining = deadline - asyncio.get_running_loop().time()
-            if remaining <= 0:
-                break
+        while True:
             async with self._control_condition:
+                if self.database.revision() > since_revision:
+                    break
+                remaining = deadline - asyncio.get_running_loop().time()
+                if remaining <= 0:
+                    break
                 try:
                     await asyncio.wait_for(self._control_condition.wait(), timeout=remaining)
                 except asyncio.TimeoutError:
@@ -172,6 +174,13 @@ class Controller:
             raise ResultValidationError("result is not an armored Age ciphertext")
         if len(encrypted_private_key.encode("utf-8")) > 64 * 1024:
             raise ResultValidationError("encrypted result exceeds the size limit")
+        if item["status"] == "failed":
+            return {
+                "ack": True,
+                "accepted": False,
+                "terminal": True,
+                "result_id": str(payload["result_id"]),
+            }
 
         now = time.time()
         callback_payload = None

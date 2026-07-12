@@ -53,12 +53,13 @@ class WorkerAgent:
 
     async def _control_loop(self) -> None:
         delay = self.settings.reconnect_min_seconds
+        force_snapshot = True
         while not self._stopping:
             try:
                 response = await self.client.post(
                     "/internal/v1/worker/control",
                     {
-                        "since_revision": self.state.revision(),
+                        "since_revision": -1 if force_snapshot else self.state.revision(),
                         "wait_seconds": 20,
                         "capabilities": {"gpu": "RTX 5090", "max_targets": 16},
                     },
@@ -80,6 +81,7 @@ class WorkerAgent:
                     for task in raw_tasks
                 ]
                 await self.core.apply_snapshot(revision, tasks)
+                force_snapshot = False
                 delay = self.settings.reconnect_min_seconds
             except asyncio.CancelledError:
                 return
@@ -118,7 +120,7 @@ class WorkerAgent:
                 hit = await self.core.next_hit()
             except asyncio.CancelledError:
                 return
-            except (ConnectionError, OSError):
+            except (ConnectionError, OSError, EOFError):
                 await asyncio.sleep(self.settings.reconnect_min_seconds)
                 continue
             self.state.enqueue_encrypted_result(

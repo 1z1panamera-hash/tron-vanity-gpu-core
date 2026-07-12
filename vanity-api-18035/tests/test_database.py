@@ -72,6 +72,15 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(self.database.register_nonce("worker-0001", "a" * 32, 120))
         self.assertFalse(self.database.register_nonce("worker-0001", "a" * 32, 120))
 
+    def test_same_worker_keeps_lease_after_expiry_but_other_worker_does_not(self) -> None:
+        item, _ = self.database.create_item("customer-1", classify_pattern("", "ABCDEF"), now=1)
+        first = self.database.desired_tasks("worker-0001", lease_seconds=5, now=10)["tasks"][0]
+        reclaimed = self.database.desired_tasks("worker-0001", lease_seconds=5, now=20)["tasks"][0]
+        self.assertEqual(first["lease_id"], reclaimed["lease_id"])
+        reassigned = self.database.desired_tasks("worker-0002", lease_seconds=5, now=30)["tasks"][0]
+        self.assertNotEqual(first["lease_id"], reassigned["lease_id"])
+        self.assertEqual(reassigned["item_id"], item["item_id"])
+
     def test_conflicting_result_replay_is_rejected(self) -> None:
         item, _ = self.database.create_item("customer-1", classify_pattern("", "Yqvi2"))
         leased = self.database.desired_tasks("worker-0001")["tasks"][0]

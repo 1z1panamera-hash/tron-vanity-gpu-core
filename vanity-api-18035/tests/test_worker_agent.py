@@ -52,6 +52,40 @@ class WorkerAgentTests(unittest.IsolatedAsyncioTestCase):
             loop.cancel()
             await asyncio.gather(loop, return_exceptions=True)
 
+    async def test_first_control_request_forces_authoritative_snapshot(self) -> None:
+        class CaptureClient(UnusedClient):
+            def __init__(self) -> None:
+                self.requests: list[dict[str, object]] = []
+                self.block = asyncio.Event()
+
+            async def post(self, path: str, payload: dict[str, object]) -> dict[str, object]:
+                self.requests.append(payload)
+                if len(self.requests) == 1:
+                    return {"revision": 42, "tasks": []}
+                await self.block.wait()
+                return {"revision": 42, "tasks": []}
+
+        with tempfile.TemporaryDirectory() as directory:
+            worker_settings = settings(directory)
+            state = WorkerState(Path(directory) / "worker.sqlite3")
+            state.initialize()
+            state.apply_snapshot(42, [])
+            client = CaptureClient()
+            agent = WorkerAgent(
+                worker_settings,
+                state,
+                client,  # type: ignore[arg-type]
+                FakeCoreAdapter(),
+            )
+            loop = asyncio.create_task(agent._control_loop())
+            for _ in range(100):
+                if client.requests:
+                    break
+                await asyncio.sleep(0.001)
+            self.assertEqual(client.requests[0]["since_revision"], -1)
+            loop.cancel()
+            await asyncio.gather(loop, return_exceptions=True)
+
 
 if __name__ == "__main__":
     unittest.main()

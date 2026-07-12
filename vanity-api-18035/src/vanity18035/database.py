@@ -499,8 +499,6 @@ class ControllerDatabase:
                 if (
                     not lease_id
                     or row["lease_worker_id"] != worker_id
-                    or not row["lease_expires_at"]
-                    or float(row["lease_expires_at"]) <= now
                 ):
                     lease_id = self._uuid()
                 connection.execute(
@@ -600,6 +598,8 @@ class ControllerDatabase:
                         raise DatabaseError("completed item conflicts with the submitted result")
                     return dict(existing), False
                 raise DatabaseError("completed item has no result")
+            if item["status"] == "failed":
+                raise DatabaseError("failed item cannot accept a result")
             if item["lease_id"] != lease_id or item["lease_worker_id"] != worker_id:
                 raise DatabaseError("result lease does not match the active worker lease")
 
@@ -725,6 +725,17 @@ class ControllerDatabase:
 
     def due_callbacks(self, limit: int = 20, now: float | None = None) -> list[dict[str, Any]]:
         now = time.time() if now is None else now
+        with self._lock, self._connect() as connection:
+            available = connection.execute(
+                """
+                SELECT 1 FROM callback_outbox
+                WHERE status IN ('pending', 'failed') AND next_attempt_at<=?
+                LIMIT 1
+                """,
+                (now,),
+            ).fetchone()
+        if available is None:
+            return []
         with self._lock, self._transaction() as connection:
             rows = connection.execute(
                 """

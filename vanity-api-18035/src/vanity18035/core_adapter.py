@@ -74,11 +74,22 @@ class UnixCoreAdapter:
             raise ConnectionError("CUDA core path is not a Unix socket")
         if socket_stat.st_uid != os.geteuid() or stat.S_IMODE(socket_stat.st_mode) != 0o600:
             raise PermissionError("CUDA core socket must be owned by the worker and mode 0600")
-        if self._reader_task is not None and not self._reader_task.done():
+        if (
+            self._writer is not None
+            and self._reader_task is not None
+            and not self._reader_task.done()
+        ):
             return
+        if self._reader_task is not None and not self._reader_task.done():
+            self._reader_task.cancel()
+            await asyncio.gather(self._reader_task, return_exceptions=True)
+            self._reader_task = None
         if self._writer is not None:
             self._writer.close()
-            await self._writer.wait_closed()
+            await asyncio.gather(
+                asyncio.create_task(self._writer.wait_closed()),
+                return_exceptions=True,
+            )
         reader, writer = await asyncio.open_unix_connection(str(self.socket_path))
         self._reader = reader
         self._writer = writer
@@ -126,7 +137,10 @@ class UnixCoreAdapter:
     async def close(self) -> None:
         if self._writer:
             self._writer.close()
-            await self._writer.wait_closed()
+            await asyncio.gather(
+                asyncio.create_task(self._writer.wait_closed()),
+                return_exceptions=True,
+            )
             self._writer = None
         if self._reader_task:
             self._reader_task.cancel()
