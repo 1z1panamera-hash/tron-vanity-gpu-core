@@ -7,6 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PIP_NO_CACHE_DIR=1
+ENV PYTHONPATH=/opt/vanity-api-18035/api/src
 ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
@@ -35,8 +36,10 @@ RUN groupadd --gid 10001 vanity18035 \
         /etc/vanity-api-18035/tls
 
 COPY vanity-api-18035/pyproject.toml /opt/vanity-api-18035/api/pyproject.toml
+COPY vanity-api-18035/requirements.txt /opt/vanity-api-18035/api/requirements.txt
 COPY vanity-api-18035/src /opt/vanity-api-18035/api/src
-RUN python3 -m pip install --no-cache-dir /opt/vanity-api-18035/api \
+RUN python3 -m pip install --no-cache-dir \
+        -r /opt/vanity-api-18035/api/requirements.txt \
     && rm -rf /root/.cache /tmp/*
 
 COPY --chmod=0755 \
