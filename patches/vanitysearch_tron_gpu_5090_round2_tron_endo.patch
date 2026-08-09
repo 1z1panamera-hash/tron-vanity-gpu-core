@@ -1,0 +1,74 @@
+diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
+index 6a33926..9ef47f1 100644
+--- a/GPU/GPUCompute.h
++++ b/GPU/GPUCompute.h
+@@ -267,17 +267,43 @@ __device__ __noinline__ void CheckTronPoint(
+   bool forcedCandidate = forceFirstCandidate && tid == 0 && incr == (GRP_SIZE / 2);
+   bool sampledCandidate = sampleCandidates && tid < maxFound && tid < 32 && incr == (GRP_SIZE / 2);
+   uint8_t payload21[21];
+-  if (!tron_check_xy_suffix5(px, py, suffix5Value, forcedCandidate || sampledCandidate, payload21)) {
+-    return;
+-  }
+-
+-  uint32_t pos = atomicAdd(out, 1);
+-  if (pos < maxFound) {
+-    out[pos*ITEM_SIZE32 + 1] = tid;
+-    out[pos*ITEM_SIZE32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(0 << 15) | (uint32_t)(endo);
+-    uint8_t *hashOut = reinterpret_cast<uint8_t *>(out + pos*ITEM_SIZE32 + 3);
+-    for (int i = 0; i < 20; ++i) hashOut[i] = payload21[i + 1];
++
++  if (tron_check_xy_suffix5(px, py, suffix5Value, forcedCandidate || sampledCandidate, payload21)) {
++    uint32_t pos = atomicAdd(out, 1);
++    if (pos < maxFound) {
++      out[pos*ITEM_SIZE32 + 1] = tid;
++      out[pos*ITEM_SIZE32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(0 << 15) | (uint32_t)(endo);
++      uint8_t *hashOut = reinterpret_cast<uint8_t *>(out + pos*ITEM_SIZE32 + 3);
++      for (int i = 0; i < 20; ++i) hashOut[i] = payload21[i + 1];
++    }
+   }
++
++#ifdef TRON_ENABLE_ENDOMORPHISM
++  uint64_t pe1x[4];
++  uint64_t pe2x[4];
++
++  _ModMult(pe1x, px, _beta);
++  if (tron_check_xy_suffix5(pe1x, py, suffix5Value, false, payload21)) {
++    uint32_t pos = atomicAdd(out, 1);
++    if (pos < maxFound) {
++      out[pos*ITEM_SIZE32 + 1] = tid;
++      out[pos*ITEM_SIZE32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(0 << 15) | (uint32_t)(1);
++      uint8_t *hashOut = reinterpret_cast<uint8_t *>(out + pos*ITEM_SIZE32 + 3);
++      for (int i = 0; i < 20; ++i) hashOut[i] = payload21[i + 1];
++    }
++  }
++
++  _ModMult(pe2x, px, _beta2);
++  if (tron_check_xy_suffix5(pe2x, py, suffix5Value, false, payload21)) {
++    uint32_t pos = atomicAdd(out, 1);
++    if (pos < maxFound) {
++      out[pos*ITEM_SIZE32 + 1] = tid;
++      out[pos*ITEM_SIZE32 + 2] = (uint32_t)(incr << 16) | (uint32_t)(0 << 15) | (uint32_t)(2);
++      uint8_t *hashOut = reinterpret_cast<uint8_t *>(out + pos*ITEM_SIZE32 + 3);
++      for (int i = 0; i < 20; ++i) hashOut[i] = payload21[i + 1];
++    }
++  }
++#endif
+ }
+ 
+ #define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, suffix5Value, forceFirstCandidate, sampleCandidates, maxFound, out)
+diff --git a/Vanity.cpp b/Vanity.cpp
+index c4370f1..e3967e7 100644
+--- a/Vanity.cpp
++++ b/Vanity.cpp
+@@ -1724,7 +1724,11 @@ void VanitySearch::FindKeyGPU(TH_PARAM *ph) {
+       for (int i = 0; i < nbThread; i++) {
+         keys[i].Add((uint64_t)STEP_SIZE);
+       }
++#ifdef TRON_ENABLE_ENDOMORPHISM
++      uint64_t attemptsPerThread = (searchType == TRON_ADDR) ? 3ULL * STEP_SIZE : 6ULL * STEP_SIZE;
++#else
+       uint64_t attemptsPerThread = (searchType == TRON_ADDR) ? STEP_SIZE : 6ULL * STEP_SIZE;
++#endif
+       counters[thId] += attemptsPerThread * nbThread;
+     }
+ 

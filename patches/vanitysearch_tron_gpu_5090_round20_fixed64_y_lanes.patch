@@ -1,0 +1,72 @@
+diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
+index b07386d..7c9f7a2 100644
+--- a/GPU/GPUCompute.h
++++ b/GPU/GPUCompute.h
+@@ -271,1 +271,10 @@ __device__ __noinline__ void CheckTronPoint(
+-  if (tron_check_xy_suffix5(px, py, suffix5Value, forcedCandidate || sampledCandidate, payload21)) {
++#ifdef TRON_ENABLE_KECCAK_FIXED64_Y_LANES
++  const uint64_t y0 = tron_keccak_coord_lane(py, 0);
++  const uint64_t y1 = tron_keccak_coord_lane(py, 1);
++  const uint64_t y2 = tron_keccak_coord_lane(py, 2);
++  const uint64_t y3 = tron_keccak_coord_lane(py, 3);
++  if (tron_check_x_suffix5_fixed64_with_y_lanes(px, y0, y1, y2, y3, suffix5Value,
++                                                forcedCandidate || sampledCandidate, payload21)) {
++#else
++  if (tron_check_xy_suffix5(px, py, suffix5Value, forcedCandidate || sampledCandidate, payload21)) {
++#endif
+@@ -286,1 +295,5 @@ __device__ __noinline__ void CheckTronPoint(
+-  if (tron_check_xy_suffix5(pe1x, py, suffix5Value, false, payload21)) {
++#ifdef TRON_ENABLE_KECCAK_FIXED64_Y_LANES
++  if (tron_check_x_suffix5_fixed64_with_y_lanes(pe1x, y0, y1, y2, y3, suffix5Value, false, payload21)) {
++#else
++  if (tron_check_xy_suffix5(pe1x, py, suffix5Value, false, payload21)) {
++#endif
+@@ -297,1 +310,5 @@ __device__ __noinline__ void CheckTronPoint(
+-  if (tron_check_xy_suffix5(pe2x, py, suffix5Value, false, payload21)) {
++#ifdef TRON_ENABLE_KECCAK_FIXED64_Y_LANES
++  if (tron_check_x_suffix5_fixed64_with_y_lanes(pe2x, y0, y1, y2, y3, suffix5Value, false, payload21)) {
++#else
++  if (tron_check_xy_suffix5(pe2x, py, suffix5Value, false, payload21)) {
++#endif
+diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
+index b7d2e77..23ff621 100644
+--- a/GPU/GPUTron.h
++++ b/GPU/GPUTron.h
+@@ -548,1 +548,37 @@
++#if defined(TRON_ENABLE_KECCAK_FIXED64_WORDS) && defined(TRON_ENABLE_KECCAK_FIXED64_Y_LANES)
++__device__ __noinline__ bool tron_check_x_suffix5_fixed64_with_y_lanes(
++    const uint64_t *x,
++    uint64_t y0,
++    uint64_t y1,
++    uint64_t y2,
++    uint64_t y3,
++    uint64_t suffix5_value,
++    bool force_accept,
++    uint8_t payload21[21]) {
++  const uint64_t x0 = tron_keccak_coord_lane(x, 0);
++  const uint64_t x1 = tron_keccak_coord_lane(x, 1);
++  const uint64_t x2 = tron_keccak_coord_lane(x, 2);
++  const uint64_t x3 = tron_keccak_coord_lane(x, 3);
++  uint32_t d0;
++  uint32_t d1;
++  uint32_t d2;
++  uint32_t d3;
++  uint32_t d4;
++  tron_keccak_fixed64_words(x0, x1, x2, x3, y0, y1, y2, y3, &d0, &d1, &d2, &d3, &d4);
++  const uint32_t w0 =
++      0x41000000U |
++      (d0 >> 8);
++  const uint32_t w1 = ((d0 & 0x000000ffU) << 24) | (d1 >> 8);
++  const uint32_t w2 = ((d1 & 0x000000ffU) << 24) | (d2 >> 8);
++  const uint32_t w3 = ((d2 & 0x000000ffU) << 24) | (d3 >> 8);
++  const uint32_t w4 = ((d3 & 0x000000ffU) << 24) | (d4 >> 8);
++  const uint32_t w5 = ((d4 & 0x000000ffU) << 24) | 0x00800000U;
++  if (!force_accept &&
++      !tron_payload_words_checksum_fused_matches_suffix5(w0, w1, w2, w3, w4, w5, suffix5_value)) {
++    return false;
++  }
++  tron_payload21_write_digest_words(payload21, d0, d1, d2, d3, d4);
++  return true;
++}
++#endif
+ __device__ __noinline__ bool tron_check_xy_suffix5(

@@ -19,6 +19,7 @@ test -x scripts/runpod_fixed_pod_autotune_e2e.py
 test -x scripts/runpod_gpu_pod_find_debug.sh
 test -x scripts/runpod_gpu_pod_suffix_compare_commits.sh
 test -x scripts/build_vanitysearch_tron_worker.sh
+test -x scripts/build_vanitysearch_round51_worker.sh
 test -x scripts/runpod_serverless_find_e2e.py
 test -x scripts/runpod_serverless_readiness_check.py
 test -x scripts/prepare_runpod_smoke_test_materials.py
@@ -37,6 +38,7 @@ bash -n scripts/runpod_gpu_pod_suffix_autotune.sh
 bash -n scripts/runpod_gpu_pod_find_debug.sh
 bash -n scripts/runpod_gpu_pod_suffix_compare_commits.sh
 bash -n scripts/build_vanitysearch_tron_worker.sh
+bash -n scripts/build_vanitysearch_round51_worker.sh
 bash -n scripts/print_runpod_suffix_only_commands.sh
 bash -n vast/start_vast_worker.sh
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 -m py_compile scripts/runpod_serverless_find_e2e.py
@@ -152,6 +154,10 @@ grep -q "GPU_WORKER_BACKEND=vanitysearch" Dockerfile
 grep -q "COPY --from=builder /app/build/vanitysearch_tron_worker" Dockerfile
 grep -Fq 'CUDA_ARCHS="${CUDA_ARCHS}"' Dockerfile
 grep -q "NVCC_GENCODE_FLAGS" scripts/build_vanitysearch_tron_worker.sh
+grep -q "GPU_WORKER_BACKEND=auto" Dockerfile.runpod-v2
+grep -q "VANITYSEARCH_CORE_VARIANT=auto" Dockerfile.runpod-v2
+grep -q "vanitysearch_tron_worker_round51_sm120" Dockerfile.runpod-v2
+grep -q "runpod-worker-v2-" .github/workflows/build-runpod-worker-v2-image.yml
 if awk '/FROM .* AS runtime/{runtime=1} runtime && /(git|g\+\+|make|nvcc)/{print; found=1} END{exit found ? 0 : 1}' Dockerfile >/tmp/tron_runtime_build_tools.txt; then
     echo "runtime image still references build tools" >&2
     cat /tmp/tron_runtime_build_tools.txt >&2
@@ -208,6 +214,7 @@ c++ -std=c++17 -O2 tests/verify_batch_point_add.cpp -o /tmp/verify_batch_point_a
 
 echo "== result inspectors"
 PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 tests/verify_find_response_contract.py >/tmp/tron_gpu_find_response_contract.json
+PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/tron_gpu_core_pycache}" python3 tests/verify_worker_v2_dispatch.py >/tmp/tron_gpu_worker_v2_dispatch.json
 python3 scripts/public_repo_audit.py >/tmp/tron_gpu_public_repo_audit.json
 python3 scripts/runpod_serverless_readiness_check.py >/tmp/runpod_serverless_readiness_check.json
 python3 scripts/validate_goal_rule.py >/tmp/tron_gpu_goal_rule.json

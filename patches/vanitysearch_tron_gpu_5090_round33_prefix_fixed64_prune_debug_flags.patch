@@ -1,0 +1,92 @@
+diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
+--- a/GPU/GPUCompute.h
++++ b/GPU/GPUCompute.h
+@@ -259,19 +259,14 @@ __device__ __noinline__ void CheckTronPoint(
+     int32_t incr,
+     int32_t endo,
+     uint64_t suffix5Value,
+-    bool forceFirstCandidate,
+-    bool sampleCandidates,
+     uint32_t maxFound,
+     uint32_t *out) {
+ 
+   uint32_t tid = (blockIdx.x*blockDim.x) + threadIdx.x;
+ 
+-  bool forcedCandidate = forceFirstCandidate && tid == 0 && incr == (GRP_SIZE / 2);
+-  bool sampledCandidate = sampleCandidates && tid < maxFound && tid < 32 && incr == (GRP_SIZE / 2);
+   uint8_t payload21[21];
+ 
+ #ifdef TRON_ENABLE_KECCAK_FIXED64_Y_LANES
+@@ -283,10 +278,10 @@ __device__ __noinline__ void CheckTronPoint(
+   const uint64_t y2 = tron_keccak_coord_lane(py, 2);
+   const uint64_t y3 = tron_keccak_coord_lane(py, 3);
+   if (tron_check_x_suffix5_fixed64_with_y_lanes<UsePrefix>(
+-          px, y0, y1, y2, y3, suffix5Value, forcedCandidate || sampledCandidate, payload21)) {
++          px, y0, y1, y2, y3, suffix5Value, false, payload21)) {
+ #else
+-  if (tron_check_xy_suffix5(px, py, suffix5Value, forcedCandidate || sampledCandidate, payload21)) {
++  if (tron_check_xy_suffix5(px, py, suffix5Value, false, payload21)) {
+ #endif
+@@ -328,11 +323,9 @@ __device__ __noinline__ void CheckTronPoint(
+ }
+ 
+-#define CHECK_TRON_PATTERN(incr) CheckTronPoint<UsePrefix>(px, py, j*GRP_SIZE + (incr), 0, suffix5Value, forceFirstCandidate, sampleCandidates, maxFound, out)
++#define CHECK_TRON_PATTERN(incr) CheckTronPoint<UsePrefix>(px, py, j*GRP_SIZE + (incr), 0, suffix5Value, maxFound, out)
+ 
+ template <bool UsePrefix>
+ __device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, uint64_t suffix5Value,
+-                                       bool forceFirstCandidate, bool sampleCandidates,
+                                        uint32_t maxFound, uint32_t *out) {
+diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
+--- a/GPU/GPUEngine.cu
++++ b/GPU/GPUEngine.cu
+@@ -183,23 +183,20 @@ __global__ void comp_keys_p2sh_pattern(uint32_t mode, prefix_t *pattern, uint64_t
+ 
+ }
+ 
+-__global__ void comp_keys_tron_pattern(uint64_t suffix5Value, bool forceFirstCandidate,
+-                                       bool sampleCandidates,
++__global__ void comp_keys_tron_pattern(uint64_t suffix5Value,
+                                        uint64_t *keys, uint32_t maxFound, uint32_t *found) {
+ 
+   int xPtr = (blockIdx.x*blockDim.x) * 8;
+   int yPtr = xPtr + 4 * blockDim.x;
+-  ComputeKeysTronPattern<false>(keys + xPtr, keys + yPtr, suffix5Value,
+-                                forceFirstCandidate, sampleCandidates, maxFound, found);
++  ComputeKeysTronPattern<false>(keys + xPtr, keys + yPtr, suffix5Value, maxFound, found);
+ 
+ }
+ 
+-__global__ void comp_keys_tron_prefix_pattern(uint64_t suffix5Value, bool forceFirstCandidate,
+-                                              bool sampleCandidates,
++__global__ void comp_keys_tron_prefix_pattern(uint64_t suffix5Value,
+                                               uint64_t *keys, uint32_t maxFound, uint32_t *found) {
+ 
+   int xPtr = (blockIdx.x*blockDim.x) * 8;
+   int yPtr = xPtr + 4 * blockDim.x;
+-  ComputeKeysTronPattern<true>(keys + xPtr, keys + yPtr, suffix5Value,
+-                               forceFirstCandidate, sampleCandidates, maxFound, found);
++  ComputeKeysTronPattern<true>(keys + xPtr, keys + yPtr, suffix5Value, maxFound, found);
+ 
+ }
+@@ -638,19 +635,13 @@ bool GPUEngine::callKernel() {
+       printf("GPUEngine: TRON requires wildcard pattern mode, for example T*CDEFG or TABC*CDEFG\n");
+       return false;
+     }
+-    bool forceFirstCandidate =
+-      getenv("TRON_DEBUG_FORCE_FIRST_CANDIDATE") != NULL &&
+-      strcmp(getenv("TRON_DEBUG_FORCE_FIRST_CANDIDATE"), "1") == 0;
+-    bool sampleCandidates =
+-      getenv("TRON_DEBUG_SAMPLE_CANDIDATES") != NULL &&
+-      strcmp(getenv("TRON_DEBUG_SAMPLE_CANDIDATES"), "1") == 0;
+     if (hasTronPrefixRange) {
+       comp_keys_tron_prefix_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+-        (tronSuffixValue, forceFirstCandidate, sampleCandidates, inputKey, maxFound, outputPrefix);
++        (tronSuffixValue, inputKey, maxFound, outputPrefix);
+     } else {
+       comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+-        (tronSuffixValue, forceFirstCandidate, sampleCandidates, inputKey, maxFound, outputPrefix);
++        (tronSuffixValue, inputKey, maxFound, outputPrefix);
+     }
+ 
+   } else if (searchType == P2SH) {

@@ -1,0 +1,56 @@
+diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
+index 9724e60..0000000 100644
+--- a/GPU/GPUTron.h
++++ b/GPU/GPUTron.h
+@@ -376,6 +376,32 @@ __device__ __noinline__ void tron_payload21_from_xy(
+   }
+ }
+ 
++#ifdef TRON_ENABLE_BASE58_LINEAR_RESIDUE
++__device__ __forceinline__ uint64_t tron_payload_words_base58p5_linear_residue(
++    uint32_t w0,
++    uint32_t w1,
++    uint32_t w2,
++    uint32_t w3,
++    uint32_t w4,
++    uint32_t w5,
++    uint32_t checksum4_be32) {
++  const uint32_t d0 = ((w0 & 0x00ffffffU) << 8) | (w1 >> 24);
++  const uint32_t d1 = ((w1 & 0x00ffffffU) << 8) | (w2 >> 24);
++  const uint32_t d2 = ((w2 & 0x00ffffffU) << 8) | (w3 >> 24);
++  const uint32_t d3 = ((w3 & 0x00ffffffU) << 8) | (w4 >> 24);
++  const uint32_t d4 = ((w4 & 0x00ffffffU) << 8) | (w5 >> 24);
++
++  uint64_t value = 146167680ULL;
++  value += static_cast<uint64_t>(d0) * 289024608ULL;
++  value += static_cast<uint64_t>(d1) * 21339008ULL;
++  value += static_cast<uint64_t>(d2) * 357132832ULL;
++  value += static_cast<uint64_t>(d3) * 410450016ULL;
++  value += static_cast<uint64_t>(d4) * 356826688ULL;
++  value += static_cast<uint64_t>(checksum4_be32);
++  return tron_mod58p5_fast_u64(value);
++}
++#endif
++
+ __device__ __noinline__ bool tron_payload_words_checksum_fused_matches_suffix5(
+     uint32_t w0,
+     uint32_t w1,
+@@ -423,6 +451,10 @@ __device__ __noinline__ bool tron_payload_words_checksum_fused_matches_suffix5(
+   SHA256Initialize(s);
+   SHA256Transform(s, w);
+ 
++#ifdef TRON_ENABLE_BASE58_LINEAR_RESIDUE
++  return tron_payload_words_base58p5_linear_residue(w0, w1, w2, w3, w4, w5, s[0]) ==
++         suffix5_value;
++#else
+   uint64_t value = 0x41ULL;
+   value = tron_mod58p5_append_be32(value, ((w0 & 0x00ffffffU) << 8) | (w1 >> 24));
+   value = tron_mod58p5_append_be32(value, ((w1 & 0x00ffffffU) << 8) | (w2 >> 24));
+@@ -432,6 +464,7 @@ __device__ __noinline__ bool tron_payload_words_checksum_fused_matches_suffix5(
+   value = tron_mod58p5_append_be32(value, ((w4 & 0x00ffffffU) << 8) | (w5 >> 24));
+   value = tron_mod58p5_append_be32(value, s[0]);
+   return value == suffix5_value;
++#endif
+ }
+ 
+ __device__ __noinline__ bool tron_check_xy_suffix5(

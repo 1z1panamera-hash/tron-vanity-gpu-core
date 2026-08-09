@@ -1,0 +1,251 @@
+diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
+index d34e4a1..b7d2e77 100644
+--- a/GPU/GPUTron.h
++++ b/GPU/GPUTron.h
+@@ -253,6 +253,16 @@ __device__ __forceinline__ uint32_t tron_bswap32(uint32_t value) {
+          ((value & 0x000000ffU) << 24);
+ }
+ 
++__device__ __forceinline__ uint64_t tron_keccak_coord_lane(
++    const uint64_t *coord,
++    int lane) {
++  const uint32_t *coord32 = reinterpret_cast<const uint32_t *>(coord);
++  const int hi = 7 - lane * 2;
++  const int lo = hi - 1;
++  return static_cast<uint64_t>(tron_bswap32(coord32[hi])) |
++         (static_cast<uint64_t>(tron_bswap32(coord32[lo])) << 32);
++}
++
+ __device__ __forceinline__ uint32_t tron_keccak_state_be32_aligned4(
+     const uint64_t state[25],
+     int word4_index) {
+@@ -286,6 +296,180 @@ __device__ __forceinline__ void tron_keccak_fixed64_tail(uint64_t state[25]) {
+   state[24] = 0;
+ }
+ 
++__device__ __forceinline__ void tron_payload21_write_digest_words(
++    uint8_t payload21[21],
++    uint32_t d0,
++    uint32_t d1,
++    uint32_t d2,
++    uint32_t d3,
++    uint32_t d4) {
++  payload21[0] = 0x41;
++  payload21[1] = static_cast<uint8_t>(d0 >> 24);
++  payload21[2] = static_cast<uint8_t>(d0 >> 16);
++  payload21[3] = static_cast<uint8_t>(d0 >> 8);
++  payload21[4] = static_cast<uint8_t>(d0);
++  payload21[5] = static_cast<uint8_t>(d1 >> 24);
++  payload21[6] = static_cast<uint8_t>(d1 >> 16);
++  payload21[7] = static_cast<uint8_t>(d1 >> 8);
++  payload21[8] = static_cast<uint8_t>(d1);
++  payload21[9] = static_cast<uint8_t>(d2 >> 24);
++  payload21[10] = static_cast<uint8_t>(d2 >> 16);
++  payload21[11] = static_cast<uint8_t>(d2 >> 8);
++  payload21[12] = static_cast<uint8_t>(d2);
++  payload21[13] = static_cast<uint8_t>(d3 >> 24);
++  payload21[14] = static_cast<uint8_t>(d3 >> 16);
++  payload21[15] = static_cast<uint8_t>(d3 >> 8);
++  payload21[16] = static_cast<uint8_t>(d3);
++  payload21[17] = static_cast<uint8_t>(d4 >> 24);
++  payload21[18] = static_cast<uint8_t>(d4 >> 16);
++  payload21[19] = static_cast<uint8_t>(d4 >> 8);
++  payload21[20] = static_cast<uint8_t>(d4);
++}
++
++#ifdef TRON_ENABLE_KECCAK_FIXED64_WORDS
++#define TRON_KECCAK_FIXED64_ROUND(rc) do { \
++  uint64_t c0 = a00 ^ a05 ^ a10 ^ a15 ^ a20; \
++  uint64_t c1 = a01 ^ a06 ^ a11 ^ a16 ^ a21; \
++  uint64_t c2 = a02 ^ a07 ^ a12 ^ a17 ^ a22; \
++  uint64_t c3 = a03 ^ a08 ^ a13 ^ a18 ^ a23; \
++  uint64_t c4 = a04 ^ a09 ^ a14 ^ a19 ^ a24; \
++  uint64_t d0 = c4 ^ tron_rotl64(c1, 1); \
++  uint64_t d1 = c0 ^ tron_rotl64(c2, 1); \
++  uint64_t d2 = c1 ^ tron_rotl64(c3, 1); \
++  uint64_t d3 = c2 ^ tron_rotl64(c4, 1); \
++  uint64_t d4 = c3 ^ tron_rotl64(c0, 1); \
++  a00 ^= d0; \
++  a05 ^= d0; \
++  a10 ^= d0; \
++  a15 ^= d0; \
++  a20 ^= d0; \
++  a01 ^= d1; \
++  a06 ^= d1; \
++  a11 ^= d1; \
++  a16 ^= d1; \
++  a21 ^= d1; \
++  a02 ^= d2; \
++  a07 ^= d2; \
++  a12 ^= d2; \
++  a17 ^= d2; \
++  a22 ^= d2; \
++  a03 ^= d3; \
++  a08 ^= d3; \
++  a13 ^= d3; \
++  a18 ^= d3; \
++  a23 ^= d3; \
++  a04 ^= d4; \
++  a09 ^= d4; \
++  a14 ^= d4; \
++  a19 ^= d4; \
++  a24 ^= d4; \
++  uint64_t b00 = a00; \
++  uint64_t b16 = tron_rotl64(a05, 36); \
++  uint64_t b07 = tron_rotl64(a10, 3); \
++  uint64_t b23 = tron_rotl64(a15, 41); \
++  uint64_t b14 = tron_rotl64(a20, 18); \
++  uint64_t b10 = tron_rotl64(a01, 1); \
++  uint64_t b01 = tron_rotl64(a06, 44); \
++  uint64_t b17 = tron_rotl64(a11, 10); \
++  uint64_t b08 = tron_rotl64(a16, 45); \
++  uint64_t b24 = tron_rotl64(a21, 2); \
++  uint64_t b20 = tron_rotl64(a02, 62); \
++  uint64_t b11 = tron_rotl64(a07, 6); \
++  uint64_t b02 = tron_rotl64(a12, 43); \
++  uint64_t b18 = tron_rotl64(a17, 15); \
++  uint64_t b09 = tron_rotl64(a22, 61); \
++  uint64_t b05 = tron_rotl64(a03, 28); \
++  uint64_t b21 = tron_rotl64(a08, 55); \
++  uint64_t b12 = tron_rotl64(a13, 25); \
++  uint64_t b03 = tron_rotl64(a18, 21); \
++  uint64_t b19 = tron_rotl64(a23, 56); \
++  uint64_t b15 = tron_rotl64(a04, 27); \
++  uint64_t b06 = tron_rotl64(a09, 20); \
++  uint64_t b22 = tron_rotl64(a14, 39); \
++  uint64_t b13 = tron_rotl64(a19, 8); \
++  uint64_t b04 = tron_rotl64(a24, 14); \
++  a00 = b00 ^ ((~b01) & b02); \
++  a01 = b01 ^ ((~b02) & b03); \
++  a02 = b02 ^ ((~b03) & b04); \
++  a03 = b03 ^ ((~b04) & b00); \
++  a04 = b04 ^ ((~b00) & b01); \
++  a05 = b05 ^ ((~b06) & b07); \
++  a06 = b06 ^ ((~b07) & b08); \
++  a07 = b07 ^ ((~b08) & b09); \
++  a08 = b08 ^ ((~b09) & b05); \
++  a09 = b09 ^ ((~b05) & b06); \
++  a10 = b10 ^ ((~b11) & b12); \
++  a11 = b11 ^ ((~b12) & b13); \
++  a12 = b12 ^ ((~b13) & b14); \
++  a13 = b13 ^ ((~b14) & b10); \
++  a14 = b14 ^ ((~b10) & b11); \
++  a15 = b15 ^ ((~b16) & b17); \
++  a16 = b16 ^ ((~b17) & b18); \
++  a17 = b17 ^ ((~b18) & b19); \
++  a18 = b18 ^ ((~b19) & b15); \
++  a19 = b19 ^ ((~b15) & b16); \
++  a20 = b20 ^ ((~b21) & b22); \
++  a21 = b21 ^ ((~b22) & b23); \
++  a22 = b22 ^ ((~b23) & b24); \
++  a23 = b23 ^ ((~b24) & b20); \
++  a24 = b24 ^ ((~b20) & b21); \
++  a00 ^= (rc); \
++} while (0)
++
++__device__ __noinline__ void tron_keccak_fixed64_words(
++    uint64_t x0,
++    uint64_t x1,
++    uint64_t x2,
++    uint64_t x3,
++    uint64_t y0,
++    uint64_t y1,
++    uint64_t y2,
++    uint64_t y3,
++    uint32_t *d0,
++    uint32_t *d1,
++    uint32_t *d2,
++    uint32_t *d3,
++    uint32_t *d4) {
++  uint64_t a00 = x0, a01 = x1, a02 = x2, a03 = x3, a04 = y0;
++  uint64_t a05 = y1, a06 = y2, a07 = y3, a08 = 0x01ULL, a09 = 0;
++  uint64_t a10 = 0, a11 = 0, a12 = 0, a13 = 0, a14 = 0;
++  uint64_t a15 = 0, a16 = 0x8000000000000000ULL, a17 = 0, a18 = 0, a19 = 0;
++  uint64_t a20 = 0, a21 = 0, a22 = 0, a23 = 0, a24 = 0;
++
++  TRON_KECCAK_FIXED64_ROUND(0x0000000000000001ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x0000000000008082ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x800000000000808aULL);
++  TRON_KECCAK_FIXED64_ROUND(0x8000000080008000ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x000000000000808bULL);
++  TRON_KECCAK_FIXED64_ROUND(0x0000000080000001ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x8000000080008081ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x8000000000008009ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x000000000000008aULL);
++  TRON_KECCAK_FIXED64_ROUND(0x0000000000000088ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x0000000080008009ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x000000008000000aULL);
++  TRON_KECCAK_FIXED64_ROUND(0x000000008000808bULL);
++  TRON_KECCAK_FIXED64_ROUND(0x800000000000008bULL);
++  TRON_KECCAK_FIXED64_ROUND(0x8000000000008089ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x8000000000008003ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x8000000000008002ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x8000000000000080ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x000000000000800aULL);
++  TRON_KECCAK_FIXED64_ROUND(0x800000008000000aULL);
++  TRON_KECCAK_FIXED64_ROUND(0x8000000080008081ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x8000000000008080ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x0000000080000001ULL);
++  TRON_KECCAK_FIXED64_ROUND(0x8000000080008008ULL);
++
++  *d0 = tron_bswap32(static_cast<uint32_t>((a01 >> 32) & 0xffffffffU));
++  *d1 = tron_bswap32(static_cast<uint32_t>(a02 & 0xffffffffU));
++  *d2 = tron_bswap32(static_cast<uint32_t>((a02 >> 32) & 0xffffffffU));
++  *d3 = tron_bswap32(static_cast<uint32_t>(a03 & 0xffffffffU));
++  *d4 = tron_bswap32(static_cast<uint32_t>((a03 >> 32) & 0xffffffffU));
++}
++#undef TRON_KECCAK_FIXED64_ROUND
++#endif
++
+ __device__ __noinline__ void tron_payload21_from_xy(
+     const uint64_t *x,
+     const uint64_t *y,
+@@ -377,5 +545,39 @@ __device__ __noinline__ bool tron_check_xy_suffix5(
+     bool force_accept,
+     uint8_t payload21[21]) {
++#ifdef TRON_ENABLE_KECCAK_FIXED64_WORDS
++  const uint64_t x0 = tron_keccak_coord_lane(x, 0);
++  const uint64_t x1 = tron_keccak_coord_lane(x, 1);
++  const uint64_t x2 = tron_keccak_coord_lane(x, 2);
++  const uint64_t x3 = tron_keccak_coord_lane(x, 3);
++  const uint64_t y0 = tron_keccak_coord_lane(y, 0);
++  const uint64_t y1 = tron_keccak_coord_lane(y, 1);
++  const uint64_t y2 = tron_keccak_coord_lane(y, 2);
++  const uint64_t y3 = tron_keccak_coord_lane(y, 3);
++  uint32_t d0;
++  uint32_t d1;
++  uint32_t d2;
++  uint32_t d3;
++  uint32_t d4;
++
++  tron_keccak_fixed64_words(x0, x1, x2, x3, y0, y1, y2, y3, &d0, &d1, &d2, &d3, &d4);
++
++  const uint32_t w0 =
++      0x41000000U |
++      (d0 >> 8);
++  const uint32_t w1 = ((d0 & 0x000000ffU) << 24) | (d1 >> 8);
++  const uint32_t w2 = ((d1 & 0x000000ffU) << 24) | (d2 >> 8);
++  const uint32_t w3 = ((d2 & 0x000000ffU) << 24) | (d3 >> 8);
++  const uint32_t w4 = ((d3 & 0x000000ffU) << 24) | (d4 >> 8);
++  const uint32_t w5 = ((d4 & 0x000000ffU) << 24) | 0x00800000U;
++
++  if (!force_accept &&
++      !tron_payload_words_checksum_fused_matches_suffix5(w0, w1, w2, w3, w4, w5, suffix5_value)) {
++    return false;
++  }
++
++  tron_payload21_write_digest_words(payload21, d0, d1, d2, d3, d4);
++  return true;
++#else
+   uint64_t state[25];
+ 
+   const uint32_t *x32 = reinterpret_cast<const uint32_t *>(x);
+@@ -417,7 +620,8 @@ __device__ __noinline__ bool tron_check_xy_suffix5(
+ 
+   payload21[0] = 0x41;
+   for (int i = 0; i < 20; ++i) payload21[i + 1] = tron_keccak_state_byte(state, 12 + i);
+   return true;
++#endif
+ }
+ 
+ __device__ __noinline__ uint32_t tron_checksum4_be32(const uint8_t payload21[21]) {

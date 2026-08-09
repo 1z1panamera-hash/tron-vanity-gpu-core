@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parent
 TEST_VECTOR_PATH = ROOT / "tests" / "phase0_test_vectors.json"
 GPU_BINARY_PATH = ROOT / "build" / "tron_gpu_worker"
 VANITYSEARCH_BINARY_PATH = ROOT / "build" / "vanitysearch_tron_worker"
+VANITYSEARCH_ROUND51_BINARY_PATH = ROOT / "build" / "vanitysearch_tron_worker_round51_sm120"
 GPU_SOURCE_PATH = ROOT / "src" / "tron_gpu_core.cu"
 DEFAULT_PREFIX_LEN = 0
 DEFAULT_SUFFIX_LEN = 5
@@ -36,6 +37,7 @@ SENSITIVE_OUTPUT_RE = re.compile(r"Priv|WIF|HEX|private_key|mnemonic|seed|token|
 SENSITIVE_MARKERS = ("Priv", "WIF", "HEX", "private_key", "mnemonic", "seed", "token", "secret")
 VANITYSEARCH_SPEED_RE = re.compile(r"\[([0-9.]+) Mkey/s\]\[GPU ([0-9.]+) Mkey/s\]")
 GPU_NAME_CACHE: Optional[str] = None
+GPU_COMPUTE_CAPABILITY_CACHE: Optional[str] = None
 HANDLER_INVOCATION_COUNT = 0
 APP_MODULE_READY_PERF: Optional[float] = None
 
@@ -188,9 +190,9 @@ def normalize_match_rule(payload: Dict[str, Any]) -> Dict[str, Any]:
 def selected_gpu_backend() -> str:
     explicit = os.environ.get("GPU_WORKER_BACKEND", "").strip().lower()
     if explicit:
-        if explicit not in {"self", "vanitysearch"}:
-            raise ValueError("GPU_WORKER_BACKEND must be self or vanitysearch")
-        return explicit
+        if explicit not in {"self", "vanitysearch", "auto"}:
+            raise ValueError("GPU_WORKER_BACKEND must be self, vanitysearch, or auto")
+        return "vanitysearch" if explicit == "auto" else explicit
     if VANITYSEARCH_BINARY_PATH.exists():
         return "vanitysearch"
     return "self"
@@ -227,16 +229,105 @@ def detect_gpu_name() -> Optional[str]:
     return first or None
 
 
+def detect_gpu_compute_capability() -> Optional[str]:
+    global GPU_COMPUTE_CAPABILITY_CACHE
+    if GPU_COMPUTE_CAPABILITY_CACHE is not None:
+        return GPU_COMPUTE_CAPABILITY_CACHE or None
+
+    explicit = os.environ.get("RUNPOD_GPU_COMPUTE_CAPABILITY", "").strip()
+    if explicit:
+        if not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", explicit):
+            raise ValueError("RUNPOD_GPU_COMPUTE_CAPABILITY must look like 12.0")
+        GPU_COMPUTE_CAPABILITY_CACHE = explicit
+        return explicit
+
+    nvidia_smi = shutil.which("nvidia-smi")
+    if nvidia_smi:
+        try:
+            result = subprocess.run(
+                [nvidia_smi, "--query-gpu=compute_cap", "--format=csv,noheader"],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            result = None
+        if result is not None and result.returncode == 0 and result.stdout.strip():
+            first = result.stdout.strip().splitlines()[0].strip()
+            if re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", first):
+                GPU_COMPUTE_CAPABILITY_CACHE = first
+                return first
+
+    name = (detect_gpu_name() or "").lower()
+    if "rtx 5090" in name or ("rtx pro 6000" in name and "blackwell" in name):
+        GPU_COMPUTE_CAPABILITY_CACHE = "12.0"
+        return "12.0"
+    GPU_COMPUTE_CAPABILITY_CACHE = ""
+    return None
+
+
+def is_blackwell_sm120(gpu_name: Optional[str], compute_capability: Optional[str]) -> bool:
+    if compute_capability:
+        try:
+            return int(compute_capability.split(".", 1)[0]) == 12
+        except ValueError:
+            return False
+    name = (gpu_name or "").lower()
+    return "rtx 5090" in name or ("rtx pro 6000" in name and "blackwell" in name)
+
+
+def select_vanitysearch_core() -> Dict[str, Any]:
+    requested = os.environ.get("VANITYSEARCH_CORE_VARIANT", "auto").strip().lower()
+    if requested not in {"auto", "legacy", "round51"}:
+        raise ValueError("VANITYSEARCH_CORE_VARIANT must be auto, legacy, or round51")
+
+    gpu_name = detect_gpu_name()
+    compute_capability = detect_gpu_compute_capability()
+    round51_supported = is_blackwell_sm120(gpu_name, compute_capability)
+    round51_ready = VANITYSEARCH_ROUND51_BINARY_PATH.exists()
+
+    if requested in {"auto", "round51"} and round51_supported and round51_ready:
+        return {
+            "variant": "round51-sm120",
+            "binary": VANITYSEARCH_ROUND51_BINARY_PATH,
+            "gpu_name": gpu_name,
+            "compute_capability": compute_capability,
+            "selection_reason": "blackwell-sm120-optimized",
+        }
+
+    fallback_reason = "legacy-requested"
+    if requested == "round51" and not round51_supported:
+        fallback_reason = "round51-unsupported-gpu"
+    elif requested == "round51" and not round51_ready:
+        fallback_reason = "round51-binary-missing"
+    elif requested == "auto" and not round51_supported:
+        fallback_reason = "auto-non-sm120"
+    elif requested == "auto" and not round51_ready:
+        fallback_reason = "auto-round51-binary-missing"
+    return {
+        "variant": "legacy-multiarch",
+        "binary": VANITYSEARCH_BINARY_PATH,
+        "gpu_name": gpu_name,
+        "compute_capability": compute_capability,
+        "selection_reason": fallback_reason,
+    }
+
+
 def validate_vanitysearch_gpu_grid(value: str) -> str:
     if not re.fullmatch(r"[0-9]+,[0-9]+", value):
         raise ValueError("gpu_grid must use VanitySearch format like 128,128")
     return value
 
 
-def default_vanitysearch_gpu_grid(gpu_name: Optional[str]) -> str:
+def default_vanitysearch_gpu_grid(gpu_name: Optional[str], core_variant: Optional[str] = None) -> str:
     override = os.environ.get("VANITYSEARCH_GPU_GRID", "").strip()
     if override:
         return validate_vanitysearch_gpu_grid(override)
+    if core_variant == "round51-sm120":
+        return validate_vanitysearch_gpu_grid(
+            os.environ.get("VANITYSEARCH_GPU_GRID_ROUND51", "160,128")
+        )
     name = (gpu_name or "").lower()
     if "mig" in name or "24gb" in name or "24 gb" in name:
         return validate_vanitysearch_gpu_grid(os.environ.get("VANITYSEARCH_GPU_GRID_MIG", DEFAULT_VANITYSEARCH_GPU_GRID))
@@ -249,9 +340,13 @@ def default_vanitysearch_gpu_grid(gpu_name: Optional[str]) -> str:
     return validate_vanitysearch_gpu_grid(DEFAULT_VANITYSEARCH_GPU_GRID)
 
 
-def vanitysearch_gpu_grid_from_payload(payload: Dict[str, Any]) -> tuple[str, Optional[str]]:
+def vanitysearch_gpu_grid_from_payload(
+    payload: Dict[str, Any], core_variant: Optional[str] = None
+) -> tuple[str, Optional[str]]:
     gpu_name = detect_gpu_name()
-    gpu_grid = str(payload.get("gpu_grid") or default_vanitysearch_gpu_grid(gpu_name))
+    gpu_grid = str(
+        payload.get("gpu_grid") or default_vanitysearch_gpu_grid(gpu_name, core_variant=core_variant)
+    )
     return validate_vanitysearch_gpu_grid(gpu_grid), gpu_name
 
 
@@ -439,12 +534,18 @@ def parse_vanitysearch_speed(stdout: str) -> Dict[str, Any]:
     }
 
 
-def run_vanitysearch_benchmark(suffix: str, duration_seconds: int, gpu_grid: str) -> Dict[str, Any]:
-    if not VANITYSEARCH_BINARY_PATH.exists():
+def run_vanitysearch_benchmark(
+    suffix: str,
+    duration_seconds: int,
+    gpu_grid: str,
+    binary_path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    selected_binary = binary_path or VANITYSEARCH_BINARY_PATH
+    if not selected_binary.exists():
         return {
             "ready": False,
             "error": "patched VanitySearch TRON worker is not built yet.",
-            "binary": str(VANITYSEARCH_BINARY_PATH),
+            "binary": str(selected_binary),
         }
     if not re.fullmatch(r"[1-9A-HJ-NP-Za-km-z]{5}", suffix):
         raise ValueError("suffix must be exactly 5 Base58 characters")
@@ -455,7 +556,7 @@ def run_vanitysearch_benchmark(suffix: str, duration_seconds: int, gpu_grid: str
     env = os.environ.copy()
     env["TRON_SUPPRESS_SECRET_OUTPUT"] = "1"
     command = [
-        str(VANITYSEARCH_BINARY_PATH),
+        str(selected_binary),
         "-gpu",
         "-t",
         "0",
@@ -501,7 +602,7 @@ def run_vanitysearch_benchmark(suffix: str, duration_seconds: int, gpu_grid: str
             "ready": True,
             "returncode": returncode,
             "error": "patched VanitySearch benchmark failed",
-            "binary": str(VANITYSEARCH_BINARY_PATH),
+            "binary": str(selected_binary),
             "stderr_tail": stderr[-2000:],
         }
     if (
@@ -512,7 +613,7 @@ def run_vanitysearch_benchmark(suffix: str, duration_seconds: int, gpu_grid: str
             "ready": True,
             "returncode": returncode,
             "error": "patched VanitySearch emitted a forbidden key marker",
-            "binary": str(VANITYSEARCH_BINARY_PATH),
+            "binary": str(selected_binary),
             "forbidden_markers": sorted(set(forbidden_output_markers(stdout) + forbidden_output_markers(stderr))),
         }
 
@@ -521,7 +622,7 @@ def run_vanitysearch_benchmark(suffix: str, duration_seconds: int, gpu_grid: str
         "ready": True,
         "returncode": returncode,
         "timeout_reached": returncode == 124,
-        "binary": str(VANITYSEARCH_BINARY_PATH),
+        "binary": str(selected_binary),
         "pattern": pattern,
         "gpu_grid": gpu_grid,
         "unsafe_test_output_allowed": unsafe_test_output_allowed(),
@@ -655,15 +756,17 @@ def run_vanitysearch_find_internal(
     gpu_grid: str,
     test_force_first_candidate: bool = False,
     test_seed: Optional[str] = None,
+    binary_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Run patched VanitySearch find mode and keep raw stdout internal-only."""
     subprocess_started = time.perf_counter()
-    if not VANITYSEARCH_BINARY_PATH.exists():
+    selected_binary = binary_path or VANITYSEARCH_BINARY_PATH
+    if not selected_binary.exists():
         return {
             "ready": False,
             "returncode": None,
             "error": "patched VanitySearch TRON worker is not built yet.",
-            "binary": str(VANITYSEARCH_BINARY_PATH),
+            "binary": str(selected_binary),
             "parsed": {},
             "timings": {
                 "binary_subprocess_seconds": 0.0,
@@ -693,7 +796,7 @@ def run_vanitysearch_find_internal(
         if not seed_args:
             seed_args = ["-s", "codex-fixed-find-debug-20260618"]
     command = [
-        str(VANITYSEARCH_BINARY_PATH),
+        str(selected_binary),
         "-gpu",
         "-stop",
         "-t",
@@ -725,7 +828,7 @@ def run_vanitysearch_find_internal(
             "ready": True,
             "returncode": None,
             "timeout": True,
-            "binary": str(VANITYSEARCH_BINARY_PATH),
+            "binary": str(selected_binary),
             "parsed": {"matched": False},
             "safe_diagnostics": {
                 "json_hit_count": 0,
@@ -762,7 +865,7 @@ def run_vanitysearch_find_internal(
             "ready": True,
             "returncode": result.returncode,
             "error": "patched VanitySearch emitted an unsafe output marker",
-            "binary": str(VANITYSEARCH_BINARY_PATH),
+            "binary": str(selected_binary),
             "forbidden_markers": sorted(set(forbidden_output_markers(result.stdout) + forbidden_output_markers(result.stderr))),
             "parsed": {},
             "timings": {
@@ -776,7 +879,7 @@ def run_vanitysearch_find_internal(
         "ready": True,
         "returncode": result.returncode,
         "timeout": result.returncode == 124,
-        "binary": str(VANITYSEARCH_BINARY_PATH),
+        "binary": str(selected_binary),
         "unsafe_test_output_allowed": unsafe_test_output_allowed(),
         "parsed": parsed,
         "safe_diagnostics": safe_diagnostics,
@@ -786,6 +889,13 @@ def run_vanitysearch_find_internal(
             "find_internal_seconds": rounded_seconds(elapsed_since(subprocess_started)),
         },
     }
+
+
+def vanitysearch_hard_failure(status: Dict[str, Any]) -> bool:
+    if not status.get("ready") or status.get("error"):
+        return True
+    returncode = status.get("returncode")
+    return isinstance(returncode, int) and returncode not in {0, 124}
 
 
 def parse_tron_seed_offset_probe(stdout: str) -> Dict[str, Any]:
@@ -1063,14 +1173,22 @@ def encrypt_private_key_with_age(private_key_hex: str, age_recipient: str) -> st
 def handle_health() -> Dict[str, Any]:
     vector_status = validate_vector_file()
     gpu_name = detect_gpu_name()
+    vanitysearch_core = select_vanitysearch_core() if selected_gpu_backend() == "vanitysearch" else None
     return {
         "mode": "health",
         "ready_for_gpu_benchmark": False,
         "gpu_worker_backend": selected_gpu_backend(),
         "gpu_name": gpu_name,
-        "default_vanitysearch_gpu_grid": default_vanitysearch_gpu_grid(gpu_name),
+        "default_vanitysearch_gpu_grid": default_vanitysearch_gpu_grid(
+            gpu_name,
+            core_variant=vanitysearch_core.get("variant") if vanitysearch_core else None,
+        ),
         "gpu_binary_exists": GPU_BINARY_PATH.exists(),
         "vanitysearch_binary_exists": VANITYSEARCH_BINARY_PATH.exists(),
+        "vanitysearch_round51_binary_exists": VANITYSEARCH_ROUND51_BINARY_PATH.exists(),
+        "vanitysearch_core_variant": vanitysearch_core.get("variant") if vanitysearch_core else None,
+        "vanitysearch_core_selection_reason": vanitysearch_core.get("selection_reason") if vanitysearch_core else None,
+        "gpu_compute_capability": vanitysearch_core.get("compute_capability") if vanitysearch_core else detect_gpu_compute_capability(),
         "runtime_nvcc_enabled": os.environ.get("ALLOW_RUNTIME_NVCC") == "1",
         "cuda_arch_candidates": cuda_arch_candidates(),
         "phase0_vectors": vector_status,
@@ -1136,14 +1254,25 @@ def handle_benchmark(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("kernel_mode must be incremental or scalar")
 
     if gpu_backend == "vanitysearch":
-        gpu_grid, gpu_name = vanitysearch_gpu_grid_from_payload(payload)
+        vanitysearch_core = select_vanitysearch_core()
+        gpu_grid, gpu_name = vanitysearch_gpu_grid_from_payload(
+            payload, core_variant=vanitysearch_core.get("variant")
+        )
         started = time.perf_counter()
-        benchmark_result = run_vanitysearch_benchmark(match_rule["suffix"], duration_seconds, gpu_grid)
+        benchmark_result = run_vanitysearch_benchmark(
+            match_rule["suffix"],
+            duration_seconds,
+            gpu_grid,
+            binary_path=vanitysearch_core["binary"],
+        )
         elapsed = time.perf_counter() - started
         return {
             "mode": "benchmark",
             "gpu_worker_backend": gpu_backend,
             "gpu_name": gpu_name,
+            "gpu_compute_capability": vanitysearch_core.get("compute_capability"),
+            "gpu_core_variant": vanitysearch_core.get("variant"),
+            "gpu_core_selection_reason": vanitysearch_core.get("selection_reason"),
             "duration_seconds": duration_seconds,
             "max_attempts": max_attempts,
             "match_rule": match_rule,
@@ -1244,11 +1373,16 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
     if gpu_backend == "vanitysearch":
         find_total_started = time.perf_counter()
         grid_started = time.perf_counter()
-        gpu_grid, gpu_name = vanitysearch_gpu_grid_from_payload(payload)
+        vanitysearch_core = select_vanitysearch_core()
+        gpu_grid, gpu_name = vanitysearch_gpu_grid_from_payload(
+            payload, core_variant=vanitysearch_core.get("variant")
+        )
         grid_seconds = elapsed_since(grid_started)
         test_force_first_candidate = bool(payload.get("test_force_first_candidate", False))
         test_seed_value = payload.get("test_seed")
         test_seed = str(test_seed_value) if test_seed_value is not None else None
+        core_fallback_from: Optional[str] = None
+        core_fallback_reason: Optional[str] = None
         started = time.perf_counter()
         binary_status = run_vanitysearch_find_internal(
             match_rule["suffix"],
@@ -1256,8 +1390,37 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
             gpu_grid,
             test_force_first_candidate=test_force_first_candidate,
             test_seed=test_seed,
+            binary_path=vanitysearch_core["binary"],
         )
         elapsed = time.perf_counter() - started
+        if (
+            vanitysearch_core.get("variant") == "round51-sm120"
+            and vanitysearch_hard_failure(binary_status)
+            and VANITYSEARCH_BINARY_PATH.exists()
+        ):
+            remaining_seconds = int(duration_seconds - elapsed)
+            if remaining_seconds >= 1:
+                core_fallback_from = "round51-sm120"
+                core_fallback_reason = "optimized-core-hard-failure"
+                fallback_gpu_grid, _ = vanitysearch_gpu_grid_from_payload(
+                    payload, core_variant="legacy-multiarch"
+                )
+                binary_status = run_vanitysearch_find_internal(
+                    match_rule["suffix"],
+                    remaining_seconds,
+                    fallback_gpu_grid,
+                    test_force_first_candidate=test_force_first_candidate,
+                    test_seed=test_seed,
+                    binary_path=VANITYSEARCH_BINARY_PATH,
+                )
+                elapsed = time.perf_counter() - started
+                gpu_grid = fallback_gpu_grid
+                vanitysearch_core = {
+                    **vanitysearch_core,
+                    "variant": "legacy-multiarch",
+                    "binary": VANITYSEARCH_BINARY_PATH,
+                    "selection_reason": "runtime-fallback",
+                }
         binary_timings = binary_status.get("timings", {}) if isinstance(binary_status.get("timings"), dict) else {}
         gpu_result = binary_status.get("parsed", {})
         safe_diagnostics = binary_status.get("safe_diagnostics", {})
@@ -1281,6 +1444,11 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "matched": False,
                 "gpu_worker_backend": gpu_backend,
                 "gpu_name": gpu_name,
+                "gpu_compute_capability": vanitysearch_core.get("compute_capability"),
+                "gpu_core_variant": vanitysearch_core.get("variant"),
+                "gpu_core_selection_reason": vanitysearch_core.get("selection_reason"),
+                "gpu_core_fallback_from": core_fallback_from,
+                "gpu_core_fallback_reason": core_fallback_reason,
                 "match_rule": match_rule,
                 "elapsed_seconds": elapsed,
                 "timings": base_timings,
@@ -1304,6 +1472,11 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "matched": False,
                 "gpu_worker_backend": gpu_backend,
                 "gpu_name": gpu_name,
+                "gpu_compute_capability": vanitysearch_core.get("compute_capability"),
+                "gpu_core_variant": vanitysearch_core.get("variant"),
+                "gpu_core_selection_reason": vanitysearch_core.get("selection_reason"),
+                "gpu_core_fallback_from": core_fallback_from,
+                "gpu_core_fallback_reason": core_fallback_reason,
                 "match_rule": match_rule,
                 "elapsed_seconds": elapsed,
                 "timings": base_timings,
@@ -1334,6 +1507,11 @@ def handle_find(payload: Dict[str, Any]) -> Dict[str, Any]:
             "matched": True,
             "gpu_worker_backend": gpu_backend,
             "gpu_name": gpu_name,
+            "gpu_compute_capability": vanitysearch_core.get("compute_capability"),
+            "gpu_core_variant": vanitysearch_core.get("variant"),
+            "gpu_core_selection_reason": vanitysearch_core.get("selection_reason"),
+            "gpu_core_fallback_from": core_fallback_from,
+            "gpu_core_fallback_reason": core_fallback_reason,
             "matched_address": gpu_result.get("matched_address"),
             "public_key_uncompressed_hex": gpu_result.get("public_key_uncompressed_hex"),
             "encrypted_private_key": encrypted_private_key,

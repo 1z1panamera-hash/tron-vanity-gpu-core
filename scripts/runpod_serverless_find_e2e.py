@@ -80,20 +80,22 @@ def request_json(method: str, url: str, api_key: str, payload: Dict[str, Any] | 
 
 
 def build_payload(args: argparse.Namespace) -> Dict[str, Any]:
-    return {
+    payload = {
         "input": {
             "mode": "find",
             "suffix": args.suffix,
             "age_recipient": args.age_recipient,
             "duration_seconds": args.duration_seconds,
             "max_attempts": args.max_attempts,
-            "gpu_grid": args.gpu_grid,
         },
         "policy": {
             "executionTimeout": args.execution_timeout_ms,
             "ttl": args.ttl_ms,
         },
     }
+    if args.gpu_grid:
+        payload["input"]["gpu_grid"] = args.gpu_grid
+    return payload
 
 
 def job_id_from_run_response(response: Dict[str, Any]) -> str | None:
@@ -162,7 +164,11 @@ def main() -> int:
     parser.add_argument("--cold-count", type=int, default=1)
     parser.add_argument("--duration-seconds", type=int, default=15)
     parser.add_argument("--max-attempts", type=int, default=10_000_000_000)
-    parser.add_argument("--gpu-grid", default="128,128")
+    parser.add_argument(
+        "--gpu-grid",
+        default="",
+        help="Optional override; omit to use the selected core's validated GPU profile.",
+    )
     parser.add_argument("--execution-timeout-ms", type=int, default=300_000)
     parser.add_argument("--ttl-ms", type=int, default=900_000)
     parser.add_argument("--poll-interval-seconds", type=float, default=1.0)
@@ -214,7 +220,7 @@ def main() -> int:
         "cold_count": args.cold_count,
         "allow_short_smoke": args.allow_short_smoke,
         "duration_seconds": args.duration_seconds,
-        "gpu_grid": args.gpu_grid,
+        "gpu_grid": args.gpu_grid or "auto",
         "notes": [
             "API key is read only from the selected environment variable and is not written to disk.",
             "Use only test age recipients and no customer data.",

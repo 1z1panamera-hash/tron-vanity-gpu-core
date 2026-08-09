@@ -1,0 +1,296 @@
+diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
+index 516f1fa..da26638 100644
+--- a/GPU/GPUCompute.h
++++ b/GPU/GPUCompute.h
+@@ -438,6 +438,166 @@ __device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, uint6
+ 
+ }
+ 
++#ifdef TRON_ENABLE_POINT_HASH_PIPELINE
++
++__device__ __forceinline__ void StoreTronPipelinePoint(
++    uint64_t *points,
++    uint32_t nbThread,
++    uint32_t offset,
++    const uint64_t *px,
++    const uint64_t *py) {
++  const uint32_t tid = (blockIdx.x * blockDim.x) + threadIdx.x;
++  const uint32_t pointCount = nbThread * GRP_SIZE;
++  const uint32_t pointIndex = offset * nbThread + tid;
++#pragma unroll
++  for (int limb = 0; limb < 4; ++limb) {
++    points[limb * pointCount + pointIndex] = px[limb];
++    points[(limb + 4) * pointCount + pointIndex] = py[limb];
++  }
++}
++
++__device__ void ComputeKeysTronPointBatch(
++    uint64_t *startx,
++    uint64_t *starty,
++    uint64_t *points,
++    uint32_t nbThread) {
++  uint64_t dx[GRP_SIZE / 2 + 1][4];
++  uint64_t px[4];
++  uint64_t py[4];
++  uint64_t pyn[4];
++  uint64_t sx[4];
++  uint64_t sy[4];
++  uint64_t dy[4];
++  uint64_t _s[4];
++  uint64_t _p2[4];
++
++  __syncthreads();
++  Load256A(sx, startx);
++  Load256A(sy, starty);
++  Load256(px, sx);
++  Load256(py, sy);
++
++  uint32_t i;
++  for (i = 0; i < HSIZE; ++i) ModSub256(dx[i], Gx[i], sx);
++  ModSub256(dx[i], Gx[i], sx);
++  ModSub256(dx[i + 1], _2Gnx, sx);
++  _ModInvGrouped(dx);
++
++  StoreTronPipelinePoint(points, nbThread, GRP_SIZE / 2, px, py);
++  ModNeg256(pyn, py);
++
++  for (i = 0; i < HSIZE; ++i) {
++    __syncthreads();
++    Load256(px, sx);
++    Load256(py, sy);
++    ModSub256(dy, Gy[i], py);
++    _ModMult(_s, dy, dx[i]);
++    _ModSqr(_p2, _s);
++    ModSub256(px, _p2, px);
++    ModSub256(px, Gx[i]);
++    ModSub256(py, Gx[i], px);
++    _ModMult(py, _s);
++    ModSub256(py, Gy[i]);
++    StoreTronPipelinePoint(points, nbThread, GRP_SIZE / 2 + (i + 1), px, py);
++
++    __syncthreads();
++    Load256(px, sx);
++    ModSub256(dy, pyn, Gy[i]);
++    _ModMult(_s, dy, dx[i]);
++    _ModSqr(_p2, _s);
++    ModSub256(px, _p2, px);
++    ModSub256(px, Gx[i]);
++    ModSub256(py, px, Gx[i]);
++    _ModMult(py, _s);
++    ModSub256(py, Gy[i], py);
++    StoreTronPipelinePoint(points, nbThread, GRP_SIZE / 2 - (i + 1), px, py);
++  }
++
++  __syncthreads();
++  Load256(px, sx);
++  Load256(py, sy);
++  ModNeg256(dy, Gy[i]);
++  ModSub256(dy, py);
++  _ModMult(_s, dy, dx[i]);
++  _ModSqr(_p2, _s);
++  ModSub256(px, _p2, px);
++  ModSub256(px, Gx[i]);
++  ModSub256(py, px, Gx[i]);
++  _ModMult(py, _s);
++  ModSub256(py, Gy[i], py);
++  StoreTronPipelinePoint(points, nbThread, 0, px, py);
++
++  ++i;
++  __syncthreads();
++  Load256(px, sx);
++  Load256(py, sy);
++  ModSub256(dy, _2Gny, py);
++  _ModMult(_s, dy, dx[i]);
++  _ModSqr(_p2, _s);
++  ModSub256(px, _p2, px);
++  ModSub256(px, _2Gnx);
++  ModSub256(py, _2Gnx, px);
++  _ModMult(py, _s);
++  ModSub256(py, _2Gny);
++
++  __syncthreads();
++  Store256A(startx, px);
++  Store256A(starty, py);
++}
++
++template <bool UsePrefix, int Endo>
++__device__ void HashTronPipelineCandidate(
++    const uint64_t *points,
++    uint32_t pointCount,
++    uint32_t nbThread,
++    uint32_t groupOffset,
++    uint64_t suffix5Value,
++    uint32_t maxFound,
++    uint32_t *out) {
++  const uint32_t pointIndex = (blockIdx.x * blockDim.x) + threadIdx.x;
++  if (pointIndex >= pointCount) return;
++
++  uint64_t x[4];
++#pragma unroll
++  for (int limb = 0; limb < 4; ++limb) x[limb] = points[limb * pointCount + pointIndex];
++  if (Endo == 1) {
++    uint64_t transformed[4];
++    _ModMult(transformed, x, _beta);
++    Load256(x, transformed);
++  } else if (Endo == 2) {
++    uint64_t transformed[4];
++    _ModMult(transformed, x, _beta2);
++    Load256(x, transformed);
++  }
++
++  uint64_t y[4];
++#pragma unroll
++  for (int limb = 0; limb < 4; ++limb) y[limb] = points[(limb + 4) * pointCount + pointIndex];
++  const uint64_t y0 = tron_keccak_coord_lane(y, 0);
++  const uint64_t y1 = tron_keccak_coord_lane(y, 1);
++  const uint64_t y2 = tron_keccak_coord_lane(y, 2);
++  const uint64_t y3 = tron_keccak_coord_lane(y, 3);
++  uint8_t payload21[21];
++  if (!tron_check_x_suffix5_fixed64_with_y_lanes<UsePrefix>(
++          x, y0, y1, y2, y3, suffix5Value, false, payload21)) {
++    return;
++  }
++
++  const uint32_t offset = pointIndex / nbThread;
++  const uint32_t tid = pointIndex - offset * nbThread;
++  const uint32_t pos = atomicAdd(out, 1);
++  if (pos < maxFound) {
++    out[pos * ITEM_SIZE32 + 1] = tid;
++    out[pos * ITEM_SIZE32 + 2] =
++        (uint32_t)((groupOffset + offset) << 16) | (uint32_t)Endo;
++    uint8_t *hashOut = reinterpret_cast<uint8_t *>(out + pos * ITEM_SIZE32 + 3);
++#pragma unroll
++    for (int byte = 0; byte < 20; ++byte) hashOut[byte] = payload21[byte + 1];
++  }
++}
++
++#endif
++
+ // -----------------------------------------------------------------------------------------
+ 
+ __device__ void ComputeKeys(uint32_t mode, uint64_t *startx, uint64_t *starty,
+diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
+index c0b91a8..5b85eb2 100644
+--- a/GPU/GPUEngine.cu
++++ b/GPU/GPUEngine.cu
+@@ -195,6 +195,30 @@ __global__ void comp_keys_tron_prefix_pattern(uint64_t suffix5Value,
+ 
+ }
+ 
++#ifdef TRON_ENABLE_POINT_HASH_PIPELINE
++
++__global__ void comp_keys_tron_emit_points(
++    uint64_t *points, uint64_t *keys, uint32_t nbThread) {
++  const int xPtr = (blockIdx.x * blockDim.x) * 8;
++  const int yPtr = xPtr + 4 * blockDim.x;
++  ComputeKeysTronPointBatch(keys + xPtr, keys + yPtr, points, nbThread);
++}
++
++template <bool UsePrefix, int Endo>
++__global__ void comp_keys_tron_hash_pipeline(
++    const uint64_t *points,
++    uint32_t pointCount,
++    uint32_t nbThread,
++    uint32_t groupOffset,
++    uint64_t suffix5Value,
++    uint32_t maxFound,
++    uint32_t *found) {
++  HashTronPipelineCandidate<UsePrefix, Endo>(
++      points, pointCount, nbThread, groupOffset, suffix5Value, maxFound, found);
++}
++
++#endif
++
+ //#define FULLCHECK
+ #ifdef FULLCHECK
+ 
+@@ -295,6 +319,7 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
+   this->rekey = rekey;
+   this->nbThreadPerGroup = nbThreadPerGroup;
+   initialised = false;
++  tronPointBuffer = NULL;
+   cudaError_t err;
+ 
+   int deviceCount = 0;
+@@ -380,6 +405,15 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
+     printf("GPUEngine: Allocate input memory: %s\n", cudaGetErrorString(err));
+     return;
+   }
++#ifdef TRON_ENABLE_POINT_HASH_PIPELINE
++  const size_t tronPointCount = static_cast<size_t>(nbThread) * GRP_SIZE;
++  const size_t tronPointBufferSize = tronPointCount * 8 * sizeof(uint64_t);
++  err = cudaMalloc((void **)&tronPointBuffer, tronPointBufferSize);
++  if (err != cudaSuccess) {
++    printf("GPUEngine: Allocate TRON point pipeline memory: %s\n", cudaGetErrorString(err));
++    return;
++  }
++#endif
+   err = cudaHostAlloc(&inputKeyPinned, nbThread * 32 * 2, cudaHostAllocWriteCombined | cudaHostAllocMapped);
+   if (err != cudaSuccess) {
+     printf("GPUEngine: Allocate input pinned memory: %s\n", cudaGetErrorString(err));
+@@ -465,6 +499,7 @@ void GPUEngine::PrintCudaInfo() {
+ GPUEngine::~GPUEngine() {
+ 
+   cudaFree(inputKey);
++  if (tronPointBuffer) cudaFree(tronPointBuffer);
+   cudaFree(inputPrefix);
+   if(inputPrefixLookUp) cudaFree(inputPrefixLookUp);
+   cudaFreeHost(outputPrefixPinned);
+@@ -635,6 +670,37 @@ bool GPUEngine::callKernel() {
+       printf("GPUEngine: TRON requires wildcard pattern mode, for example T*CDEFG or TABC*CDEFG\n");
+       return false;
+     }
++#ifdef TRON_ENABLE_POINT_HASH_PIPELINE
++    const uint32_t pointCount = static_cast<uint32_t>(nbThread) * GRP_SIZE;
++    const uint32_t pointBlocks =
++        (pointCount + static_cast<uint32_t>(nbThreadPerGroup) - 1U) /
++        static_cast<uint32_t>(nbThreadPerGroup);
++    for (uint32_t groupOffset = 0; groupOffset < STEP_SIZE; groupOffset += GRP_SIZE) {
++      comp_keys_tron_emit_points << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
++        (tronPointBuffer, inputKey, static_cast<uint32_t>(nbThread));
++      if (hasTronPrefixRange) {
++        comp_keys_tron_hash_pipeline<true, 0> << < pointBlocks, nbThreadPerGroup >> >
++          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++           tronSuffixValue, maxFound, outputPrefix);
++        comp_keys_tron_hash_pipeline<true, 1> << < pointBlocks, nbThreadPerGroup >> >
++          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++           tronSuffixValue, maxFound, outputPrefix);
++        comp_keys_tron_hash_pipeline<true, 2> << < pointBlocks, nbThreadPerGroup >> >
++          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++           tronSuffixValue, maxFound, outputPrefix);
++      } else {
++        comp_keys_tron_hash_pipeline<false, 0> << < pointBlocks, nbThreadPerGroup >> >
++          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++           tronSuffixValue, maxFound, outputPrefix);
++        comp_keys_tron_hash_pipeline<false, 1> << < pointBlocks, nbThreadPerGroup >> >
++          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++           tronSuffixValue, maxFound, outputPrefix);
++        comp_keys_tron_hash_pipeline<false, 2> << < pointBlocks, nbThreadPerGroup >> >
++          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++           tronSuffixValue, maxFound, outputPrefix);
++      }
++    }
++#else
+     if (hasTronPrefixRange) {
+       comp_keys_tron_prefix_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+         (tronSuffixValue, inputKey, maxFound, outputPrefix);
+@@ -642,6 +708,7 @@ bool GPUEngine::callKernel() {
+       comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+         (tronSuffixValue, inputKey, maxFound, outputPrefix);
+     }
++#endif
+ 
+   } else if (searchType == P2SH) {
+ 
+diff --git a/GPU/GPUEngine.h b/GPU/GPUEngine.h
+index 292dc0e..4469248 100644
+--- a/GPU/GPUEngine.h
++++ b/GPU/GPUEngine.h
+@@ -93,6 +93,7 @@ private:
+   uint32_t *inputPrefixLookUp;
+   uint32_t *inputPrefixLookUpPinned;
+   uint64_t *inputKey;
++  uint64_t *tronPointBuffer;
+   uint64_t *inputKeyPinned;
+   uint32_t *outputPrefix;
+   uint32_t *outputPrefixPinned;

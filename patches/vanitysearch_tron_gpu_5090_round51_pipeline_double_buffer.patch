@@ -1,0 +1,183 @@
+diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
+index 5b85eb2..29c19da 100644
+--- a/GPU/GPUEngine.cu
++++ b/GPU/GPUEngine.cu
+@@ -319,7 +319,16 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
+   this->rekey = rekey;
+   this->nbThreadPerGroup = nbThreadPerGroup;
+   initialised = false;
+-  tronPointBuffer = NULL;
++  tronPointBuffers[0] = NULL;
++  tronPointBuffers[1] = NULL;
++#ifdef TRON_ENABLE_POINT_HASH_DOUBLE_BUFFER
++  tronPointStream = NULL;
++  tronHashStream = NULL;
++  tronBufferReady[0] = NULL;
++  tronBufferReady[1] = NULL;
++  tronBufferConsumed[0] = NULL;
++  tronBufferConsumed[1] = NULL;
++#endif
+   cudaError_t err;
+ 
+   int deviceCount = 0;
+@@ -408,11 +417,33 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
+ #ifdef TRON_ENABLE_POINT_HASH_PIPELINE
+   const size_t tronPointCount = static_cast<size_t>(nbThread) * GRP_SIZE;
+   const size_t tronPointBufferSize = tronPointCount * 8 * sizeof(uint64_t);
+-  err = cudaMalloc((void **)&tronPointBuffer, tronPointBufferSize);
++  const int tronPointBufferCount =
++#ifdef TRON_ENABLE_POINT_HASH_DOUBLE_BUFFER
++      2;
++#else
++      1;
++#endif
++  for (int buffer = 0; buffer < tronPointBufferCount; ++buffer) {
++    err = cudaMalloc((void **)&tronPointBuffers[buffer], tronPointBufferSize);
++    if (err != cudaSuccess) {
++      printf("GPUEngine: Allocate TRON point pipeline memory: %s\n", cudaGetErrorString(err));
++      return;
++    }
++  }
++#ifdef TRON_ENABLE_POINT_HASH_DOUBLE_BUFFER
++  err = cudaStreamCreateWithFlags(&tronPointStream, cudaStreamNonBlocking);
++  if (err == cudaSuccess)
++    err = cudaStreamCreateWithFlags(&tronHashStream, cudaStreamNonBlocking);
++  for (int buffer = 0; buffer < 2 && err == cudaSuccess; ++buffer) {
++    err = cudaEventCreateWithFlags(&tronBufferReady[buffer], cudaEventDisableTiming);
++    if (err == cudaSuccess)
++      err = cudaEventCreateWithFlags(&tronBufferConsumed[buffer], cudaEventDisableTiming);
++  }
+   if (err != cudaSuccess) {
+-    printf("GPUEngine: Allocate TRON point pipeline memory: %s\n", cudaGetErrorString(err));
++    printf("GPUEngine: Create TRON pipeline streams/events: %s\n", cudaGetErrorString(err));
+     return;
+   }
++#endif
+ #endif
+   err = cudaHostAlloc(&inputKeyPinned, nbThread * 32 * 2, cudaHostAllocWriteCombined | cudaHostAllocMapped);
+   if (err != cudaSuccess) {
+@@ -499,7 +530,16 @@ void GPUEngine::PrintCudaInfo() {
+ GPUEngine::~GPUEngine() {
+ 
+   cudaFree(inputKey);
+-  if (tronPointBuffer) cudaFree(tronPointBuffer);
++#ifdef TRON_ENABLE_POINT_HASH_DOUBLE_BUFFER
++  for (int buffer = 0; buffer < 2; ++buffer) {
++    if (tronBufferReady[buffer]) cudaEventDestroy(tronBufferReady[buffer]);
++    if (tronBufferConsumed[buffer]) cudaEventDestroy(tronBufferConsumed[buffer]);
++  }
++  if (tronPointStream) cudaStreamDestroy(tronPointStream);
++  if (tronHashStream) cudaStreamDestroy(tronHashStream);
++#endif
++  for (int buffer = 0; buffer < 2; ++buffer)
++    if (tronPointBuffers[buffer]) cudaFree(tronPointBuffers[buffer]);
+   cudaFree(inputPrefix);
+   if(inputPrefixLookUp) cudaFree(inputPrefixLookUp);
+   cudaFreeHost(outputPrefixPinned);
+@@ -661,7 +701,11 @@ void GPUEngine::SetPrefix(std::vector<LPREFIX> prefixes, uint32_t totalPrefix) {
+ bool GPUEngine::callKernel() {
+ 
+   // Reset nbFound
++#ifdef TRON_ENABLE_POINT_HASH_DOUBLE_BUFFER
++  cudaMemsetAsync(outputPrefix, 0, 4, tronHashStream);
++#else
+   cudaMemset(outputPrefix,0,4);
++#endif
+ 
+   // Call the kernel (Perform STEP_SIZE keys per thread)
+   if (searchType == TRON_ADDR) {
+@@ -675,31 +719,50 @@ bool GPUEngine::callKernel() {
+     const uint32_t pointBlocks =
+-        (pointCount + static_cast<uint32_t>(nbThreadPerGroup) - 1U) /
+-        static_cast<uint32_t>(nbThreadPerGroup);
++        (pointCount + 256U - 1U) / 256U;
+-    for (uint32_t groupOffset = 0; groupOffset < STEP_SIZE; groupOffset += GRP_SIZE) {
++    uint32_t groupIndex = 0;
++    for (uint32_t groupOffset = 0; groupOffset < STEP_SIZE;
++         groupOffset += GRP_SIZE, ++groupIndex) {
++#ifdef TRON_ENABLE_POINT_HASH_DOUBLE_BUFFER
++      const uint32_t buffer = groupIndex & 1U;
++      if (groupIndex >= 2U)
++        cudaStreamWaitEvent(tronPointStream, tronBufferConsumed[buffer], 0);
++      comp_keys_tron_emit_points << < nbThread / nbThreadPerGroup, nbThreadPerGroup, 0, tronPointStream >> >
++        (tronPointBuffers[buffer], inputKey, static_cast<uint32_t>(nbThread));
++      cudaEventRecord(tronBufferReady[buffer], tronPointStream);
++      cudaStreamWaitEvent(tronHashStream, tronBufferReady[buffer], 0);
++#else
++      const uint32_t buffer = 0;
+       comp_keys_tron_emit_points << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+-        (tronPointBuffer, inputKey, static_cast<uint32_t>(nbThread));
++        (tronPointBuffers[buffer], inputKey, static_cast<uint32_t>(nbThread));
++#endif
+       if (hasTronPrefixRange) {
+-        comp_keys_tron_hash_pipeline<true, 0> << < pointBlocks, nbThreadPerGroup >> >
+-          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++        comp_keys_tron_hash_pipeline<true, 0> << < pointBlocks, 256, 0, tronHashStream >> >
++          (tronPointBuffers[buffer], pointCount, static_cast<uint32_t>(nbThread), groupOffset,
+            tronSuffixValue, maxFound, outputPrefix);
+-        comp_keys_tron_hash_pipeline<true, 1> << < pointBlocks, nbThreadPerGroup >> >
+-          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++        comp_keys_tron_hash_pipeline<true, 1> << < pointBlocks, 256, 0, tronHashStream >> >
++          (tronPointBuffers[buffer], pointCount, static_cast<uint32_t>(nbThread), groupOffset,
+            tronSuffixValue, maxFound, outputPrefix);
+-        comp_keys_tron_hash_pipeline<true, 2> << < pointBlocks, nbThreadPerGroup >> >
+-          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++        comp_keys_tron_hash_pipeline<true, 2> << < pointBlocks, 256, 0, tronHashStream >> >
++          (tronPointBuffers[buffer], pointCount, static_cast<uint32_t>(nbThread), groupOffset,
+            tronSuffixValue, maxFound, outputPrefix);
+       } else {
+-        comp_keys_tron_hash_pipeline<false, 0> << < pointBlocks, nbThreadPerGroup >> >
+-          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++        comp_keys_tron_hash_pipeline<false, 0> << < pointBlocks, 256, 0, tronHashStream >> >
++          (tronPointBuffers[buffer], pointCount, static_cast<uint32_t>(nbThread), groupOffset,
+            tronSuffixValue, maxFound, outputPrefix);
+-        comp_keys_tron_hash_pipeline<false, 1> << < pointBlocks, nbThreadPerGroup >> >
+-          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++        comp_keys_tron_hash_pipeline<false, 1> << < pointBlocks, 256, 0, tronHashStream >> >
++          (tronPointBuffers[buffer], pointCount, static_cast<uint32_t>(nbThread), groupOffset,
+            tronSuffixValue, maxFound, outputPrefix);
+-        comp_keys_tron_hash_pipeline<false, 2> << < pointBlocks, nbThreadPerGroup >> >
+-          (tronPointBuffer, pointCount, static_cast<uint32_t>(nbThread), groupOffset,
++        comp_keys_tron_hash_pipeline<false, 2> << < pointBlocks, 256, 0, tronHashStream >> >
++          (tronPointBuffers[buffer], pointCount, static_cast<uint32_t>(nbThread), groupOffset,
+            tronSuffixValue, maxFound, outputPrefix);
+       }
++#ifdef TRON_ENABLE_POINT_HASH_DOUBLE_BUFFER
++      cudaEventRecord(tronBufferConsumed[buffer], tronHashStream);
++#endif
+     }
++#ifdef TRON_ENABLE_POINT_HASH_DOUBLE_BUFFER
++    cudaStreamWaitEvent(0, tronBufferConsumed[(groupIndex - 1U) & 1U], 0);
++#endif
+ #else
+     if (hasTronPrefixRange) {
+       comp_keys_tron_prefix_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+diff --git a/GPU/GPUEngine.h b/GPU/GPUEngine.h
+index 4469248..dd57e36 100644
+--- a/GPU/GPUEngine.h
++++ b/GPU/GPUEngine.h
+@@ -19,6 +19,9 @@
+ #define GPUENGINEH
+ 
+ #include <vector>
++#ifdef TRON_ENABLE_POINT_HASH_DOUBLE_BUFFER
++#include <cuda_runtime_api.h>
++#endif
+ #include "../SECP256k1.h"
+ #include "GPUTronTypes.h"
+ 
+@@ -93,7 +96,13 @@ private:
+   uint32_t *inputPrefixLookUp;
+   uint32_t *inputPrefixLookUpPinned;
+   uint64_t *inputKey;
+-  uint64_t *tronPointBuffer;
++  uint64_t *tronPointBuffers[2];
++#ifdef TRON_ENABLE_POINT_HASH_DOUBLE_BUFFER
++  cudaStream_t tronPointStream;
++  cudaStream_t tronHashStream;
++  cudaEvent_t tronBufferReady[2];
++  cudaEvent_t tronBufferConsumed[2];
++#endif
+   uint64_t *inputKeyPinned;
+   uint32_t *outputPrefix;
+   uint32_t *outputPrefixPinned;

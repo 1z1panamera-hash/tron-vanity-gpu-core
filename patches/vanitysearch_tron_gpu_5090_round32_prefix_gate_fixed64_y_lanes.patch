@@ -1,0 +1,318 @@
+diff --git a/GPU/GPUCompute.h b/GPU/GPUCompute.h
+--- a/GPU/GPUCompute.h
++++ b/GPU/GPUCompute.h
+@@ -251,6 +251,7 @@ __device__ __noinline__ void CheckP2SHHash(uint32_t mode, prefix_t *prefix, uint
+ 
+ // -----------------------------------------------------------------------------------------
+ 
++template <bool UsePrefix>
+ __device__ __noinline__ void CheckTronPoint(
+     uint64_t *px,
+     uint64_t *py,
+@@ -272,11 +273,11 @@ __device__ __noinline__ void CheckTronPoint(
+   const uint64_t y1 = tron_keccak_coord_lane(py, 1);
+   const uint64_t y2 = tron_keccak_coord_lane(py, 2);
+   const uint64_t y3 = tron_keccak_coord_lane(py, 3);
+-  if (tron_check_x_suffix5_fixed64_with_y_lanes(px, y0, y1, y2, y3, suffix5Value,
+-                                                forcedCandidate || sampledCandidate, payload21)) {
++  if (tron_check_x_suffix5_fixed64_with_y_lanes<UsePrefix>(
++          px, y0, y1, y2, y3, suffix5Value, forcedCandidate || sampledCandidate, payload21)) {
+ #else
+   if (tron_check_xy_suffix5(px, py, suffix5Value, forcedCandidate || sampledCandidate, payload21)) {
+ #endif
+@@ -293,7 +294,7 @@ __device__ __noinline__ void CheckTronPoint(
+ 
+   _ModMult(pe1x, px, _beta);
+ #ifdef TRON_ENABLE_KECCAK_FIXED64_Y_LANES
+-  if (tron_check_x_suffix5_fixed64_with_y_lanes(pe1x, y0, y1, y2, y3, suffix5Value, false, payload21)) {
++  if (tron_check_x_suffix5_fixed64_with_y_lanes<UsePrefix>(pe1x, y0, y1, y2, y3, suffix5Value, false, payload21)) {
+ #else
+   if (tron_check_xy_suffix5(pe1x, py, suffix5Value, false, payload21)) {
+ #endif
+@@ -308,7 +309,7 @@ __device__ __noinline__ void CheckTronPoint(
+ 
+   _ModMult(pe2x, px, _beta2);
+ #ifdef TRON_ENABLE_KECCAK_FIXED64_Y_LANES
+-  if (tron_check_x_suffix5_fixed64_with_y_lanes(pe2x, y0, y1, y2, y3, suffix5Value, false, payload21)) {
++  if (tron_check_x_suffix5_fixed64_with_y_lanes<UsePrefix>(pe2x, y0, y1, y2, y3, suffix5Value, false, payload21)) {
+ #else
+   if (tron_check_xy_suffix5(pe2x, py, suffix5Value, false, payload21)) {
+ #endif
+@@ -326,8 +327,9 @@ __device__ __noinline__ void CheckTronPoint(
+ #endif
+ }
+ 
+-#define CHECK_TRON_PATTERN(incr) CheckTronPoint(px, py, j*GRP_SIZE + (incr), 0, suffix5Value, forceFirstCandidate, sampleCandidates, maxFound, out)
++#define CHECK_TRON_PATTERN(incr) CheckTronPoint<UsePrefix>(px, py, j*GRP_SIZE + (incr), 0, suffix5Value, forceFirstCandidate, sampleCandidates, maxFound, out)
+ 
++template <bool UsePrefix>
+ __device__ void ComputeKeysTronPattern(uint64_t *startx, uint64_t *starty, uint64_t suffix5Value,
+                                        bool forceFirstCandidate, bool sampleCandidates,
+                                        uint32_t maxFound, uint32_t *out) {
+diff --git a/GPU/GPUEngine.cu b/GPU/GPUEngine.cu
+--- a/GPU/GPUEngine.cu
++++ b/GPU/GPUEngine.cu
+@@ -57,6 +57,81 @@ static bool host_tron_suffix5_value(const char *suffix5, uint64_t *value) {
+   *value = out;
+   return true;
+ }
+ 
++static bool host_big25_mul_small(uint8_t value[25], uint32_t multiplier) {
++  uint32_t carry = 0;
++  for (int i = 24; i >= 0; --i) {
++    uint32_t v = static_cast<uint32_t>(value[i]) * multiplier + carry;
++    value[i] = static_cast<uint8_t>(v & 0xffU);
++    carry = v >> 8;
++  }
++  return carry == 0;
++}
++
++static bool host_big25_add_small(uint8_t value[25], uint32_t addend) {
++  uint32_t carry = addend;
++  for (int i = 24; i >= 0 && carry != 0; --i) {
++    uint32_t v = static_cast<uint32_t>(value[i]) + (carry & 0xffU);
++    value[i] = static_cast<uint8_t>(v & 0xffU);
++    carry = (carry >> 8) + (v >> 8);
++  }
++  return carry == 0;
++}
++
++static bool host_big25_sub_one(uint8_t value[25]) {
++  for (int i = 24; i >= 0; --i) {
++    if (value[i] != 0) {
++      --value[i];
++      return true;
++    }
++    value[i] = 0xff;
++  }
++  return false;
++}
++
++static uint64_t host_payload21_word(const uint8_t value[21], int word_index) {
++  uint64_t out = 0;
++  const int offset = word_index * 8;
++  const int limit = word_index == 2 ? 5 : 8;
++  for (int i = 0; i < limit; ++i) {
++    out |= static_cast<uint64_t>(value[offset + i]) << (56 - 8 * i);
++  }
++  return out;
++}
++
++static bool host_make_tron_prefix_range(
++    const char *prefix,
++    size_t prefix_len,
++    TronPrefixRange *range) {
++  if (!prefix || !range || prefix_len < 2 || prefix_len >= 34 || prefix[0] != 'T') {
++    return false;
++  }
++
++  memset(range, 0, sizeof(*range));
++  for (size_t i = 0; i < prefix_len; ++i) {
++    int digit = host_tron_base58_value(prefix[i]);
++    if (digit < 0) return false;
++    if (!host_big25_mul_small(range->low, 58U)) return false;
++    if (!host_big25_add_small(range->low, static_cast<uint32_t>(digit))) return false;
++  }
++  memcpy(range->high, range->low, sizeof(range->high));
++  if (!host_big25_add_small(range->high, 1U)) return false;
++  for (size_t i = prefix_len; i < 34; ++i) {
++    if (!host_big25_mul_small(range->low, 58U)) return false;
++    if (!host_big25_mul_small(range->high, 58U)) return false;
++  }
++  if (!host_big25_sub_one(range->high)) return false;
++
++  uint8_t possible_low21[21];
++  uint8_t possible_high21[21];
++  memcpy(possible_low21, range->low, sizeof(possible_low21));
++  memcpy(possible_high21, range->high, sizeof(possible_high21));
++  for (int i = 0; i < 3; ++i) {
++    range->possibleLowWords[i] = host_payload21_word(possible_low21, i);
++    range->possibleHighWords[i] = host_payload21_word(possible_high21, i);
++  }
++  return true;
++}
++
+ // ---------------------------------------------------------------------------------------
+ 
+ __global__ void comp_keys(uint32_t mode,prefix_t *prefix, uint32_t *lookup32, uint64_t *keys, uint32_t maxFound, uint32_t *found) {
+@@ -108,8 +183,19 @@ __global__ void comp_keys_tron_pattern(uint64_t suffix5Value, bool forceFirstCan
+ 
+   int xPtr = (blockIdx.x*blockDim.x) * 8;
+   int yPtr = xPtr + 4 * blockDim.x;
+-  ComputeKeysTronPattern(keys + xPtr, keys + yPtr, suffix5Value, forceFirstCandidate,
+-                         sampleCandidates, maxFound, found);
++  ComputeKeysTronPattern<false>(keys + xPtr, keys + yPtr, suffix5Value,
++                                forceFirstCandidate, sampleCandidates, maxFound, found);
++
++}
++
++__global__ void comp_keys_tron_prefix_pattern(uint64_t suffix5Value, bool forceFirstCandidate,
++                                              bool sampleCandidates,
++                                              uint64_t *keys, uint32_t maxFound, uint32_t *found) {
++
++  int xPtr = (blockIdx.x*blockDim.x) * 8;
++  int yPtr = xPtr + 4 * blockDim.x;
++  ComputeKeysTronPattern<true>(keys + xPtr, keys + yPtr, suffix5Value,
++                               forceFirstCandidate, sampleCandidates, maxFound, found);
+ 
+ }
+ 
+@@ -320,6 +406,7 @@ GPUEngine::GPUEngine(int nbThreadGroup, int nbThreadPerGroup, int gpuId, uint32_
+   pattern = "";
+   hasPattern = false;
+   hasTronRule = false;
++  hasTronPrefixRange = false;
+   memset(tronSuffix5, 0, sizeof(tronSuffix5));
+   tronSuffixValue = 0;
+   memset(&tronPrefixRange, 0, sizeof(tronPrefixRange));
+@@ -449,21 +536,43 @@ bool GPUEngine::SetTronPattern(const char *pattern) {
+     printf("GPUEngine: missing TRON pattern\n");
+     return false;
+   }
+-  size_t len = strlen(pattern);
+-  if (len != 7 || pattern[0] != 'T' || pattern[1] != '*') {
+-    printf("GPUEngine: TRON pattern must be T*<five-char-suffix>, for example T*CDEFG\n");
++  const char *wildcard = strchr(pattern, '*');
++  if (pattern[0] != 'T' || !wildcard || strchr(wildcard + 1, '*') != NULL) {
++    printf("GPUEngine: TRON pattern must be T*<five-char-suffix> or T<prefix>*<five-char-suffix>\n");
++    return false;
++  }
++  size_t prefixLen = static_cast<size_t>(wildcard - pattern);
++  size_t suffixLen = strlen(wildcard + 1);
++  if (prefixLen < 1 || prefixLen >= 34 || suffixLen != 5) {
++    printf("GPUEngine: TRON pattern must be T*<five-char-suffix> or T<prefix>*<five-char-suffix>\n");
+     return false;
+   }
+   uint64_t suffixValue = 0;
+-  if (!host_tron_suffix5_value(pattern + 2, &suffixValue)) {
++  if (!host_tron_suffix5_value(wildcard + 1, &suffixValue)) {
+     printf("GPUEngine: invalid TRON Base58 suffix\n");
+     return false;
+   }
++  TronPrefixRange prefixRange;
++  bool hasPrefixRange = prefixLen > 1;
++  if (hasPrefixRange && !host_make_tron_prefix_range(pattern, prefixLen, &prefixRange)) {
++    printf("GPUEngine: invalid TRON Base58 prefix\n");
++    return false;
++  }
+ 
+   SetPattern(pattern);
+-  memcpy(tronSuffix5, pattern + 2, 5);
++  memcpy(tronSuffix5, wildcard + 1, 5);
+   tronSuffix5[5] = 0;
+   tronSuffixValue = suffixValue;
++  hasTronPrefixRange = hasPrefixRange;
++  if (hasPrefixRange) {
++    tronPrefixRange = prefixRange;
++    cudaMemcpyToSymbol(tronPrefixLowWordsConst, tronPrefixRange.possibleLowWords,
++                       sizeof(tronPrefixRange.possibleLowWords));
++    cudaMemcpyToSymbol(tronPrefixHighWordsConst, tronPrefixRange.possibleHighWords,
++                       sizeof(tronPrefixRange.possibleHighWords));
++  } else {
++    memset(&tronPrefixRange, 0, sizeof(tronPrefixRange));
++  }
+   hasTronRule = true;
+   return true;
+ 
+@@ -525,18 +634,25 @@ bool GPUEngine::callKernel() {
+   if (searchType == TRON_ADDR) {
+ 
+     if (!hasPattern || !hasTronRule) {
+-      printf("GPUEngine: TRON currently requires suffix-only wildcard pattern mode, for example T*CDEFG\n");
++      printf("GPUEngine: TRON requires wildcard pattern mode, for example T*CDEFG or TABC*CDEFG\n");
+       return false;
+     }
+     bool forceFirstCandidate =
+       getenv("TRON_DEBUG_FORCE_FIRST_CANDIDATE") != NULL &&
+       strcmp(getenv("TRON_DEBUG_FORCE_FIRST_CANDIDATE"), "1") == 0;
+     bool sampleCandidates =
+       getenv("TRON_DEBUG_SAMPLE_CANDIDATES") != NULL &&
+       strcmp(getenv("TRON_DEBUG_SAMPLE_CANDIDATES"), "1") == 0;
+-    comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
+-      (tronSuffixValue, forceFirstCandidate, sampleCandidates, inputKey, maxFound, outputPrefix);
++    if (hasTronPrefixRange) {
++      comp_keys_tron_prefix_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
++        (tronSuffixValue, forceFirstCandidate, sampleCandidates, inputKey, maxFound, outputPrefix);
++    } else {
++      comp_keys_tron_pattern << < nbThread / nbThreadPerGroup, nbThreadPerGroup >> >
++        (tronSuffixValue, forceFirstCandidate, sampleCandidates, inputKey, maxFound, outputPrefix);
++    }
+ 
+   } else if (searchType == P2SH) {
+ 
+diff --git a/GPU/GPUEngine.h b/GPU/GPUEngine.h
+--- a/GPU/GPUEngine.h
++++ b/GPU/GPUEngine.h
+@@ -107,6 +107,7 @@ private:
+   std::string pattern;
+   bool hasPattern;
+   bool hasTronRule;
++  bool hasTronPrefixRange;
+   char tronSuffix5[6];
+   uint64_t tronSuffixValue;
+   TronPrefixRange tronPrefixRange;
+diff --git a/GPU/GPUTron.h b/GPU/GPUTron.h
+--- a/GPU/GPUTron.h
++++ b/GPU/GPUTron.h
+@@ -11,6 +11,9 @@
+ #include <stdint.h>
+ #include "GPUTronTypes.h"
+ 
++__device__ __constant__ uint64_t tronPrefixLowWordsConst[3];
++__device__ __constant__ uint64_t tronPrefixHighWordsConst[3];
++
+ __device__ __forceinline__ int tron_base58_value(char c) {
+   const char alphabet[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+   for (int i = 0; i < 58; ++i) {
+@@ -79,6 +82,15 @@ __device__ __forceinline__ bool tron_payload21_can_match_prefix_range(
+          tron_payload21_words_compare(words, prefixRange.possibleHighWords) <= 0;
+ }
+ 
++__device__ __forceinline__ bool tron_payload_first_word_can_match_prefix_const(
++    uint32_t w0,
++    uint32_t w1) {
++  const uint64_t p0 = (static_cast<uint64_t>(w0) << 32) | static_cast<uint64_t>(w1);
++  return p0 >= tronPrefixLowWordsConst[0] && p0 <= tronPrefixHighWordsConst[0];
++}
++
+ __device__ __forceinline__ uint32_t tron_read_be32(const uint8_t *bytes) {
+   return (static_cast<uint32_t>(bytes[0]) << 24) |
+          (static_cast<uint32_t>(bytes[1]) << 16) |
+@@ -587,33 +599,38 @@ __device__ __noinline__ bool tron_payload_words_checksum_fused_matches_suffix5(
+ }
+ 
+ #if defined(TRON_ENABLE_KECCAK_FIXED64_WORDS) && defined(TRON_ENABLE_KECCAK_FIXED64_Y_LANES)
++template <bool UsePrefix>
+ __device__ __noinline__ bool tron_check_x_suffix5_fixed64_with_y_lanes(
+     const uint64_t *x,
+     uint64_t y0,
+     uint64_t y1,
+     uint64_t y2,
+     uint64_t y3,
+     uint64_t suffix5_value,
+     bool force_accept,
+     uint8_t payload21[21]) {
+   const uint64_t x0 = tron_keccak_coord_lane(x, 0);
+   const uint64_t x1 = tron_keccak_coord_lane(x, 1);
+   const uint64_t x2 = tron_keccak_coord_lane(x, 2);
+   const uint64_t x3 = tron_keccak_coord_lane(x, 3);
+   uint32_t d0;
+   uint32_t d1;
+   uint32_t d2;
+   uint32_t d3;
+   uint32_t d4;
+   tron_keccak_fixed64_words(x0, x1, x2, x3, y0, y1, y2, y3, &d0, &d1, &d2, &d3, &d4);
+   const uint32_t w0 =
+       0x41000000U |
+       (d0 >> 8);
+   const uint32_t w1 = ((d0 & 0x000000ffU) << 24) | (d1 >> 8);
+   const uint32_t w2 = ((d1 & 0x000000ffU) << 24) | (d2 >> 8);
+   const uint32_t w3 = ((d2 & 0x000000ffU) << 24) | (d3 >> 8);
+   const uint32_t w4 = ((d3 & 0x000000ffU) << 24) | (d4 >> 8);
+   const uint32_t w5 = ((d4 & 0x000000ffU) << 24) | 0x00800000U;
++  if (UsePrefix && !force_accept &&
++      !tron_payload_first_word_can_match_prefix_const(w0, w1)) {
++    return false;
++  }
+   if (!force_accept &&
+       !tron_payload_words_checksum_fused_matches_suffix5(w0, w1, w2, w3, w4, w5, suffix5_value)) {
